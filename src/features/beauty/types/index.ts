@@ -39,6 +39,7 @@ export interface Customer {
   messagingConsent: boolean;
   nextReactivation: string;
   usualServices: string[];
+  appointmentCount?: number;
 }
 
 export interface AppointmentHistoryItem {
@@ -54,12 +55,18 @@ export interface Appointment {
   end: string;
   customerId: string;
   serviceId: string;
+  serviceIds?: string[];
   staffId: string;
   status: AppointmentStatus;
   notes?: string;
   hasReferencePhoto?: boolean;
   source: 'WhatsApp IA' | 'Manual' | 'Teléfono';
   history: AppointmentHistoryItem[];
+  totalDurationMinutes?: number;
+  totalPrice?: number;
+  currency?: string;
+  historyLoaded?: boolean;
+  historyError?: boolean;
 }
 
 export interface ConversationMessage {

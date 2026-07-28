@@ -21,21 +21,18 @@ import {
   UsersRound,
   WandSparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { beautyEnvironment } from '../../config/environment';
 import { useAuth } from '../auth/hooks/AuthProvider';
 import { signOut } from '../auth/services/authService';
 import { useBeautyBusiness } from './context/BeautyBusinessProvider';
+import { BeautyDataProvider, useBeautyData } from './context/BeautyDataProvider';
 import {
-  appointments as initialAppointments,
   automationRules as initialAutomationRules,
   business,
   conversations as initialConversations,
-  customers,
+  customers as mockCustomers,
   demoToday,
-  services,
-  staff,
-  timeBlocks,
 } from './mock/data';
 import type { Appointment, AppointmentStatus, BeautyRoute, Conversation, ConversationStatus, Customer } from './types';
 import {
@@ -60,16 +57,20 @@ const dateLabels: Record<string, string> = {
   '2026-07-30': 'Jueves, 30 de julio',
 };
 
-function findCustomer(id: string) {
-  return customers.find((customer) => customer.id === id)!;
+const incompleteCustomer: Customer = { id: 'incomplete', name: 'Cliente no disponible', phone: '', maskedPhone: 'Sin teléfono', lastVisit: 'Sin datos', recommendedService: 'Sin datos', recurrent: false, notes: '', messagingConsent: false, nextReactivation: 'Sin datos', usualServices: ['Sin datos'] };
+const incompleteService: import('./types').BeautyService = { id: 'incomplete', name: 'Servicio no disponible', durationMinutes: 0, price: 0, category: 'hair' };
+const incompleteStaff: import('./types').StaffMember = { id: 'incomplete', name: 'Profesional no disponible', role: 'Sin datos', initials: '—', accent: 'sand' };
+
+function findCustomer(customers: Customer[], id: string) {
+  return customers.find((customer) => customer.id === id) ?? incompleteCustomer;
 }
 
-function findService(id: string) {
-  return services.find((service) => service.id === id)!;
+function findService(services: import('./types').BeautyService[], id: string) {
+  return services.find((service) => service.id === id) ?? incompleteService;
 }
 
-function findStaff(id: string) {
-  return staff.find((member) => member.id === id)!;
+function findStaff(staff: import('./types').StaffMember[], id: string) {
+  return staff.find((member) => member.id === id) ?? incompleteStaff;
 }
 
 function Kicker({ children }: { children: string }) {
@@ -77,16 +78,34 @@ function Kicker({ children }: { children: string }) {
 }
 
 export function BeautyApp() {
+  return <BeautyDataProvider><BeautyDataGate /></BeautyDataProvider>;
+}
+
+function BeautyDataGate() {
+  const beautyData = useBeautyData();
+  if (beautyData.status === 'loading') {
+    return <div className="beauty-data-state" role="status"><span className="beauty-data-spinner" /><h1>Cargando tu negocio…</h1><p>Estamos preparando agenda, clientes y equipo.</p></div>;
+  }
+  if (beautyData.status === 'error') {
+    return <div className="beauty-data-state" role="alert"><ShieldCheck size={32} /><h1>No podemos cargar los datos</h1><p>{beautyData.message}</p><button onClick={beautyData.retry} type="button">Volver a intentar</button></div>;
+  }
+  return <BeautyManager />;
+}
+
+function BeautyManager() {
   void beautyEnvironment.productId;
   const auth = useAuth();
   const membership = useBeautyBusiness();
+  const beautyData = useBeautyData();
+  if (beautyData.status !== 'ready') return null;
+  const { appointments: loadedAppointments, customers, services, staff, timeBlocks } = beautyData.data;
   const businessName = membership.business.name;
   const ownerDisplayName = auth.user?.user_metadata?.full_name
     ?? auth.user?.user_metadata?.name
     ?? auth.user?.email?.split('@')[0]
     ?? business.ownerName;
   const [route, setRoute] = useState<BeautyRoute>('today');
-  const [appointments, setAppointments] = useState(initialAppointments);
+  const [appointments, setAppointments] = useState(loadedAppointments);
   const [conversations, setConversations] = useState(initialConversations);
   const [automationRules, setAutomationRules] = useState(initialAutomationRules);
   const [selectedDate, setSelectedDate] = useState(demoToday);
@@ -96,9 +115,17 @@ export function BeautyApp() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
+  useEffect(() => {
+    setAppointments(loadedAppointments);
+  }, [loadedAppointments]);
+
   const selectedAppointment = appointments.find((appointment) => appointment.id === selectedAppointmentId) ?? null;
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) ?? null;
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
+
+  useEffect(() => {
+    if (selectedAppointmentId) void beautyData.loadAppointmentHistory(selectedAppointmentId);
+  }, [beautyData.loadAppointmentHistory, selectedAppointmentId]);
 
   function showToast(message: string) {
     setToast(message);
@@ -133,11 +160,11 @@ export function BeautyApp() {
       </aside>
 
       <main className="beauty-main">
-        {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} navigate={navigate} onOpenAppointment={setSelectedAppointmentId} ownerDisplayName={ownerDisplayName} showToast={showToast} />}
-        {route === 'agenda' && <AgendaPage appointments={appointments} date={selectedDate} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} staffFilter={staffFilter} setStaffFilter={setStaffFilter} />}
-        {route === 'customers' && <CustomersPage onOpenCustomer={setSelectedCustomerId} />}
+        {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} customers={customers} navigate={navigate} onOpenAppointment={setSelectedAppointmentId} ownerDisplayName={ownerDisplayName} services={services} showToast={showToast} staff={staff} />}
+        {route === 'agenda' && <AgendaPage appointments={appointments} customers={customers} date={selectedDate} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} />}
+        {route === 'customers' && <CustomersPage customers={customers} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && <MessagesPage conversations={conversations} onOpenConversation={setSelectedConversationId} />}
-        {route === 'more' && <MorePage businessName={businessName} navigate={navigate} onSignOut={() => void signOut()} showToast={showToast} />}
+        {route === 'more' && <MorePage businessName={businessName} navigate={navigate} onSignOut={() => void signOut()} serviceCount={services.length} showToast={showToast} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
       </main>
 
@@ -146,6 +173,11 @@ export function BeautyApp() {
       {selectedAppointment && (
         <AppointmentDetail
           appointment={selectedAppointment}
+          appointmentServices={beautyData.data.appointmentServices}
+          customers={customers}
+          readOnly={beautyData.mode === 'supabase'}
+          services={services}
+          staff={staff}
           onClose={() => setSelectedAppointmentId(null)}
           onOpenConversation={() => {
             const conversation = conversations.find((item) => item.customerId === selectedAppointment.customerId);
@@ -157,7 +189,7 @@ export function BeautyApp() {
           showToast={showToast}
         />
       )}
-      {selectedCustomer && <CustomerDetail customer={selectedCustomer} onClose={() => setSelectedCustomerId(null)} onOpenAppointment={setSelectedAppointmentId} />}
+      {selectedCustomer && <CustomerDetail appointments={appointments} customer={selectedCustomer} onClose={() => setSelectedCustomerId(null)} onOpenAppointment={setSelectedAppointmentId} services={services} staff={staff} />}
       {selectedConversation && (
         <ConversationDetail
           conversation={selectedConversation}
@@ -170,7 +202,7 @@ export function BeautyApp() {
   );
 }
 
-function TodayPage({ appointments, businessName, navigate, onOpenAppointment, ownerDisplayName, showToast }: { appointments: Appointment[]; businessName: string; navigate: (route: BeautyRoute) => void; onOpenAppointment: (id: string) => void; ownerDisplayName: string; showToast: (message: string) => void }) {
+function TodayPage({ appointments, businessName, customers, navigate, onOpenAppointment, ownerDisplayName, services, showToast, staff }: { appointments: Appointment[]; businessName: string; customers: Customer[]; navigate: (route: BeautyRoute) => void; onOpenAppointment: (id: string) => void; ownerDisplayName: string; services: import('./types').BeautyService[]; showToast: (message: string) => void; staff: import('./types').StaffMember[] }) {
   const todayAppointments = appointments.filter((appointment) => appointment.date === demoToday);
   const activeAppointments = todayAppointments.filter((appointment) => appointment.status !== 'cancelled');
   const nextAppointment = activeAppointments.find((appointment) => ['pending', 'confirmed'].includes(appointment.status)) ?? activeAppointments[0];
@@ -209,9 +241,9 @@ function TodayPage({ appointments, businessName, navigate, onOpenAppointment, ow
             <div className="next-appointment__time"><small>Próxima</small><strong>{nextAppointment.start}</strong><span>{nextAppointment.end}</span></div>
             <div className="next-appointment__content">
               <StatusBadge status={nextAppointment.status} />
-              <h2>{findCustomer(nextAppointment.customerId).name}</h2>
-              <p>{findService(nextAppointment.serviceId).name}</p>
-              <span>con {findStaff(nextAppointment.staffId).name}</span>
+              <h2>{findCustomer(customers, nextAppointment.customerId).name}</h2>
+              <p>{findService(services, nextAppointment.serviceId).name}</p>
+              <span>con {findStaff(staff, nextAppointment.staffId).name}</span>
             </div>
             <button aria-label="Abrir próxima cita" className="round-arrow" onClick={() => onOpenAppointment(nextAppointment.id)} type="button"><ChevronRight size={22} /></button>
           </article>
@@ -220,11 +252,11 @@ function TodayPage({ appointments, businessName, navigate, onOpenAppointment, ow
 
       <section>
         <div className="section-heading"><Kicker>Agenda del día</Kicker><span>{activeAppointments.length} citas</span></div>
-        <div className="appointment-list">
+        {todayAppointments.length ? <div className="appointment-list">
           {todayAppointments.slice(0, 5).map((appointment) => (
-            <AppointmentCard appointment={appointment} customer={findCustomer(appointment.customerId)} key={appointment.id} onOpen={() => onOpenAppointment(appointment.id)} service={findService(appointment.serviceId)} staffMember={findStaff(appointment.staffId)} />
+            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} key={appointment.id} onOpen={() => onOpenAppointment(appointment.id)} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
           ))}
-        </div>
+        </div> : <div className="empty-state empty-state--compact"><CalendarDays /><h2>Hoy no hay citas</h2><p>La agenda está libre para este día.</p></div>}
       </section>
 
       <section>
@@ -240,7 +272,7 @@ function TodayPage({ appointments, businessName, navigate, onOpenAppointment, ow
   );
 }
 
-function AgendaPage({ appointments, date, onDateChange, onOpenAppointment, staffFilter, setStaffFilter }: { appointments: Appointment[]; date: string; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; staffFilter: string; setStaffFilter: (id: string) => void }) {
+function AgendaPage({ appointments, customers, date, onDateChange, onOpenAppointment, services, staff, staffFilter, setStaffFilter, timeBlocks }: { appointments: Appointment[]; customers: Customer[]; date: string; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffFilter: string; setStaffFilter: (id: string) => void; timeBlocks: import('./types').TimeBlock[] }) {
   const index = dates.indexOf(date);
   const visibleAppointments = appointments
     .filter((appointment) => appointment.date === date && (staffFilter === 'all' || appointment.staffId === staffFilter))
@@ -262,17 +294,17 @@ function AgendaPage({ appointments, date, onDateChange, onOpenAppointment, staff
       <div className="agenda-timeline">
         {visibleAppointments.length ? visibleAppointments.map((appointment, appointmentIndex) => (
           <div key={appointment.id}>
-            <AppointmentCard appointment={appointment} customer={findCustomer(appointment.customerId)} onOpen={() => onOpenAppointment(appointment.id)} service={findService(appointment.serviceId)} staffMember={findStaff(appointment.staffId)} />
-            {appointmentIndex === 1 && date === demoToday && <EmptySlot end="12:00" staffName={staffFilter === 'all' ? undefined : findStaff(staffFilter).name} start="11:35" />}
+            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} onOpen={() => onOpenAppointment(appointment.id)} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
+            {appointmentIndex === 1 && date === demoToday && <EmptySlot end="12:00" staffName={staffFilter === 'all' ? undefined : findStaff(staff, staffFilter).name} start="11:35" />}
           </div>
         )) : <div className="empty-state"><CalendarDays /><h2>Un día tranquilo</h2><p>No hay citas para este filtro.</p></div>}
-        {timeBlocks.filter((block) => block.date === date && (staffFilter === 'all' || block.staffId === staffFilter)).map((block) => <div className="time-block" key={block.id}><LockKeyhole size={17} /><span><strong>{block.start}–{block.end}</strong>{block.reason} · {findStaff(block.staffId).name}</span></div>)}
+        {timeBlocks.filter((block) => block.date === date && (staffFilter === 'all' || block.staffId === staffFilter || block.staffId === 'all')).map((block) => <div className="time-block" key={block.id}><LockKeyhole size={17} /><span><strong>{block.start}–{block.end}</strong>{block.reason} · {block.staffId === 'all' ? 'Todo el negocio' : findStaff(staff, block.staffId).name}</span></div>)}
       </div>
     </div>
   );
 }
 
-function CustomersPage({ onOpenCustomer }: { onOpenCustomer: (id: string) => void }) {
+function CustomersPage({ customers, onOpenCustomer }: { customers: Customer[]; onOpenCustomer: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const filteredCustomers = customers.filter((customer) => customer.name.toLowerCase().includes(query.toLowerCase()) || customer.maskedPhone.includes(query));
   return (
@@ -288,6 +320,7 @@ function CustomersPage({ onOpenCustomer }: { onOpenCustomer: (id: string) => voi
           </button>
         ))}
       </div>
+      {filteredCustomers.length === 0 && <div className="empty-state"><UsersRound /><h2>Sin clientes</h2><p>No hay clientes que coincidan con la búsqueda.</p></div>}
     </div>
   );
 }
@@ -309,7 +342,7 @@ function MessagesPage({ conversations, onOpenConversation }: { conversations: Co
       <div className="message-tabs"><button className="is-active" type="button">Todas</button><button type="button">Pendientes</button><button type="button">Atendidas</button></div>
       <div className="conversation-list">
         {conversations.map((conversation) => {
-          const customer = findCustomer(conversation.customerId);
+          const customer = findCustomer(mockCustomers, conversation.customerId);
           return (
             <button className={`conversation-row ${conversation.status === 'needs_human' ? 'conversation-row--urgent' : ''}`} key={conversation.id} onClick={() => onOpenConversation(conversation.id)} type="button">
               <Avatar accent={conversation.status === 'needs_human' ? 'coral' : 'sage'} name={customer.name} />
@@ -323,10 +356,10 @@ function MessagesPage({ conversations, onOpenConversation }: { conversations: Co
   );
 }
 
-function MorePage({ businessName, navigate, onSignOut, showToast }: { businessName: string; navigate: (route: BeautyRoute) => void; onSignOut: () => void; showToast: (message: string) => void }) {
+function MorePage({ businessName, navigate, onSignOut, serviceCount, showToast, staffCount }: { businessName: string; navigate: (route: BeautyRoute) => void; onSignOut: () => void; serviceCount: number; showToast: (message: string) => void; staffCount: number }) {
   const items = [
-    { icon: Sparkles, label: 'Servicios', detail: '8 servicios configurados' },
-    { icon: UsersRound, label: 'Profesionales', detail: '3 profesionales activos' },
+    { icon: Sparkles, label: 'Servicios', detail: `${serviceCount} servicios configurados` },
+    { icon: UsersRound, label: 'Profesionales', detail: `${staffCount} profesionales activos` },
     { icon: Clock3, label: 'Horarios', detail: 'Horario y ausencias' },
     { icon: WandSparkles, label: 'Automatizaciones', detail: 'Recordatorios y reactivación', route: 'automations' as BeautyRoute },
     { icon: Settings2, label: 'Configuración', detail: 'Preferencias de la aplicación' },
@@ -365,24 +398,26 @@ function AutomationGroup({ rules, title, toggleRule }: { rules: typeof initialAu
   return <section><Kicker>{title}</Kicker><div className="automation-list">{rules.map((rule) => <article key={rule.id}><span><strong>{rule.name}</strong><small>{rule.daysAfter ? `${rule.daysAfter} días · ` : ''}{rule.description}</small></span><button aria-label={`${rule.enabled ? 'Desactivar' : 'Activar'} ${rule.name}`} aria-pressed={rule.enabled} className={`beauty-toggle ${rule.enabled ? 'is-on' : ''}`} onClick={() => toggleRule(rule.id)} type="button"><span /></button></article>)}</div></section>;
 }
 
-function AppointmentDetail({ appointment, onClose, onOpenConversation, onStatusChange, showToast }: { appointment: Appointment; onClose: () => void; onOpenConversation: () => void; onStatusChange: (status: AppointmentStatus) => void; showToast: (message: string) => void }) {
-  const customer = findCustomer(appointment.customerId);
-  const service = findService(appointment.serviceId);
-  const member = findStaff(appointment.staffId);
+function AppointmentDetail({ appointment, appointmentServices, customers, onClose, onOpenConversation, onStatusChange, readOnly, services, showToast, staff }: { appointment: Appointment; appointmentServices: import('./data/types').AppointmentService[]; customers: Customer[]; onClose: () => void; onOpenConversation: () => void; onStatusChange: (status: AppointmentStatus) => void; readOnly: boolean; services: import('./types').BeautyService[]; showToast: (message: string) => void; staff: import('./types').StaffMember[] }) {
+  const customer = findCustomer(customers, appointment.customerId);
+  const service = findService(services, appointment.serviceId);
+  const linkedServices = appointmentServices.filter((item) => item.appointmentId === appointment.id).sort((a, b) => a.position - b.position);
+  const member = findStaff(staff, appointment.staffId);
   return (
     <Sheet onClose={onClose} subtitle={`${dateLabels[appointment.date] ?? appointment.date} · ${appointment.start}`} title={service.name} wide>
       <div className="appointment-detail-hero"><CustomerIdentity customer={customer} large /><StatusBadge status={appointment.status} /></div>
       <div className="detail-grid">
         <DetailRow icon={<UserRound size={18} />} label="Profesional" value={member.name} />
-        <DetailRow icon={<Clock3 size={18} />} label="Horario" value={`${appointment.start}–${appointment.end} · ${service.durationMinutes} min`} />
-        <DetailRow icon={<Sparkles size={18} />} label="Precio orientativo" value={`${service.price} €`} />
+        <DetailRow icon={<Clock3 size={18} />} label="Horario" value={`${appointment.start}–${appointment.end} · ${appointment.totalDurationMinutes ?? service.durationMinutes} min`} />
+        <DetailRow icon={<Sparkles size={18} />} label="Precio" value={`${appointment.totalPrice ?? service.price} ${appointment.currency === 'EUR' || !appointment.currency ? '€' : appointment.currency}`} />
         <DetailRow icon={<MessageCircle size={18} />} label="Origen" value={appointment.source} />
         <DetailRow icon={<Phone size={18} />} label="Teléfono" value={customer.maskedPhone} />
       </div>
       {appointment.notes && <div className="detail-note"><strong>Notas</strong><p>{appointment.notes}</p></div>}
+      <section><Kicker>Servicios</Kicker><div className="appointment-service-list">{linkedServices.length ? linkedServices.map((item) => <span key={item.id}><strong>{findService(services, item.serviceId).name}</strong><small>{item.durationMinutes} min · {item.price} €</small></span>) : <span><strong>{service.name}</strong><small>Datos de servicio incompletos</small></span>}</div></section>
       {appointment.hasReferencePhoto && <div className="reference-photo"><Image size={24} /><span><strong>Fotografía de referencia</strong><small>Vista simulada, sin archivo real</small></span></div>}
-      <section><Kicker>Historial</Kicker><div className="history-list">{appointment.history.map((item) => <div key={item.id}><span /><p><strong>{item.label}</strong><small>{item.at}</small></p></div>)}</div></section>
-      <section><Kicker>Acciones</Kicker><div className="detail-actions">
+      <section><Kicker>Historial</Kicker>{appointment.historyError ? <p className="inline-data-message">No se ha podido cargar el historial.</p> : !appointment.historyLoaded && readOnly ? <p className="inline-data-message">Cargando historial…</p> : <div className="history-list">{appointment.history.map((item) => <div key={item.id}><span /><p><strong>{item.label}</strong><small>{item.at}</small></p></div>)}</div>}</section>
+      {readOnly ? <div className="read-only-note"><ShieldCheck size={18} /><span><strong>Vista de solo lectura</strong><small>Las acciones reales se habilitarán en una fase posterior.</small></span></div> : <section><Kicker>Acciones</Kicker><div className="detail-actions">
         <button onClick={() => onStatusChange('confirmed')} type="button">Confirmar</button>
         <button onClick={() => onStatusChange('arrived')} type="button">Marcar llegada</button>
         <button onClick={() => onStatusChange('in_service')} type="button">Iniciar servicio</button>
@@ -391,31 +426,31 @@ function AppointmentDetail({ appointment, onClose, onOpenConversation, onStatusC
         <button className="danger-action" onClick={() => onStatusChange('cancelled')} type="button">Cancelar</button>
         <button onClick={onOpenConversation} type="button">Abrir conversación</button>
         <button onClick={() => showToast('Llamada deshabilitada en el prototipo')} type="button">Llamar</button>
-      </div></section>
+      </div></section>}
     </Sheet>
   );
 }
 
-function CustomerDetail({ customer, onClose, onOpenAppointment }: { customer: Customer; onClose: () => void; onOpenAppointment: (id: string) => void }) {
-  const customerAppointments = initialAppointments.filter((appointment) => appointment.customerId === customer.id);
+function CustomerDetail({ appointments, customer, onClose, onOpenAppointment, services, staff }: { appointments: Appointment[]; customer: Customer; onClose: () => void; onOpenAppointment: (id: string) => void; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[] }) {
+  const customerAppointments = appointments.filter((appointment) => appointment.customerId === customer.id);
   return (
     <Sheet onClose={onClose} subtitle="Ficha de cliente" title={customer.name}>
       <CustomerIdentity customer={customer} large />
       <div className="detail-grid detail-grid--single">
         <DetailRow icon={<Phone size={18} />} label="Contacto" value={customer.maskedPhone} />
         <DetailRow icon={<Sparkles size={18} />} label="Servicios habituales" value={customer.usualServices.join(', ')} />
-        <DetailRow icon={<UserRound size={18} />} label="Profesional preferido" value={customer.preferredStaffId ? findStaff(customer.preferredStaffId).name : 'Sin preferencia'} />
+        <DetailRow icon={<UserRound size={18} />} label="Profesional preferido" value={customer.preferredStaffId ? findStaff(staff, customer.preferredStaffId).name : 'Sin preferencia'} />
         <DetailRow icon={<BellRing size={18} />} label="Próxima reactivación" value={customer.nextReactivation} />
         <DetailRow icon={<ShieldCheck size={18} />} label="Consentimiento mensajes" value={customer.messagingConsent ? 'Aceptado' : 'No aceptado'} />
       </div>
       <div className="detail-note"><strong>Notas</strong><p>{customer.notes || 'Sin notas.'}</p></div>
-      <section><Kicker>Historial de citas</Kicker><div className="mini-appointment-list">{customerAppointments.map((appointment) => <button key={appointment.id} onClick={() => { onClose(); onOpenAppointment(appointment.id); }} type="button"><span><strong>{findService(appointment.serviceId).name}</strong><small>{dateLabels[appointment.date] ?? appointment.date} · {appointment.start}</small></span><StatusBadge status={appointment.status} /></button>)}</div></section>
+      <section><Kicker>Historial de citas</Kicker>{customerAppointments.length ? <div className="mini-appointment-list">{customerAppointments.map((appointment) => <button key={appointment.id} onClick={() => { onClose(); onOpenAppointment(appointment.id); }} type="button"><span><strong>{findService(services, appointment.serviceId).name}</strong><small>{dateLabels[appointment.date] ?? appointment.date} · {appointment.start}</small></span><StatusBadge status={appointment.status} /></button>)}</div> : <p className="inline-data-message">No hay citas en el rango cargado.</p>}</section>
     </Sheet>
   );
 }
 
 function ConversationDetail({ conversation, onClose, onStatusChange }: { conversation: Conversation; onClose: () => void; onStatusChange: (status: ConversationStatus) => void }) {
-  const customer = findCustomer(conversation.customerId);
+  const customer = findCustomer(mockCustomers, conversation.customerId);
   return (
     <Sheet onClose={onClose} subtitle={conversationLabels[conversation.status]} title={customer.name}>
       {conversation.interventionReason && <div className="attention-banner attention-banner--compact"><BellRing size={18} /><span><strong>Necesita intervención</strong><small>{conversation.interventionReason}</small></span></div>}
