@@ -1,6 +1,7 @@
 const EXPECTED_PRODUCT_ID = 'costabots-beauty';
 const BLOCKED_HOSPITALITY_PROJECT_FINGERPRINT = 0x96b669ed;
 const VALID_EXECUTION_ENVIRONMENTS = new Set(['local', 'development', 'test', 'staging', 'production']);
+const VALID_DATA_MODES = new Set(['mock', 'supabase']);
 
 function required(name: string, value: unknown) {
   const normalized = String(value ?? '').trim();
@@ -40,8 +41,12 @@ function validateEnvironment() {
   }
 
   const supabaseUrlValue = required('VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL);
-  const supabaseAnonKey = required('VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY);
-  const expectedProjectRef = required('VITE_BEAUTY_SUPABASE_PROJECT_REF', import.meta.env.VITE_BEAUTY_SUPABASE_PROJECT_REF).toLowerCase();
+  const supabasePublishableKey = required('VITE_SUPABASE_PUBLISHABLE_KEY', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+  const expectedProjectRef = required('VITE_EXPECTED_SUPABASE_PROJECT_REF', import.meta.env.VITE_EXPECTED_SUPABASE_PROJECT_REF).toLowerCase();
+  const dataMode = required('VITE_BEAUTY_DATA_MODE', import.meta.env.VITE_BEAUTY_DATA_MODE).toLowerCase();
+  if (!VALID_DATA_MODES.has(dataMode)) {
+    throw new Error('[COSTABOTS Beauty] VITE_BEAUTY_DATA_MODE debe ser "mock" o "supabase".');
+  }
 
   let supabaseUrl: URL;
   try {
@@ -56,7 +61,7 @@ function validateEnvironment() {
 
   const actualProjectRef = readSupabaseProjectRef(supabaseUrl);
   if (!actualProjectRef || actualProjectRef !== expectedProjectRef) {
-    throw new Error('[COSTABOTS Beauty] La URL de Supabase no coincide con VITE_BEAUTY_SUPABASE_PROJECT_REF. Se rechazó una configuración heredada.');
+    throw new Error('[COSTABOTS Beauty] La URL de Supabase no coincide con VITE_EXPECTED_SUPABASE_PROJECT_REF. Se rechazó una configuración heredada.');
   }
 
   if (projectFingerprint(actualProjectRef) === BLOCKED_HOSPITALITY_PROJECT_FINGERPRINT) {
@@ -66,8 +71,9 @@ function validateEnvironment() {
   return Object.freeze({
     productId,
     executionEnvironment,
+    dataMode: dataMode as 'mock' | 'supabase',
     supabaseUrl: supabaseUrl.toString().replace(/\/$/, ''),
-    supabaseAnonKey,
+    supabasePublishableKey,
     supabaseProjectRef: actualProjectRef,
     publicApiBaseUrl: String(import.meta.env.VITE_BEAUTY_PUBLIC_API_BASE_URL ?? '').trim().replace(/\/$/, ''),
     enableLegacySheets: toBoolean(import.meta.env.VITE_ENABLE_LEGACY_SHEETS),

@@ -4,8 +4,9 @@ interface ImportMetaEnv {
   readonly VITE_PRODUCT_ID: string;
   readonly VITE_APP_ENV: 'local' | 'development' | 'test' | 'staging' | 'production';
   readonly VITE_SUPABASE_URL: string;
-  readonly VITE_SUPABASE_ANON_KEY: string;
-  readonly VITE_BEAUTY_SUPABASE_PROJECT_REF: string;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
+  readonly VITE_EXPECTED_SUPABASE_PROJECT_REF: string;
+  readonly VITE_BEAUTY_DATA_MODE: 'mock' | 'supabase';
   readonly VITE_BEAUTY_PUBLIC_API_BASE_URL?: string;
   readonly VITE_ENABLE_LEGACY_SHEETS?: string;
   readonly VITE_ENABLE_LEGACY_WEBHOOKS?: string;
