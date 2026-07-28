@@ -1,0 +1,8 @@
+[functions.get-tables-test]
+verify_jwt = false
+
+[functions.manager-api]
+verify_jwt = false
+
+[functions.public-api]
+verify_jwt = false
