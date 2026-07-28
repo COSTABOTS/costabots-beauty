@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BeautyApp } from './features/beauty/BeautyApp';
 
 const shouldResetLocalSession = new URLSearchParams(window.location.search).has('reset');
 
@@ -12,11 +11,25 @@ if (shouldResetLocalSession) {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BeautyApp />
-  </React.StrictMode>,
-);
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+
+void import('./features/auth/AuthApp')
+  .then(({ AuthApp }) => {
+    root.render(<React.StrictMode><AuthApp /></React.StrictMode>);
+  })
+  .catch(() => {
+    root.render(
+      <React.StrictMode>
+        <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f7f3ee', color: '#292724', fontFamily: 'system-ui' }}>
+          <section style={{ width: '100%', maxWidth: 460, padding: 28, borderRadius: 24, background: '#fffdfb' }}>
+            <strong>COSTABOTS Beauty</strong>
+            <h1>Configuración no válida</h1>
+            <p>La aplicación se ha bloqueado de forma segura. Revisa las variables de entorno de Beauty.</p>
+          </section>
+        </main>
+      </React.StrictMode>,
+    );
+  });
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {

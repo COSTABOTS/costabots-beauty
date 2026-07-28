@@ -23,8 +23,8 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--beauty-bg); }
-body { margin: 0; min-width: 320px; background: var(--beauty-bg); }
+html { overflow-x: hidden; background: var(--beauty-bg); }
+body { margin: 0; min-width: 320px; overflow-x: hidden; background: var(--beauty-bg); }
 button, input { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99, .28); outline-offset: 2px; }
@@ -176,6 +176,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .isolation-note > span { display: grid; gap: 2px; }
 .isolation-note strong { font-size: .78rem; }
 .isolation-note small { font-size: .66rem; }
+.beauty-signout { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; width: 100%; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 15px; background: var(--beauty-danger-soft); cursor: pointer; }
 
 .automation-hero { display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid #e6c9c3; border-radius: 20px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .automation-hero > svg { width: 28px; height: 28px; color: var(--beauty-primary-dark); }

@@ -10,6 +10,7 @@ import {
   Clock3,
   Image,
   LockKeyhole,
+  LogOut,
   MessageCircle,
   Phone,
   Search,
@@ -22,6 +23,9 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { beautyEnvironment } from '../../config/environment';
+import { useAuth } from '../auth/hooks/AuthProvider';
+import { signOut } from '../auth/services/authService';
+import { useBeautyBusiness } from './context/BeautyBusinessProvider';
 import {
   appointments as initialAppointments,
   automationRules as initialAutomationRules,
@@ -74,6 +78,13 @@ function Kicker({ children }: { children: string }) {
 
 export function BeautyApp() {
   void beautyEnvironment.productId;
+  const auth = useAuth();
+  const membership = useBeautyBusiness();
+  const businessName = membership.business.name;
+  const ownerDisplayName = auth.user?.user_metadata?.full_name
+    ?? auth.user?.user_metadata?.name
+    ?? auth.user?.email?.split('@')[0]
+    ?? business.ownerName;
   const [route, setRoute] = useState<BeautyRoute>('today');
   const [appointments, setAppointments] = useState(initialAppointments);
   const [conversations, setConversations] = useState(initialConversations);
@@ -122,11 +133,11 @@ export function BeautyApp() {
       </aside>
 
       <main className="beauty-main">
-        {route === 'today' && <TodayPage appointments={appointments} navigate={navigate} onOpenAppointment={setSelectedAppointmentId} showToast={showToast} />}
+        {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} navigate={navigate} onOpenAppointment={setSelectedAppointmentId} ownerDisplayName={ownerDisplayName} showToast={showToast} />}
         {route === 'agenda' && <AgendaPage appointments={appointments} date={selectedDate} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} staffFilter={staffFilter} setStaffFilter={setStaffFilter} />}
         {route === 'customers' && <CustomersPage onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && <MessagesPage conversations={conversations} onOpenConversation={setSelectedConversationId} />}
-        {route === 'more' && <MorePage navigate={navigate} showToast={showToast} />}
+        {route === 'more' && <MorePage businessName={businessName} navigate={navigate} onSignOut={() => void signOut()} showToast={showToast} />}
         {route === 'automations' && <AutomationsPage rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
       </main>
 
@@ -159,7 +170,7 @@ export function BeautyApp() {
   );
 }
 
-function TodayPage({ appointments, navigate, onOpenAppointment, showToast }: { appointments: Appointment[]; navigate: (route: BeautyRoute) => void; onOpenAppointment: (id: string) => void; showToast: (message: string) => void }) {
+function TodayPage({ appointments, businessName, navigate, onOpenAppointment, ownerDisplayName, showToast }: { appointments: Appointment[]; businessName: string; navigate: (route: BeautyRoute) => void; onOpenAppointment: (id: string) => void; ownerDisplayName: string; showToast: (message: string) => void }) {
   const todayAppointments = appointments.filter((appointment) => appointment.date === demoToday);
   const activeAppointments = todayAppointments.filter((appointment) => appointment.status !== 'cancelled');
   const nextAppointment = activeAppointments.find((appointment) => ['pending', 'confirmed'].includes(appointment.status)) ?? activeAppointments[0];
@@ -168,11 +179,11 @@ function TodayPage({ appointments, navigate, onOpenAppointment, showToast }: { a
     <div className="beauty-page">
       <header className="today-header">
         <div>
-          <p>Buenos días, {business.ownerName}</p>
-          <h1>{business.name}</h1>
+          <p>Buenos días, {ownerDisplayName}</p>
+          <h1>{businessName}</h1>
           <span className="today-date">Martes, 28 de julio</span>
         </div>
-        <button aria-label="Abrir perfil" className="profile-button" onClick={() => navigate('more')} type="button"><Avatar name={business.ownerName} size="lg" /></button>
+        <button aria-label="Abrir perfil" className="profile-button" onClick={() => navigate('more')} type="button"><Avatar name={ownerDisplayName} size="lg" /></button>
       </header>
 
       <button className="assistant-state" onClick={() => navigate('messages')} type="button">
@@ -312,23 +323,24 @@ function MessagesPage({ conversations, onOpenConversation }: { conversations: Co
   );
 }
 
-function MorePage({ navigate, showToast }: { navigate: (route: BeautyRoute) => void; showToast: (message: string) => void }) {
+function MorePage({ businessName, navigate, onSignOut, showToast }: { businessName: string; navigate: (route: BeautyRoute) => void; onSignOut: () => void; showToast: (message: string) => void }) {
   const items = [
     { icon: Sparkles, label: 'Servicios', detail: '8 servicios configurados' },
     { icon: UsersRound, label: 'Profesionales', detail: '3 profesionales activos' },
     { icon: Clock3, label: 'Horarios', detail: 'Horario y ausencias' },
     { icon: WandSparkles, label: 'Automatizaciones', detail: 'Recordatorios y reactivación', route: 'automations' as BeautyRoute },
     { icon: Settings2, label: 'Configuración', detail: 'Preferencias de la aplicación' },
-    { icon: UserRound, label: 'Perfil del negocio', detail: business.name },
+    { icon: UserRound, label: 'Perfil del negocio', detail: businessName },
   ];
   return (
     <div className="beauty-page">
       <PageHeader eyebrow="Tu espacio de trabajo" title="Más" />
-      <section className="business-card"><div className="beauty-mark beauty-mark--large">B</div><span><strong>{business.name}</strong><small>COSTABOTS Beauty · Demo local</small></span><ShieldCheck size={20} /></section>
+      <section className="business-card"><div className="beauty-mark beauty-mark--large">B</div><span><strong>{businessName}</strong><small>COSTABOTS Beauty · Sesión protegida</small></span><ShieldCheck size={20} /></section>
       <div className="more-list">
         {items.map(({ icon: Icon, label, detail, route }) => <button key={label} onClick={() => route ? navigate(route) : showToast(`${label}: sección prevista para una próxima fase`)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span><ChevronRight /></button>)}
       </div>
-      <div className="isolation-note"><ShieldCheck size={20} /><span><strong>Modo prototipo seguro</strong><small>Datos locales · Sin conexiones externas</small></span></div>
+      <div className="isolation-note"><ShieldCheck size={20} /><span><strong>Modo híbrido seguro</strong><small>Acceso y negocio reales · Operativa simulada</small></span></div>
+      <button className="beauty-signout" onClick={onSignOut} type="button"><LogOut size={19} />Cerrar sesión</button>
     </div>
   );
 }
