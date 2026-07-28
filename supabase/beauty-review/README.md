@@ -1,7 +1,8 @@
 # COSTABOTS Beauty — esquema en revisión
 
-Esta carpeta contiene el diseño SQL local de COSTABOTS Beauty. **No debe
-aplicarse todavía al proyecto Supabase real.**
+Esta carpeta conserva el diseño SQL revisado y los scripts de validación de
+COSTABOTS Beauty. Las doce migraciones fueron promovidas al historial oficial y
+aplicadas al proyecto Supabase Beauty el 28 de julio de 2026.
 
 Está separada deliberadamente de `supabase/migrations` y de
 `supabase/functions`. Esas ubicaciones aún contienen material heredado y quedan
@@ -9,18 +10,18 @@ fuera del alcance de esta fase.
 
 ## Estado de validación local
 
-Las migraciones y el seed se han ejecutado desde una base vacía en PostgreSQL
-WASM mediante PGlite: 56 comprobaciones superadas, cero fallos y una prueba
-aplazada.
+Las migraciones y el seed se ejecutaron primero desde una base vacía en
+PostgreSQL WASM mediante PGlite: 56 comprobaciones superadas, cero fallos y una
+prueba aplazada.
 
-Esta validación **no aplica las migraciones al proyecto Supabase real**. PGlite
-utiliza una sola sesión y no demuestra el comportamiento concurrente entre dos
-conexiones PostgreSQL reales. La prueba simultánea del advisory lock continúa
-pendiente y deberá realizarse en PostgreSQL nativo o en un entorno Supabase
-local completamente aislado.
+Después se aplicaron al proyecto remoto Beauty identificado de forma no sensible
+como `orixkc...pnux`. PGlite utiliza una sola sesión y no demuestra el
+comportamiento concurrente entre dos conexiones PostgreSQL reales. La prueba
+simultánea del advisory lock continúa pendiente.
 
-Hasta completar esa prueba y recibir autorización expresa, estos archivos
-**no deben copiarse ni moverse a `supabase/migrations`**.
+Las copias oficiales están en `supabase/migrations`. Los archivos de esta
+carpeta se mantienen como fuente revisada y no deben ejecutarse nuevamente de
+forma independiente sobre el remoto.
 
 ## Orden de revisión
 
@@ -76,8 +77,8 @@ Cuando se autorice expresamente:
 7. Probar disponibilidad, buffers, varios tramos, cierres y concurrencia.
 8. Destruir la instancia al terminar.
 
-Esta fase no autoriza Supabase CLI, enlaces remotos, SQL Editor ni cambios en el
-proyecto Beauty real.
+La aplicación remota se realizó mediante Supabase CLI 2.110.0. El frontend sigue
+utilizando `VITE_BEAUTY_DATA_MODE=mock` y no consulta estas tablas.
 
 ## Bootstrap del primer owner
 
@@ -142,13 +143,16 @@ RLS debe utilizarse después un usuario local ficticio y el bootstrap separado.
 - La entrada futura desde WhatsApp deberá usar una Edge Function segura; no se
   concederá acceso anónimo a estas RPC.
 
-## Promoción futura
+## Estado de aplicación remota
 
-Tras revisión, pruebas locales y autorización:
+- Fecha: 28 de julio de 2026.
+- Proyecto objetivo enmascarado: `orixkc...pnux`.
+- Migraciones aplicadas: 12 de 12.
+- Seed ficticio: aplicado.
+- Pruebas transaccionales remotas: superadas y revertidas.
+- Usuarios o fixtures transitorios persistentes: cero.
+- Concurrencia con dos conexiones PostgreSQL reales: pendiente.
+- Frontend: continúa en modo `mock`.
 
-1. Crear un historial Beauty limpio.
-2. Trasladar únicamente estas migraciones revisadas a `supabase/migrations`.
-3. Excluir formalmente los archivos heredados del historial Beauty.
-4. Revisar nuevamente el diff y los destinos antes de cualquier aplicación.
-
-Nada de esta carpeta debe mezclarse automáticamente con el contenido heredado.
+Nada de esta carpeta debe mezclarse con el contenido heredado conservado como
+referencia.
