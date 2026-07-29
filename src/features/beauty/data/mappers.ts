@@ -52,7 +52,17 @@ function mapSource(source: string): Appointment['source'] {
 }
 
 export function mapBusiness(row: BusinessRow): RepositoryBusiness {
-  return { id: row.id, name: row.name, slug: row.slug, timezone: row.timezone, currency: row.default_currency, language: row.default_language };
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    timezone: row.timezone,
+    currency: row.default_currency,
+    language: row.default_language,
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    address: row.address ?? '',
+  };
 }
 
 export function mapStaff(rows: StaffRow[]): StaffMember[] {

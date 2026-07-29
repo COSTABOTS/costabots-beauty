@@ -1,4 +1,4 @@
-export type BeautyRoute = 'today' | 'agenda' | 'customers' | 'messages' | 'more' | 'automations' | 'staff' | 'services' | 'schedules';
+export type BeautyRoute = 'today' | 'agenda' | 'customers' | 'messages' | 'more' | 'automations' | 'staff' | 'services' | 'schedules' | 'configuration' | 'onboarding';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'arrived' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
 export type ConversationStatus = 'ai_handled' | 'waiting_customer' | 'needs_human' | 'human_handled' | 'closed';
 

@@ -6,6 +6,7 @@ import type {
   AvailabilityCommand,
   AvailabilitySlot,
   BeautyOperationalData,
+  BusinessProfileInput,
   CreateAppointmentCommand,
   CreateCustomerCommand,
   CreateServiceCommand,
@@ -61,6 +62,7 @@ type BeautyDataContextValue = BeautyDataState & {
   deactivateService: (command: DeactivateServiceCommand) => Promise<string>;
   setStaffService: (command: SetStaffServiceCommand) => Promise<string>;
   replaceWeeklySchedule: (command: ReplaceWeeklyScheduleCommand) => Promise<void>;
+  updateBusinessProfile: (command: BusinessProfileInput) => Promise<string>;
   agendaRange: DateRange | null;
   agendaStatus: 'idle' | 'loading' | 'ready' | 'error';
   agendaMessage: string | null;
@@ -265,6 +267,11 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
   const deactivateService = useCallback(async (command: DeactivateServiceCommand) => { const id = await beautyRepository.deactivateService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
   const setStaffService = useCallback(async (command: SetStaffServiceCommand) => { const id = await beautyRepository.setStaffService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
   const replaceWeeklySchedule = useCallback(async (command: ReplaceWeeklyScheduleCommand) => { await beautyRepository.replaceWeeklySchedule(membership.business.id, command); await refreshAllAfterWrite(); }, [membership.business.id, refreshAllAfterWrite]);
+  const updateBusinessProfile = useCallback(async (command: BusinessProfileInput) => {
+    const id = await beautyRepository.updateBusinessProfile(membership.business.id, command);
+    await refreshAllAfterWrite();
+    return id;
+  }, [membership.business.id, refreshAllAfterWrite]);
 
   const value = useMemo<BeautyDataContextValue>(() => ({
     ...state,
@@ -280,13 +287,13 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     createCustomer,
     updateCustomer,
     deactivateCustomer,
-    createStaff, updateStaff, deactivateStaff, createService, updateService, deactivateService, setStaffService, replaceWeeklySchedule,
+    createStaff, updateStaff, deactivateStaff, createService, updateService, deactivateService, setStaffService, replaceWeeklySchedule, updateBusinessProfile,
     agendaRange,
     agendaStatus,
     agendaMessage,
     loadAgendaRange,
     retryAgenda: () => agendaRange ? void loadAgendaRange(agendaRange) : undefined,
-  }), [agendaMessage, agendaRange, agendaStatus, cancelAppointment, counts, createAppointment, createCustomer, createService, createStaff, createTimeBlock, deactivateCustomer, deactivateService, deactivateStaff, deactivateTimeBlock, getAvailability, getCustomerHistory, loadAgendaRange, loadAppointmentHistory, replaceWeeklySchedule, setStaffService, state, updateAppointment, updateAppointmentStatus, updateCustomer, updateService, updateStaff, updateTimeBlock]);
+  }), [agendaMessage, agendaRange, agendaStatus, cancelAppointment, counts, createAppointment, createCustomer, createService, createStaff, createTimeBlock, deactivateCustomer, deactivateService, deactivateStaff, deactivateTimeBlock, getAvailability, getCustomerHistory, loadAgendaRange, loadAppointmentHistory, replaceWeeklySchedule, setStaffService, state, updateAppointment, updateAppointmentStatus, updateBusinessProfile, updateCustomer, updateService, updateStaff, updateTimeBlock]);
 
   return <BeautyDataContext.Provider value={value}>{children}</BeautyDataContext.Provider>;
 }

@@ -3,6 +3,7 @@ import type {
   AppointmentService,
   BeautyOperationalData,
   BeautyAgendaRangeData,
+  BusinessProfileInput,
   DateRange,
   RepositoryBusiness,
   StaffSchedule,
@@ -33,6 +34,7 @@ import type { Appointment, BeautyService, Customer, StaffMember, TimeBlock } fro
 
 export interface BeautyRepository {
   getBusiness(businessId: string): Promise<RepositoryBusiness>;
+  updateBusinessProfile(businessId: string, command: BusinessProfileInput): Promise<string>;
   getStaff(businessId: string): Promise<StaffMember[]>;
   getServices(businessId: string): Promise<BeautyService[]>;
   getStaffServices(businessId: string): Promise<StaffServiceAssignment[]>;

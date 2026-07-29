@@ -19,6 +19,18 @@ export type RepositoryBusiness = {
   timezone: string;
   currency: string;
   language: string;
+  phone: string;
+  email: string;
+  address: string;
+};
+
+export type BusinessProfileInput = {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  timezone: string;
+  currency: string;
 };
 
 export type StaffServiceAssignment = {
@@ -214,6 +226,9 @@ export type BusinessRow = {
   name: string;
   slug: string;
   timezone: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
   default_currency: string;
   default_language: string;
 };

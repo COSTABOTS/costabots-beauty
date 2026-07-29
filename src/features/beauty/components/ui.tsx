@@ -114,8 +114,8 @@ export function AppointmentCard({ appointment, customer, service, staffMember, o
 const navItems: Array<{ route: BeautyRoute; label: string; icon: typeof CalendarDays }> = [
   { route: 'today', label: 'Hoy', icon: Sparkles },
   { route: 'agenda', label: 'Agenda', icon: CalendarDays },
-  { route: 'customers', label: 'Clientes', icon: UsersRound },
   { route: 'messages', label: 'Mensajes', icon: MessageCircle },
+  { route: 'customers', label: 'Clientes', icon: UsersRound },
   { route: 'more', label: 'Más', icon: MoreHorizontal },
 ];
 

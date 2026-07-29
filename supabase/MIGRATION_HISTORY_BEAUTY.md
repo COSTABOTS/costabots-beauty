@@ -151,3 +151,20 @@ persistente.
 
 El frontend de producción y `.env.example` continúan en
 `VITE_BEAUTY_DATA_MODE=mock`.
+
+## Perfil básico y onboarding
+
+El 30 de julio de 2026 se aplicó al proyecto Supabase Beauty
+`20260730100022_business_profile_management.sql`. Añade la RPC autenticada
+`update_beauty_business_profile`, limitada a nombre comercial, teléfono,
+email, dirección, zona horaria y moneda.
+
+La función exige una membresía activa con rol `owner` o `admin`, valida la
+zona horaria contra `pg_timezone_names`, usa moneda ISO de tres letras y no
+expone en su contrato `slug`, propietarios, identificadores ni campos
+técnicos. Mantiene `search_path` fijo, revoca ejecución a `public` y `anon` y
+solo concede `EXECUTE` a `authenticated`.
+
+El progreso del onboarding no depende de un booleano: el Manager lo calcula
+desde el perfil válido, profesionales, servicios, asignaciones y tramos
+horarios activos. El frontend de producción continúa en modo `mock`.

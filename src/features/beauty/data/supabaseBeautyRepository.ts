@@ -50,6 +50,9 @@ function mutationError(error: { code?: string; message?: string } | null) {
     return new BeautyRepositoryError('Ese hueco ya no está disponible o existe un bloqueo.', 'conflict');
   }
   if (code === '22023' || /invalid|must|may only|fit in one schedule/i.test(message)) {
+    if (/timezone/i.test(message)) return new BeautyRepositoryError('Selecciona una zona horaria válida.', 'invalid');
+    if (/currency/i.test(message)) return new BeautyRepositoryError('La moneda debe usar un código ISO de tres letras.', 'invalid');
+    if (/business name|name is required/i.test(message)) return new BeautyRepositoryError('El nombre comercial es obligatorio.', 'invalid');
     if (/phone/i.test(message)) return new BeautyRepositoryError('Introduce un teléfono válido con prefijo internacional.', 'invalid');
     if (/email/i.test(message)) return new BeautyRepositoryError('Introduce un email válido.', 'invalid');
     if (/professional|staff/i.test(message)) return new BeautyRepositoryError('El profesional seleccionado no es válido.', 'invalid');
@@ -94,11 +97,25 @@ export const supabaseBeautyRepository: BeautyRepository = {
   async getBusiness(businessId) {
     const result = await supabase
       .from('beauty_businesses')
-      .select('id,name,slug,timezone,default_currency,default_language')
+      .select('id,name,slug,timezone,phone,email,address,default_currency,default_language')
       .eq('id', businessId)
       .eq('active', true)
       .single();
     return mapBusiness(ensureData(result.data as BusinessRow | null, result.error, 'No hemos podido cargar el negocio.'));
+  },
+
+  async updateBusinessProfile(businessId, command) {
+    const result = await supabase.rpc('update_beauty_business_profile', {
+      p_business_id: businessId,
+      p_name: command.name,
+      p_phone: command.phone || null,
+      p_email: command.email || null,
+      p_address: command.address || null,
+      p_timezone: command.timezone,
+      p_currency: command.currency,
+    });
+    if (result.error) throw mutationError(result.error);
+    return String(result.data);
   },
 
   async getStaff(businessId) {

@@ -30,6 +30,17 @@ let mockCustomers = seededCustomers.map((customer) => ({
   reminderConsent: customer.messagingConsent,
   active: true,
 }));
+let mockBusiness = {
+  id: business.id,
+  name: business.name,
+  slug: 'luna-beauty-studio',
+  timezone: 'Europe/Madrid',
+  currency: 'EUR',
+  language: 'es',
+  phone: '+34 600 000 000',
+  email: 'hola@lunabeauty.example',
+  address: 'Calle de ejemplo, 12',
+};
 
 function inRange(date: string, range: DateRange) {
   return date >= range.from && date < range.to;
@@ -37,7 +48,19 @@ function inRange(date: string, range: DateRange) {
 
 export const mockBeautyRepository: BeautyRepository = {
   async getBusiness() {
-    return { id: business.id, name: business.name, slug: 'luna-beauty-studio', timezone: 'Europe/Madrid', currency: 'EUR', language: 'es' };
+    return { ...mockBusiness };
+  },
+  async updateBusinessProfile(_businessId, command) {
+    mockBusiness = {
+      ...mockBusiness,
+      name: command.name.trim(),
+      phone: command.phone.trim(),
+      email: command.email.trim(),
+      address: command.address.trim(),
+      timezone: command.timezone,
+      currency: command.currency.toUpperCase(),
+    };
+    return mockBusiness.id;
   },
   async getStaff() {
     return mockStaff.map((member) => ({ ...member }));
