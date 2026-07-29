@@ -49,6 +49,7 @@ import {
   StatusBadge,
 } from './components/ui';
 import { BeautyBrandLockup, BeautyBrandMark } from './components/BeautyBrand';
+import { CustomerForm } from './components/CustomerForm';
 import './beauty.css';
 
 const dates = ['2026-07-27', demoToday, '2026-07-29', '2026-07-30'];
@@ -141,8 +142,11 @@ function BeautyManager() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [appointmentCustomerId, setAppointmentCustomerId] = useState<string | null>(null);
+  const [extraAppointmentServices, setExtraAppointmentServices] = useState<import('./data/types').AppointmentService[]>([]);
   const [toast, setToast] = useState('');
-  const [activeForm, setActiveForm] = useState<'appointment' | 'block' | null>(null);
+  const [activeForm, setActiveForm] = useState<'appointment' | 'block' | 'customer' | 'edit-customer' | null>(null);
+  const canManageCustomers = membership.role === 'owner' || membership.role === 'admin';
 
   useEffect(() => {
     setAppointments(loadedAppointments);
@@ -166,9 +170,8 @@ function BeautyManager() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function updateAppointmentStatus(status: AppointmentStatus) {
-    if (!selectedAppointment) return;
-    await beautyData.updateAppointmentStatus({ appointmentId: selectedAppointment.id, status: status as import('./data/types').WritableAppointmentStatus });
+  async function updateAppointmentStatus(appointmentId: string, status: AppointmentStatus) {
+    await beautyData.updateAppointmentStatus({ appointmentId, status: status as import('./data/types').WritableAppointmentStatus });
     showToast(beautyData.mode === 'supabase' ? 'Estado guardado' : 'Estado actualizado en la demo');
   }
 
@@ -185,9 +188,9 @@ function BeautyManager() {
 
       <main className="beauty-main">
         {mode === 'mock' && <div className="mode-notice"><FeatureStateBadge state="demo" /><span>Los datos y acciones simuladas no se guardan fuera de esta demostración.</span></div>}
-        {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} customers={customers} mode={mode} navigate={navigate} onCreateAppointment={() => setActiveForm('appointment')} onCreateBlock={() => setActiveForm('block')} onOpenAppointment={setSelectedAppointmentId} ownerDisplayName={ownerDisplayName} services={services} staff={staff} today={operationalToday} timezone={beautyData.data.business.timezone} />}
-        {route === 'agenda' && <AgendaPage appointments={appointments} customers={customers} date={selectedDate} mode={mode} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
-        {route === 'customers' && <CustomersPage customers={customers} onOpenCustomer={setSelectedCustomerId} />}
+        {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} customers={customers} mode={mode} navigate={navigate} onCreateAppointment={() => setActiveForm('appointment')} onCreateBlock={() => setActiveForm('block')} onOpenAppointment={setSelectedAppointmentId} onStatusChange={updateAppointmentStatus} ownerDisplayName={ownerDisplayName} services={services} staff={staff} today={operationalToday} timezone={beautyData.data.business.timezone} />}
+        {route === 'agenda' && <AgendaPage appointments={appointments} customers={customers} date={selectedDate} mode={mode} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
+        {route === 'customers' && <CustomersPage canManage={canManageCustomers} customers={customers} mode={mode} onCreateCustomer={() => setActiveForm('customer')} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />}
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void signOut()} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
@@ -198,7 +201,7 @@ function BeautyManager() {
       {selectedAppointment && (
         <AppointmentDetail
           appointment={selectedAppointment}
-          appointmentServices={beautyData.data.appointmentServices}
+          appointmentServices={[...beautyData.data.appointmentServices, ...extraAppointmentServices]}
           customers={customers}
           readOnly={beautyData.mode === 'supabase'}
           services={services}
@@ -210,11 +213,11 @@ function BeautyManager() {
             navigate('messages');
             setSelectedConversationId(conversation?.id ?? null);
           }}
-          onStatusChange={updateAppointmentStatus}
+          onStatusChange={(status) => updateAppointmentStatus(selectedAppointment.id, status)}
           showToast={showToast}
         />
       )}
-      {selectedCustomer && <CustomerDetail appointments={appointments} customer={selectedCustomer} mode={mode} onClose={() => setSelectedCustomerId(null)} onOpenAppointment={setSelectedAppointmentId} services={services} staff={staff} />}
+      {selectedCustomer && <CustomerDetail canManage={canManageCustomers} customer={selectedCustomer} getHistory={beautyData.getCustomerHistory} mode={mode} onClose={() => setSelectedCustomerId(null)} onCreateAppointment={() => { setAppointmentCustomerId(selectedCustomer.id); setSelectedCustomerId(null); setActiveForm('appointment'); }} onDeactivate={async () => { await beautyData.deactivateCustomer({ customerId: selectedCustomer.id }); showToast(mode === 'mock' ? 'Cliente desactivado en la demo' : 'Cliente desactivado'); }} onEdit={() => setActiveForm('edit-customer')} onOpenAppointment={(appointment, linkedServices) => { setAppointments((current) => current.some((item) => item.id === appointment.id) ? current : [...current, appointment]); setExtraAppointmentServices((current) => [...current.filter((item) => item.appointmentId !== appointment.id), ...linkedServices]); setSelectedCustomerId(null); setSelectedAppointmentId(appointment.id); }} services={services} staff={staff} today={operationalToday} />}
       {selectedConversation && (
         <ConversationDetail
           conversation={selectedConversation}
@@ -223,13 +226,15 @@ function BeautyManager() {
         />
       )}
       {activeForm === 'block' && <TimeBlockForm defaultDate={selectedDate} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => setActiveForm(null)} onCreate={async (command) => { await beautyData.createTimeBlock(command); setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Bloqueo guardado' : 'Bloqueo creado en la demo'); }} staff={staff} />}
-      {activeForm === 'appointment' && <NewAppointmentForm customers={customers} defaultDate={selectedDate} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => setActiveForm(null)} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services} staff={staff} staffServices={beautyData.data.staffServices} timezone={beautyData.data.business.timezone} />}
+      {activeForm === 'appointment' && <NewAppointmentForm customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedDate} initialCustomerId={appointmentCustomerId} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => { setActiveForm(null); setAppointmentCustomerId(null); }} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setAppointmentCustomerId(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services} staff={staff} staffServices={beautyData.data.staffServices} timezone={beautyData.data.business.timezone} />}
+      {activeForm === 'customer' && <CustomerForm mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { const id = await beautyData.createCustomer(value); setActiveForm(null); setSelectedCustomerId(id); showToast(mode === 'mock' ? 'Cliente creado en la demo' : 'Cliente creado'); }} staff={staff} />}
+      {activeForm === 'edit-customer' && selectedCustomer && <CustomerForm customer={selectedCustomer} mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { await beautyData.updateCustomer({ ...value, customerId: selectedCustomer.id }); setActiveForm(null); showToast(mode === 'mock' ? 'Cliente actualizado en la demo' : 'Cliente actualizado'); }} staff={staff} />}
       {toast && <div className="beauty-toast"><Check size={17} />{toast}</div>}
     </div>
   );
 }
 
-function TodayPage({ appointments, businessName, customers, mode, navigate, onCreateAppointment, onCreateBlock, onOpenAppointment, ownerDisplayName, services, staff, today, timezone }: { appointments: Appointment[]; businessName: string; customers: Customer[]; mode: 'mock' | 'supabase'; navigate: (route: BeautyRoute) => void; onCreateAppointment: () => void; onCreateBlock: () => void; onOpenAppointment: (id: string) => void; ownerDisplayName: string; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; today: string; timezone: string }) {
+function TodayPage({ appointments, businessName, customers, mode, navigate, onCreateAppointment, onCreateBlock, onOpenAppointment, onStatusChange, ownerDisplayName, services, staff, today, timezone }: { appointments: Appointment[]; businessName: string; customers: Customer[]; mode: 'mock' | 'supabase'; navigate: (route: BeautyRoute) => void; onCreateAppointment: () => void; onCreateBlock: () => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; ownerDisplayName: string; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; today: string; timezone: string }) {
   const todayAppointments = appointments.filter((appointment) => appointment.date === today);
   const activeAppointments = todayAppointments.filter((appointment) => appointment.status !== 'cancelled');
   const nextAppointment = activeAppointments.find((appointment) => ['pending', 'confirmed'].includes(appointment.status)) ?? activeAppointments[0];
@@ -281,7 +286,7 @@ function TodayPage({ appointments, businessName, customers, mode, navigate, onCr
         <div className="section-heading"><Kicker>Agenda del día</Kicker><span>{activeAppointments.length} citas</span></div>
         {todayAppointments.length ? <div className="appointment-list">
           {todayAppointments.slice(0, 5).map((appointment) => (
-            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} key={appointment.id} onOpen={() => onOpenAppointment(appointment.id)} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
+            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} key={appointment.id} onOpen={() => onOpenAppointment(appointment.id)} onStatusChange={onStatusChange} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
           ))}
         </div> : <div className="empty-state empty-state--compact"><CalendarDays /><h2>Hoy no hay citas</h2><p>La agenda está libre para este día.</p></div>}
       </section>
@@ -299,7 +304,7 @@ function TodayPage({ appointments, businessName, customers, mode, navigate, onCr
   );
 }
 
-function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenAppointment, services, staff, staffFilter, setStaffFilter, timeBlocks, timezone, today }: { appointments: Appointment[]; customers: Customer[]; date: string; mode: 'mock' | 'supabase'; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffFilter: string; setStaffFilter: (id: string) => void; timeBlocks: import('./types').TimeBlock[]; timezone: string; today: string }) {
+function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenAppointment, onStatusChange, services, staff, staffFilter, setStaffFilter, timeBlocks, timezone, today }: { appointments: Appointment[]; customers: Customer[]; date: string; mode: 'mock' | 'supabase'; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffFilter: string; setStaffFilter: (id: string) => void; timeBlocks: import('./types').TimeBlock[]; timezone: string; today: string }) {
   const index = dates.indexOf(date);
   const lastLoadedDate = addDays(beautyDataRange.to, -1);
   const previousDisabled = mode === 'mock' ? index <= 0 : date <= beautyDataRange.from;
@@ -324,7 +329,7 @@ function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenA
       <div className="agenda-timeline">
         {visibleAppointments.length ? visibleAppointments.map((appointment, appointmentIndex) => (
           <div key={appointment.id}>
-            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} onOpen={() => onOpenAppointment(appointment.id)} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
+            <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} onOpen={() => onOpenAppointment(appointment.id)} onStatusChange={onStatusChange} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
             {mode === 'mock' && appointmentIndex === 1 && date === demoToday && <EmptySlot end="12:00" staffName={staffFilter === 'all' ? undefined : findStaff(staff, staffFilter).name} start="11:35" />}
           </div>
         )) : <div className="empty-state"><CalendarDays /><h2>Un día tranquilo</h2><p>No hay citas para este filtro.</p></div>}
@@ -334,18 +339,26 @@ function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenA
   );
 }
 
-function CustomersPage({ customers, onOpenCustomer }: { customers: Customer[]; onOpenCustomer: (id: string) => void }) {
+function CustomersPage({ canManage, customers, mode, onCreateCustomer, onOpenCustomer }: { canManage: boolean; customers: Customer[]; mode: 'mock' | 'supabase'; onCreateCustomer: () => void; onOpenCustomer: (id: string) => void }) {
   const [query, setQuery] = useState('');
-  const filteredCustomers = customers.filter((customer) => customer.name.toLowerCase().includes(query.toLowerCase()) || customer.maskedPhone.includes(query));
+  const [showInactive, setShowInactive] = useState(false);
+  const normalizedQuery = query.toLocaleLowerCase('es').replace(/\s+/g, '');
+  const filteredCustomers = customers.filter((customer) => {
+    if (!showInactive && customer.active === false) return false;
+    const nameMatches = customer.name.toLocaleLowerCase('es').includes(query.toLocaleLowerCase('es'));
+    const phoneMatches = customer.phone.replace(/\s+/g, '').includes(normalizedQuery);
+    return nameMatches || phoneMatches;
+  });
   return (
     <div className="beauty-page">
-      <PageHeader eyebrow="Conoce a quienes vuelven" title="Clientes" action={<button aria-label="Nuevo cliente, próximamente" className="future-action" disabled type="button"><CirclePlus size={17} />Nuevo cliente<FeatureStateBadge state="soon" /></button>} />
+      <PageHeader eyebrow="Conoce a quienes vuelven" title="Clientes" action={<button aria-label="Nuevo cliente" className="primary-icon-button customer-create-button" disabled={!canManage} onClick={onCreateCustomer} type="button"><CirclePlus size={17} />Nuevo cliente{mode === 'mock' && <FeatureStateBadge state="demo" />}</button>} />
       <label className="beauty-search"><Search size={19} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o teléfono" value={query} /></label>
+      <label className="inactive-filter"><input checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} type="checkbox" /><span>Mostrar clientes inactivos</span></label>
       <div className="customer-list">
         {filteredCustomers.map((customer) => (
-          <button className="customer-row" key={customer.id} onClick={() => onOpenCustomer(customer.id)} type="button">
+          <button className={`customer-row ${customer.active === false ? 'customer-row--inactive' : ''}`} key={customer.id} onClick={() => onOpenCustomer(customer.id)} type="button">
             <CustomerIdentity customer={customer} />
-            <span className="customer-row__detail"><small>Última visita</small><strong>{customer.lastVisit}</strong><small>{customer.nextAppointmentId ? 'Próxima cita reservada' : `Sugerencia: ${customer.recommendedService}`}</small></span>
+            <span className="customer-row__detail"><small>{customer.active === false ? 'Cliente inactivo' : 'Última visita'}</small><strong>{customer.active === false ? 'Sin nuevas operaciones' : customer.lastVisit}</strong><small>{customer.nextAppointmentId ? 'Próxima cita reservada' : `Sugerencia: ${customer.recommendedService}`}</small></span>
             <ChevronRight size={18} />
           </button>
         ))}
@@ -403,8 +416,8 @@ function TimeBlockForm({ defaultDate, maxDate, minDate, onClose, onCreate, staff
   );
 }
 
-function NewAppointmentForm({ customers, defaultDate, maxDate, minDate, onClose, onCreate, onGetAvailability, services, staff, staffServices, timezone }: { customers: Customer[]; defaultDate: string; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateAppointmentCommand) => Promise<void>; onGetAvailability: (command: import('./data/types').AvailabilityCommand) => Promise<import('./data/types').AvailabilitySlot[]>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffServices: import('./data/types').StaffServiceAssignment[]; timezone: string }) {
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? '');
+function NewAppointmentForm({ customers, defaultDate, initialCustomerId, maxDate, minDate, onClose, onCreate, onGetAvailability, services, staff, staffServices, timezone }: { customers: Customer[]; defaultDate: string; initialCustomerId: string | null; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateAppointmentCommand) => Promise<void>; onGetAvailability: (command: import('./data/types').AvailabilityCommand) => Promise<import('./data/types').AvailabilitySlot[]>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffServices: import('./data/types').StaffServiceAssignment[]; timezone: string }) {
+  const [customerId, setCustomerId] = useState(initialCustomerId ?? customers[0]?.id ?? '');
   const [staffId, setStaffId] = useState(staff[0]?.id ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [date, setDate] = useState(defaultDate);
@@ -558,11 +571,19 @@ function AutomationGroup({ disabled, rules, title, toggleRule }: { disabled: boo
   return <section><Kicker>{title}</Kicker><div className="automation-list">{rules.map((rule) => <article key={rule.id}><span><strong>{rule.name}</strong><small>{rule.daysAfter ? `${rule.daysAfter} días · ` : ''}{rule.description}{disabled ? ' · No configurado' : ''}</small></span><button aria-label={`${rule.enabled ? 'Desactivar' : 'Activar'} ${rule.name}`} aria-pressed={rule.enabled} className={`beauty-toggle ${rule.enabled ? 'is-on' : ''}`} disabled={disabled} onClick={() => toggleRule(rule.id)} type="button"><span /></button></article>)}</div></section>;
 }
 
-const validStatusTransitions: Partial<Record<AppointmentStatus, Array<{ status: AppointmentStatus; label: string; danger?: boolean }>>> = {
-  pending: [{ status: 'confirmed', label: 'Confirmar cita' }],
-  confirmed: [{ status: 'arrived', label: 'Marcar llegada' }, { status: 'no_show', label: 'No presentado', danger: true }],
-  arrived: [{ status: 'in_service', label: 'Iniciar servicio' }],
-  in_service: [{ status: 'completed', label: 'Finalizar servicio' }],
+const primaryStatusActions: Partial<Record<AppointmentStatus, { status: AppointmentStatus; label: string }>> = {
+  pending: { status: 'confirmed', label: 'Confirmar' },
+  confirmed: { status: 'completed', label: 'Finalizar' },
+  arrived: { status: 'completed', label: 'Finalizar' },
+  in_service: { status: 'completed', label: 'Finalizar' },
+};
+
+const secondaryStatusActions: Partial<Record<AppointmentStatus, Array<{ status: AppointmentStatus; label: string; confirmation: string }>>> = {
+  pending: [{ status: 'cancelled', label: 'Cancelar', confirmation: '¿Cancelar esta cita? El hueco volverá a quedar disponible.' }],
+  confirmed: [
+    { status: 'no_show', label: 'No presentado', confirmation: '¿Marcar esta cita como no presentada?' },
+    { status: 'cancelled', label: 'Cancelar', confirmation: '¿Cancelar esta cita? El hueco volverá a quedar disponible.' },
+  ],
 };
 
 function AppointmentDetail({ appointment, appointmentServices, customers, onClose, onOpenConversation, onStatusChange, readOnly, services, showToast, staff }: { appointment: Appointment; appointmentServices: import('./data/types').AppointmentService[]; customers: Customer[]; onClose: () => void; onOpenConversation: () => void; onStatusChange: (status: AppointmentStatus) => Promise<void>; readOnly: boolean; services: import('./types').BeautyService[]; showToast: (message: string) => void; staff: import('./types').StaffMember[] }) {
@@ -572,10 +593,11 @@ function AppointmentDetail({ appointment, appointmentServices, customers, onClos
   const service = findService(services, appointment.serviceId);
   const linkedServices = appointmentServices.filter((item) => item.appointmentId === appointment.id).sort((a, b) => a.position - b.position);
   const member = findStaff(staff, appointment.staffId);
-  const transitions = validStatusTransitions[appointment.status] ?? [];
+  const primaryAction = primaryStatusActions[appointment.status];
+  const secondaryActions = secondaryStatusActions[appointment.status] ?? [];
 
-  async function changeStatus(status: AppointmentStatus, needsConfirmation = false) {
-    if (needsConfirmation && !window.confirm('¿Confirmas este cambio de estado?')) return;
+  async function changeStatus(status: AppointmentStatus, confirmation?: string) {
+    if (confirmation && !window.confirm(confirmation)) return;
     setSaveError('');
     setSaving(true);
     try {
@@ -601,28 +623,86 @@ function AppointmentDetail({ appointment, appointmentServices, customers, onClos
       {appointment.hasReferencePhoto && <div className="reference-photo"><Image size={24} /><span><strong>Fotografía de referencia</strong><small>Vista simulada, sin archivo real</small></span></div>}
       <section><Kicker>Historial</Kicker>{appointment.historyError ? <p className="inline-data-message">No se ha podido cargar el historial.</p> : !appointment.historyLoaded && readOnly ? <p className="inline-data-message">Cargando historial…</p> : <div className="history-list">{appointment.history.map((item) => <div key={item.id}><span /><p><strong>{item.label}</strong><small>{item.at}</small></p></div>)}</div>}</section>
       <section><Kicker>Acciones</Kicker>{saveError && <p className="form-error" role="alert">{saveError}</p>}<div className="detail-actions">
-        {transitions.map((transition) => <button className={transition.danger ? 'danger-action' : ''} disabled={saving} key={transition.status} onClick={() => void changeStatus(transition.status, transition.danger)} type="button">{saving ? 'Guardando…' : transition.label}</button>)}
+        {primaryAction && <button className="primary-detail-action" disabled={saving} onClick={() => void changeStatus(primaryAction.status)} type="button">{saving ? 'Guardando…' : primaryAction.label}</button>}
+        {secondaryActions.map((transition) => <button className="danger-action" disabled={saving} key={transition.status} onClick={() => void changeStatus(transition.status, transition.confirmation)} type="button">{transition.label}</button>)}
+        {['pending', 'confirmed'].includes(appointment.status) && <button disabled type="button">Reprogramar · Próximamente</button>}
         {!readOnly && <button onClick={onOpenConversation} type="button">Abrir conversación</button>}
         {!readOnly && <button onClick={() => showToast('Llamada deshabilitada en el prototipo')} type="button">Llamar</button>}
-      </div>{readOnly && transitions.length === 0 && <div className="read-only-note"><ShieldCheck size={18} /><span><strong>Sin acciones disponibles</strong><small>Este estado no admite cambios desde el Manager.</small></span></div>}</section>
+      </div>{readOnly && !primaryAction && secondaryActions.length === 0 && <div className="read-only-note"><ShieldCheck size={18} /><span><strong>Sin acciones disponibles</strong><small>Este estado no admite cambios desde el Manager.</small></span></div>}</section>
     </Sheet>
   );
 }
 
-function CustomerDetail({ appointments, customer, mode, onClose, onOpenAppointment, services, staff }: { appointments: Appointment[]; customer: Customer; mode: 'mock' | 'supabase'; onClose: () => void; onOpenAppointment: (id: string) => void; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[] }) {
-  const customerAppointments = appointments.filter((appointment) => appointment.customerId === customer.id);
+function CustomerDetail({ canManage, customer, getHistory, mode, onClose, onCreateAppointment, onDeactivate, onEdit, onOpenAppointment, services, staff, today }: { canManage: boolean; customer: Customer; getHistory: (customerId: string) => Promise<import('./data/types').CustomerHistory>; mode: 'mock' | 'supabase'; onClose: () => void; onCreateAppointment: () => void; onDeactivate: () => Promise<void>; onEdit: () => void; onOpenAppointment: (appointment: Appointment, services: import('./data/types').AppointmentService[]) => void; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; today: string }) {
+  const [history, setHistory] = useState<import('./data/types').CustomerHistory | null>(null);
+  const [historyError, setHistoryError] = useState('');
+  const [deactivating, setDeactivating] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setHistory(null);
+    setHistoryError('');
+    void getHistory(customer.id)
+      .then((result) => { if (active) setHistory(result); })
+      .catch(() => { if (active) setHistoryError('No hemos podido cargar el historial completo.'); });
+    return () => { active = false; };
+  }, [customer.id, getHistory]);
+
+  const customerAppointments = history?.appointments ?? [];
+  const orderedAppointments = [...customerAppointments].sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
+  const completed = orderedAppointments.filter((appointment) => appointment.status === 'completed' && appointment.date <= today);
+  const upcoming = [...customerAppointments]
+    .filter((appointment) => appointment.date >= today && !['completed', 'cancelled', 'no_show'].includes(appointment.status))
+    .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
+  const serviceCounts = new Map<string, number>();
+  history?.appointmentServices.forEach((item) => serviceCounts.set(item.serviceId, (serviceCounts.get(item.serviceId) ?? 0) + 1));
+  const usualServices = [...serviceCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([serviceId]) => findService(services, serviceId).name);
+
+  async function deactivate() {
+    const futureCount = upcoming.length;
+    const warning = futureCount
+      ? `Este cliente tiene ${futureCount} cita${futureCount === 1 ? '' : 's'} futura${futureCount === 1 ? '' : 's'}. Se desactivará el cliente, pero las citas no se cancelarán. ¿Continuar?`
+      : 'El cliente dejará de aparecer en el listado activo. Su historial se conservará. ¿Continuar?';
+    if (!window.confirm(warning)) return;
+    setActionError('');
+    setDeactivating(true);
+    try {
+      await onDeactivate();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : 'No hemos podido desactivar el cliente.');
+      setDeactivating(false);
+    }
+  }
+
   return (
-    <Sheet onClose={onClose} subtitle="Ficha de cliente" title={customer.name}>
+    <Sheet onClose={onClose} subtitle={`Ficha de cliente${mode === 'mock' ? ' · Demo' : ''}`} title={customer.name} wide>
       <CustomerIdentity customer={customer} large />
+      {customer.active === false && <div className="inactive-customer-banner"><ShieldCheck size={18} /><span><strong>Cliente inactivo</strong><small>El historial se conserva, pero no se pueden crear nuevas citas.</small></span></div>}
       <div className="detail-grid detail-grid--single">
-        <DetailRow icon={<Phone size={18} />} label="Contacto" value={customer.maskedPhone} />
-        <DetailRow icon={<Sparkles size={18} />} label="Servicios habituales" value={customer.usualServices.join(', ')} />
+        <DetailRow icon={<Phone size={18} />} label="Teléfono" value={customer.phone || 'Sin teléfono'} />
+        <DetailRow icon={<MessageCircle size={18} />} label="Email" value={customer.email || 'Sin email'} />
         <DetailRow icon={<UserRound size={18} />} label="Profesional preferido" value={customer.preferredStaffId ? findStaff(staff, customer.preferredStaffId).name : 'Sin preferencia'} />
-        {mode === 'mock' && <DetailRow icon={<BellRing size={18} />} label="Próxima reactivación · Demo" value={customer.nextReactivation} />}
-        <DetailRow icon={<ShieldCheck size={18} />} label="Consentimiento mensajes" value={customer.messagingConsent ? 'Aceptado' : 'No aceptado'} />
+        <DetailRow icon={<BellRing size={18} />} label="Recordatorios" value={customer.reminderConsent ? 'Permitidos' : 'No permitidos'} />
+        <DetailRow icon={<ShieldCheck size={18} />} label="Comunicaciones comerciales" value={customer.marketingConsent ? 'Permitidas' : 'No permitidas'} />
       </div>
+      <div className="customer-metrics">
+        <article><small>Total de citas</small><strong>{history ? customerAppointments.length : '—'}</strong></article>
+        <article><small>Última visita</small><strong>{completed[0]?.date ?? 'Sin visitas'}</strong></article>
+        <article><small>Próxima cita</small><strong>{upcoming[0] ? `${upcoming[0].date} · ${upcoming[0].start}` : 'Sin cita'}</strong></article>
+      </div>
+      <DetailRow icon={<Sparkles size={18} />} label="Servicios habituales" value={usualServices.length ? usualServices.join(', ') : 'Sin historial'} />
       <div className="detail-note"><strong>Notas</strong><p>{customer.notes || 'Sin notas.'}</p></div>
-      <section><div className="section-heading"><Kicker>{mode === 'supabase' ? 'Citas del periodo cargado' : 'Historial de citas'}</Kicker>{mode === 'supabase' && <span>No es el historial completo</span>}</div>{customerAppointments.length ? <div className="mini-appointment-list">{customerAppointments.map((appointment) => <button key={appointment.id} onClick={() => { onClose(); onOpenAppointment(appointment.id); }} type="button"><span><strong>{findService(services, appointment.serviceId).name}</strong><small>{dateLabels[appointment.date] ?? appointment.date} · {appointment.start}</small></span><StatusBadge status={appointment.status} /></button>)}</div> : <p className="inline-data-message">No hay citas en el rango cargado.</p>}</section>
+      <section><div className="section-heading"><Kicker>Historial completo</Kicker>{history && <span>{customerAppointments.length} citas</span>}</div>{historyError ? <p className="form-error">{historyError}</p> : !history ? <p className="inline-data-message">Cargando historial…</p> : orderedAppointments.length ? <div className="mini-appointment-list">{orderedAppointments.map((appointment) => <button key={appointment.id} onClick={() => onOpenAppointment(appointment, history.appointmentServices.filter((item) => item.appointmentId === appointment.id))} type="button"><span><strong>{findService(services, appointment.serviceId).name}</strong><small>{dateLabels[appointment.date] ?? appointment.date} · {appointment.start}</small></span><StatusBadge status={appointment.status} /></button>)}</div> : <p className="inline-data-message">Este cliente todavía no tiene citas.</p>}</section>
+      {actionError && <p className="form-error" role="alert">{actionError}</p>}
+      <section><Kicker>Acciones</Kicker><div className="detail-actions customer-detail-actions">
+        <button disabled={customer.active === false} onClick={onCreateAppointment} type="button"><CalendarDays size={17} />Nueva cita</button>
+        <button disabled={!canManage} onClick={onEdit} type="button"><UserRound size={17} />Editar cliente</button>
+        {customer.active !== false && <button className="danger-action" disabled={!canManage || deactivating} onClick={() => void deactivate()} type="button">{deactivating ? 'Desactivando…' : 'Desactivar cliente'}</button>}
+      </div></section>
     </Sheet>
   );
 }

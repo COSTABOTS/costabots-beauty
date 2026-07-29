@@ -1,7 +1,7 @@
 import {
   appointments,
   business,
-  customers,
+  customers as seededCustomers,
   services,
   staff,
   timeBlocks,
@@ -13,6 +13,15 @@ import type { BeautyOperationalData, DateRange, WritableAppointmentStatus } from
 
 let mockAppointments = appointments.map((appointment) => ({ ...appointment }));
 let mockTimeBlocks = timeBlocks.map((block) => ({ ...block }));
+let mockCustomers = seededCustomers.map((customer) => ({
+  ...customer,
+  firstName: customer.name.split(' ')[0] ?? customer.name,
+  lastName: customer.name.split(' ').slice(1).join(' '),
+  email: '',
+  marketingConsent: customer.messagingConsent,
+  reminderConsent: customer.messagingConsent,
+  active: true,
+}));
 
 function inRange(date: string, range: DateRange) {
   return date >= range.from && date < range.to;
@@ -45,7 +54,20 @@ export const mockBeautyRepository: BeautyRepository = {
     return mockTimeBlocks.filter((block) => inRange(block.date, range));
   },
   async getCustomers() {
-    return customers;
+    return mockCustomers.map((customer) => ({ ...customer }));
+  },
+  async getCustomerHistory(_businessId, customerId) {
+    const customerAppointments = mockAppointments
+      .filter((appointment) => appointment.customerId === customerId)
+      .map((appointment) => ({ ...appointment, historyLoaded: true }))
+      .sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
+    return {
+      appointments: customerAppointments,
+      appointmentServices: await this.getAppointmentServices(
+        _businessId,
+        customerAppointments.map((appointment) => appointment.id),
+      ),
+    };
   },
   async getAppointments(_businessId, range) {
     return mockAppointments.filter((appointment) => inRange(appointment.date, range)).map((appointment) => ({ ...appointment, historyLoaded: true }));
@@ -75,7 +97,7 @@ export const mockBeautyRepository: BeautyRepository = {
       staffServices: await this.getStaffServices(businessId),
       schedules: [],
       timeBlocks: mockTimeBlocks.filter((block) => inRange(block.date, range)),
-      customers,
+      customers: mockCustomers.map((customer) => ({ ...customer })),
       appointments: visibleAppointments,
       appointmentServices: await this.getAppointmentServices(businessId, visibleAppointments.map((appointment) => appointment.id)),
     };
@@ -84,9 +106,9 @@ export const mockBeautyRepository: BeautyRepository = {
     const appointment = mockAppointments.find((item) => item.id === command.appointmentId);
     if (!appointment) throw new BeautyRepositoryError('No se encuentra la cita.', 'not_found');
     const allowed: Partial<Record<typeof appointment.status, WritableAppointmentStatus[]>> = {
-      pending: ['confirmed'],
-      confirmed: ['arrived', 'no_show'],
-      arrived: ['in_service'],
+      pending: ['confirmed', 'cancelled'],
+      confirmed: ['completed', 'no_show', 'cancelled'],
+      arrived: ['completed'],
       in_service: ['completed'],
     };
     if (!allowed[appointment.status]?.includes(command.status)) {
@@ -143,5 +165,73 @@ export const mockBeautyRepository: BeautyRepository = {
       currency: 'EUR',
     });
     return id;
+  },
+  async createCustomer(_businessId, command) {
+    const digits = command.phone.replace(/\D/g, '');
+    if (digits.length < 8 || digits.length > 15) throw new BeautyRepositoryError('Introduce un teléfono válido.', 'invalid');
+    const normalized = command.phone.trim().startsWith('+')
+      ? `+${digits}`
+      : digits.length === 9 ? `+34${digits}` : `+${digits.replace(/^00/, '')}`;
+    if (mockCustomers.some((customer) => customer.phone.replace(/\D/g, '') === normalized.replace(/\D/g, ''))) {
+      throw new BeautyRepositoryError('Ya existe un cliente con ese teléfono.', 'conflict');
+    }
+    const id = `mock-customer-${Date.now()}`;
+    mockCustomers.push({
+      id,
+      name: [command.firstName.trim(), command.lastName.trim()].filter(Boolean).join(' '),
+      firstName: command.firstName.trim(),
+      lastName: command.lastName.trim(),
+      phone: normalized,
+      maskedPhone: normalized,
+      email: command.email.trim(),
+      lastVisit: 'Sin visitas',
+      recommendedService: 'Sin sugerencia',
+      recurrent: false,
+      preferredStaffId: command.preferredStaffId ?? undefined,
+      notes: command.notes.trim(),
+      messagingConsent: command.marketingConsent || command.reminderConsent,
+      marketingConsent: command.marketingConsent,
+      reminderConsent: command.reminderConsent,
+      active: true,
+      nextReactivation: 'Pendiente de configurar',
+      usualServices: ['Sin historial'],
+      appointmentCount: 0,
+    });
+    return id;
+  },
+  async updateCustomer(_businessId, command) {
+    const index = mockCustomers.findIndex((customer) => customer.id === command.customerId);
+    if (index < 0) throw new BeautyRepositoryError('El cliente ya no existe.', 'not_found');
+    const digits = command.phone.replace(/\D/g, '');
+    if (digits.length < 8 || digits.length > 15) throw new BeautyRepositoryError('Introduce un teléfono válido.', 'invalid');
+    const normalized = command.phone.trim().startsWith('+')
+      ? `+${digits}`
+      : digits.length === 9 ? `+34${digits}` : `+${digits.replace(/^00/, '')}`;
+    if (mockCustomers.some((customer) => customer.id !== command.customerId && customer.phone.replace(/\D/g, '') === normalized.replace(/\D/g, ''))) {
+      throw new BeautyRepositoryError('Ya existe un cliente con ese teléfono.', 'conflict');
+    }
+    const current = mockCustomers[index];
+    mockCustomers[index] = {
+      ...current,
+      name: [command.firstName.trim(), command.lastName.trim()].filter(Boolean).join(' '),
+      firstName: command.firstName.trim(),
+      lastName: command.lastName.trim(),
+      phone: normalized,
+      maskedPhone: normalized,
+      email: command.email.trim(),
+      preferredStaffId: command.preferredStaffId ?? undefined,
+      notes: command.notes.trim(),
+      messagingConsent: command.marketingConsent || command.reminderConsent,
+      marketingConsent: command.marketingConsent,
+      reminderConsent: command.reminderConsent,
+      active: command.active,
+    };
+    return command.customerId;
+  },
+  async deactivateCustomer(_businessId, command) {
+    const customer = mockCustomers.find((item) => item.id === command.customerId);
+    if (!customer) throw new BeautyRepositoryError('El cliente ya no existe.', 'not_found');
+    customer.active = false;
+    return customer.id;
   },
 };

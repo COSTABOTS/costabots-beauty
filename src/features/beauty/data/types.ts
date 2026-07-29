@@ -76,6 +76,7 @@ export type WritableAppointmentStatus =
   | 'arrived'
   | 'in_service'
   | 'completed'
+  | 'cancelled'
   | 'no_show';
 
 export type BeautyTimeBlockType =
@@ -121,6 +122,33 @@ export type CreateAppointmentCommand = {
   startsAt: string;
   customerNotes?: string;
   internalNotes?: string;
+};
+
+export type CustomerInput = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  preferredStaffId: string | null;
+  notes: string;
+  reminderConsent: boolean;
+  marketingConsent: boolean;
+};
+
+export type CreateCustomerCommand = CustomerInput;
+
+export type UpdateCustomerCommand = CustomerInput & {
+  customerId: string;
+  active: boolean;
+};
+
+export type DeactivateCustomerCommand = {
+  customerId: string;
+};
+
+export type CustomerHistory = {
+  appointments: Appointment[];
+  appointmentServices: AppointmentService[];
 };
 
 export type BusinessRow = {
@@ -179,10 +207,14 @@ export type CustomerRow = {
   first_name: string;
   last_name: string | null;
   phone: string | null;
+  phone_normalized: string | null;
+  email: string | null;
   preferred_staff_member_id: string | null;
   notes: string | null;
   marketing_consent: boolean;
   reminder_consent: boolean;
+  consent_updated_at: string | null;
+  active: boolean;
 };
 
 export type AppointmentRow = {

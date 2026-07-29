@@ -28,8 +28,11 @@ export interface BeautyService {
 export interface Customer {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   phone: string;
   maskedPhone: string;
+  email?: string;
   lastVisit: string;
   recommendedService: string;
   nextAppointmentId?: string;
@@ -37,6 +40,10 @@ export interface Customer {
   preferredStaffId?: string;
   notes: string;
   messagingConsent: boolean;
+  marketingConsent?: boolean;
+  reminderConsent?: boolean;
+  consentUpdatedAt?: string;
+  active?: boolean;
   nextReactivation: string;
   usualServices: string[];
   appointmentCount?: number;

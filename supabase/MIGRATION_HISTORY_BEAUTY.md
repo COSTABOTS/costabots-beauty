@@ -51,3 +51,37 @@ de eventos, los bloqueos globales e individuales, el aislamiento por rol y
 negocio y la ausencia de permisos de ejecución para `anon`. Todas las pruebas
 usaron datos ficticios con rollback; no quedó ningún usuario ni registro de
 prueba.
+
+## Gestión de clientes
+
+El 29 de julio de 2026 se aplicó
+`20260729130014_customer_management_rpcs.sql`. Añade las RPC autenticadas
+`create_beauty_customer`, `update_beauty_customer` y
+`deactivate_beauty_customer`, además de una normalización interna de teléfono.
+
+Las funciones obtienen la identidad mediante `auth.uid()`, validan rol
+`owner`/`admin`, mantienen `business_id` fuera de los campos editables,
+comprueban el profesional preferido y evitan teléfonos duplicados dentro del
+mismo negocio. No conceden ejecución a `anon` o `public` y la desactivación es
+lógica (`active = false`), sin borrar historial ni cancelar citas.
+
+## Flujo simplificado de citas
+
+El 29 de julio de 2026 se aplicó
+`20260729150015_simplify_appointment_status_flow.sql`. La migración conserva
+los valores internos `arrived` e `in_service`, pero limita las transiciones del
+Manager al flujo simple del MVP:
+
+- `pending` → `confirmed` o `cancelled`;
+- `confirmed` → `completed`, `no_show` o `cancelled`;
+- `arrived` → `completed`;
+- `in_service` → `completed`.
+
+La RPC continúa validando membresía, rol y negocio, y registra cada transición
+aceptada en `appointment_events`.
+
+La validación contra PostgreSQL real detectó que una cancelación también debe
+informar `cancelled_at` para satisfacer
+`appointments_cancellation_consistency`. La corrección queda representada en
+`20260729153016_fix_appointment_cancellation_timestamp.sql`; no altera campos
+de cliente, profesional, horario, duración, precio ni negocio.

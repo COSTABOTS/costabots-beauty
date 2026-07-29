@@ -9,8 +9,12 @@ import type {
   AvailabilityCommand,
   AvailabilitySlot,
   CreateAppointmentCommand,
+  CreateCustomerCommand,
   CreateTimeBlockCommand,
+  CustomerHistory,
+  DeactivateCustomerCommand,
   UpdateAppointmentStatusCommand,
+  UpdateCustomerCommand,
 } from './types';
 import type { Appointment, BeautyService, Customer, StaffMember, TimeBlock } from '../types';
 
@@ -22,6 +26,7 @@ export interface BeautyRepository {
   getSchedules(businessId: string): Promise<StaffSchedule[]>;
   getTimeBlocks(businessId: string, range: DateRange, timezone: string): Promise<TimeBlock[]>;
   getCustomers(businessId: string): Promise<Customer[]>;
+  getCustomerHistory(businessId: string, customerId: string, timezone: string): Promise<CustomerHistory>;
   getAppointments(businessId: string, range: DateRange, timezone: string): Promise<Appointment[]>;
   getAppointmentServices(businessId: string, appointmentIds: string[]): Promise<AppointmentService[]>;
   getAppointmentEvents(businessId: string, appointmentId: string, timezone: string): Promise<AppointmentEvent[]>;
@@ -30,6 +35,9 @@ export interface BeautyRepository {
   createTimeBlock(businessId: string, timezone: string, command: CreateTimeBlockCommand): Promise<string>;
   getAvailability(businessId: string, command: AvailabilityCommand): Promise<AvailabilitySlot[]>;
   createAppointment(businessId: string, command: CreateAppointmentCommand): Promise<string>;
+  createCustomer(businessId: string, command: CreateCustomerCommand): Promise<string>;
+  updateCustomer(businessId: string, command: UpdateCustomerCommand): Promise<string>;
+  deactivateCustomer(businessId: string, command: DeactivateCustomerCommand): Promise<string>;
 }
 
 export class BeautyRepositoryError extends Error {

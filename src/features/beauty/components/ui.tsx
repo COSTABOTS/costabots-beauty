@@ -9,14 +9,14 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Appointment, AppointmentStatus, BeautyRoute, BeautyService, Customer, StaffMember } from '../types';
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: 'Pendiente',
   confirmed: 'Confirmada',
-  arrived: 'Ha llegado',
-  in_service: 'En servicio',
+  arrived: 'En curso',
+  in_service: 'En curso',
   completed: 'Finalizada',
   cancelled: 'Cancelada',
   no_show: 'No presentado',
@@ -41,31 +41,73 @@ interface AppointmentCardProps {
   service: BeautyService;
   staffMember: StaffMember;
   onOpen: () => void;
+  onStatusChange: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled' | 'no_show') => Promise<void>;
   compact?: boolean;
 }
 
-export function AppointmentCard({ appointment, customer, service, staffMember, onOpen, compact = false }: AppointmentCardProps) {
+function appointmentPrimaryAction(status: AppointmentStatus) {
+  if (status === 'pending') return { label: 'Confirmar', status: 'confirmed' as const };
+  if (['confirmed', 'arrived', 'in_service'].includes(status)) return { label: 'Finalizar', status: 'completed' as const };
+  return null;
+}
+
+export function AppointmentCard({ appointment, customer, service, staffMember, onOpen, onStatusChange, compact = false }: AppointmentCardProps) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const primaryAction = appointmentPrimaryAction(appointment.status);
+  const canCancel = appointment.status === 'pending' || appointment.status === 'confirmed';
+  const canMarkNoShow = appointment.status === 'confirmed';
+
+  useEffect(() => {
+    setError('');
+  }, [appointment.status]);
+
+  async function changeStatus(status: 'confirmed' | 'completed' | 'cancelled' | 'no_show', confirmMessage?: string) {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onStatusChange(appointment.id, status);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No hemos podido actualizar la cita.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <button className={`appointment-card appointment-card--${staffMember.accent} ${compact ? 'appointment-card--compact' : ''}`} onClick={onOpen} type="button">
-      <span className="appointment-card__time">
-        <strong>{appointment.start}</strong>
-        <small>{appointment.end}</small>
-      </span>
-      <span className="appointment-card__content">
-        <span className="appointment-card__topline">
-          <strong>{service.name}</strong>
-          <MoreHorizontal aria-hidden="true" size={18} />
+    <article className={`appointment-card appointment-card--${staffMember.accent} ${compact ? 'appointment-card--compact' : ''}`}>
+      <button className="appointment-card__open" onClick={onOpen} type="button">
+        <span className="appointment-card__time">
+          <strong>{appointment.start}</strong>
+          <small>{appointment.end}</small>
         </span>
-        <span className="appointment-card__customer">{customer.name}</span>
-        <span className="appointment-card__meta">
-          <Avatar accent={staffMember.accent} name={staffMember.name} size="sm" />
-          {staffMember.name}
-          {appointment.notes && <span title="Incluye notas">· Nota</span>}
-          {appointment.hasReferencePhoto && <span title="Incluye fotografía">· Foto</span>}
+        <span className="appointment-card__content">
+          <span className="appointment-card__topline"><strong>{service.name}</strong></span>
+          <span className="appointment-card__customer">{customer.name}</span>
+          <span className="appointment-card__meta">
+            <Avatar accent={staffMember.accent} name={staffMember.name} size="sm" />
+            {staffMember.name}
+            {appointment.notes && <span title="Incluye notas">· Nota</span>}
+            {appointment.hasReferencePhoto && <span title="Incluye fotografía">· Foto</span>}
+          </span>
         </span>
-      </span>
-      <StatusBadge status={appointment.status} />
-    </button>
+      </button>
+      <div className="appointment-card__state"><StatusBadge status={appointment.status} /></div>
+      <div className="appointment-card__actions">
+        {primaryAction && <button className="appointment-card__primary" disabled={saving} onClick={() => void changeStatus(primaryAction.status)} type="button">{saving ? 'Guardando…' : primaryAction.label}</button>}
+        <details className="appointment-card__menu">
+          <summary aria-label={`Más acciones para ${customer.name}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
+          <div>
+            {canMarkNoShow && <button disabled={saving} onClick={() => void changeStatus('no_show', '¿Marcar esta cita como no presentada?')} type="button">No presentado</button>}
+            {canCancel && <button className="danger-action" disabled={saving} onClick={() => void changeStatus('cancelled', '¿Cancelar esta cita? El hueco volverá a quedar disponible.')} type="button">Cancelar</button>}
+            {['pending', 'confirmed'].includes(appointment.status) && <button disabled type="button">Reprogramar <small>Próximamente</small></button>}
+            <button onClick={onOpen} type="button">Ver detalle</button>
+          </div>
+        </details>
+      </div>
+      {error && <p className="appointment-card__error" role="alert">{error}</p>}
+    </article>
   );
 }
 

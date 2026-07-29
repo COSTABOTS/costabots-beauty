@@ -7,10 +7,14 @@ import type {
   AvailabilitySlot,
   BeautyOperationalData,
   CreateAppointmentCommand,
+  CreateCustomerCommand,
   CreateTimeBlockCommand,
+  CustomerHistory,
   DateRange,
+  DeactivateCustomerCommand,
   OperationalCounts,
   UpdateAppointmentStatusCommand,
+  UpdateCustomerCommand,
 } from '../data/types';
 import { useBeautyBusiness } from './BeautyBusinessProvider';
 
@@ -28,6 +32,10 @@ type BeautyDataContextValue = BeautyDataState & {
   createTimeBlock: (command: CreateTimeBlockCommand) => Promise<void>;
   getAvailability: (command: AvailabilityCommand) => Promise<AvailabilitySlot[]>;
   createAppointment: (command: CreateAppointmentCommand) => Promise<string>;
+  getCustomerHistory: (customerId: string) => Promise<CustomerHistory>;
+  createCustomer: (command: CreateCustomerCommand) => Promise<string>;
+  updateCustomer: (command: UpdateCustomerCommand) => Promise<string>;
+  deactivateCustomer: (command: DeactivateCustomerCommand) => Promise<string>;
 };
 
 const BeautyDataContext = createContext<BeautyDataContextValue | null>(null);
@@ -127,6 +135,33 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     return appointmentId;
   }, [membership.business.id, refreshAfterWrite]);
 
+  const getCustomerHistory = useCallback(async (customerId: string) => {
+    if (state.status !== 'ready') return { appointments: [], appointmentServices: [] };
+    return beautyRepository.getCustomerHistory(
+      membership.business.id,
+      customerId,
+      state.data.business.timezone,
+    );
+  }, [membership.business.id, state]);
+
+  const createCustomer = useCallback(async (command: CreateCustomerCommand) => {
+    const customerId = await beautyRepository.createCustomer(membership.business.id, command);
+    await refreshAfterWrite();
+    return customerId;
+  }, [membership.business.id, refreshAfterWrite]);
+
+  const updateCustomer = useCallback(async (command: UpdateCustomerCommand) => {
+    const customerId = await beautyRepository.updateCustomer(membership.business.id, command);
+    await refreshAfterWrite();
+    return customerId;
+  }, [membership.business.id, refreshAfterWrite]);
+
+  const deactivateCustomer = useCallback(async (command: DeactivateCustomerCommand) => {
+    const customerId = await beautyRepository.deactivateCustomer(membership.business.id, command);
+    await refreshAfterWrite();
+    return customerId;
+  }, [membership.business.id, refreshAfterWrite]);
+
   const value = useMemo<BeautyDataContextValue>(() => ({
     ...state,
     mode: beautyEnvironment.dataMode,
@@ -137,7 +172,11 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     createTimeBlock,
     getAvailability,
     createAppointment,
-  }), [counts, createAppointment, createTimeBlock, getAvailability, loadAppointmentHistory, state, updateAppointmentStatus]);
+    getCustomerHistory,
+    createCustomer,
+    updateCustomer,
+    deactivateCustomer,
+  }), [counts, createAppointment, createCustomer, createTimeBlock, deactivateCustomer, getAvailability, getCustomerHistory, loadAppointmentHistory, state, updateAppointmentStatus, updateCustomer]);
 
   return <BeautyDataContext.Provider value={value}>{children}</BeautyDataContext.Provider>;
 }

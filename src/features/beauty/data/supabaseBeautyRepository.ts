@@ -31,6 +31,9 @@ import type {
 function mutationError(error: { code?: string; message?: string } | null) {
   const code = error?.code ?? '';
   const message = error?.message ?? '';
+  if (code === '23505' || /customer phone already exists|duplicate.*phone/i.test(message)) {
+    return new BeautyRepositoryError('Ya existe un cliente con ese teléfono.', 'conflict');
+  }
   if (code === '42501' || /not authorized|not allowed|permission/i.test(message)) {
     return new BeautyRepositoryError('No tienes permisos para realizar esta acción.', 'permission');
   }
@@ -38,6 +41,9 @@ function mutationError(error: { code?: string; message?: string } | null) {
     return new BeautyRepositoryError('Ese hueco ya no está disponible o existe un bloqueo.', 'conflict');
   }
   if (code === '22023' || /invalid|must|may only|fit in one schedule/i.test(message)) {
+    if (/phone/i.test(message)) return new BeautyRepositoryError('Introduce un teléfono válido con prefijo internacional.', 'invalid');
+    if (/email/i.test(message)) return new BeautyRepositoryError('Introduce un email válido.', 'invalid');
+    if (/professional|staff/i.test(message)) return new BeautyRepositoryError('El profesional seleccionado no es válido.', 'invalid');
     if (/service.*not enabled/i.test(message)) return new BeautyRepositoryError('El profesional no está habilitado para uno de los servicios.', 'invalid');
     if (/schedule/i.test(message)) return new BeautyRepositoryError('La cita queda fuera del horario disponible.', 'invalid');
     return new BeautyRepositoryError('Los datos enviados no son válidos.', 'invalid');
@@ -56,9 +62,8 @@ function ensureData<T>(data: T | null, error: { message: string } | null, messag
 async function fetchCustomerRows(businessId: string) {
   const result = await supabase
     .from('customers')
-    .select('id,first_name,last_name,phone,preferred_staff_member_id,notes,marketing_consent,reminder_consent')
+    .select('id,first_name,last_name,phone,phone_normalized,email,preferred_staff_member_id,notes,marketing_consent,reminder_consent,consent_updated_at,active')
     .eq('business_id', businessId)
-    .eq('active', true)
     .order('first_name');
   return ensureData(result.data as CustomerRow[] | null, result.error, 'No hemos podido cargar los clientes.');
 }
@@ -139,6 +144,28 @@ export const supabaseBeautyRepository: BeautyRepository = {
   async getCustomers(businessId): Promise<Customer[]> {
     const rows = await fetchCustomerRows(businessId);
     return mapCustomers(rows, [], []);
+  },
+
+  async getCustomerHistory(businessId, customerId, timezone) {
+    const appointmentsResult = await supabase
+      .from('appointments')
+      .select('id,customer_id,starts_at,ends_at,status,source,customer_notes,internal_notes,total_duration_minutes,total_price,currency,assigned_staff_member_id')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .order('starts_at', { ascending: false });
+    const appointmentRows = ensureData(
+      appointmentsResult.data as AppointmentRow[] | null,
+      appointmentsResult.error,
+      'No hemos podido cargar el historial completo del cliente.',
+    );
+    const appointmentServices = await this.getAppointmentServices(
+      businessId,
+      appointmentRows.map((row) => row.id),
+    );
+    return {
+      appointments: mapAppointments(appointmentRows, appointmentServices, timezone),
+      appointmentServices,
+    };
   },
 
   async getAppointments(businessId, range, timezone) {
@@ -260,6 +287,55 @@ export const supabaseBeautyRepository: BeautyRepository = {
     if (result.error) throw mutationError(result.error);
     const row = result.data as { id?: string } | null;
     if (!row?.id) throw new BeautyRepositoryError('No hemos podido confirmar la cita.');
+    return row.id;
+  },
+
+  async createCustomer(businessId, command) {
+    const result = await supabase.rpc('create_beauty_customer', {
+      p_business_id: businessId,
+      p_first_name: command.firstName,
+      p_last_name: command.lastName || null,
+      p_phone: command.phone,
+      p_email: command.email || null,
+      p_preferred_staff_member_id: command.preferredStaffId,
+      p_notes: command.notes || null,
+      p_reminder_consent: command.reminderConsent,
+      p_marketing_consent: command.marketingConsent,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido crear el cliente.');
+    return row.id;
+  },
+
+  async updateCustomer(businessId, command) {
+    const result = await supabase.rpc('update_beauty_customer', {
+      p_business_id: businessId,
+      p_customer_id: command.customerId,
+      p_first_name: command.firstName,
+      p_last_name: command.lastName || null,
+      p_phone: command.phone,
+      p_email: command.email || null,
+      p_preferred_staff_member_id: command.preferredStaffId,
+      p_notes: command.notes || null,
+      p_reminder_consent: command.reminderConsent,
+      p_marketing_consent: command.marketingConsent,
+      p_active: command.active,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido actualizar el cliente.');
+    return row.id;
+  },
+
+  async deactivateCustomer(businessId, command) {
+    const result = await supabase.rpc('deactivate_beauty_customer', {
+      p_business_id: businessId,
+      p_customer_id: command.customerId,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido desactivar el cliente.');
     return row.id;
   },
 };
