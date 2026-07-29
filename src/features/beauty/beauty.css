@@ -150,7 +150,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .agenda-summary { display: flex; gap: 18px; padding: 12px 14px; color: var(--beauty-muted); font-size: .78rem; border-radius: 14px; background: #eee8e1; }
 .agenda-summary strong { color: var(--beauty-ink); }
 .empty-slot, .time-block { display: flex; min-height: 50px; align-items: center; gap: 9px; padding: 10px 14px; color: #68796b; font-size: .75rem; border: 1px dashed #b9cbbc; border-radius: 15px; background: #f4f8f4; }
-.time-block { color: #766b62; border-color: #d8cbbd; background: #eee9e3; }
+.time-block { width: 100%; color: #766b62; text-align: left; border-color: #d8cbbd; background: #eee9e3; cursor: pointer; }
+.time-block__action { margin-left: auto; color: var(--beauty-primary); font-weight: 700; }
 .empty-slot span, .time-block span { display: grid; gap: 2px; }
 .empty-state { display: grid; min-height: 240px; place-items: center; align-content: center; text-align: center; color: var(--beauty-muted); }
 .empty-state svg { width: 38px; height: 38px; color: var(--beauty-primary); }

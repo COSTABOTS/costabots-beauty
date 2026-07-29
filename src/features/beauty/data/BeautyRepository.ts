@@ -20,6 +20,10 @@ import type {
   ReplaceWeeklyScheduleCommand,
   SetStaffServiceCommand,
   UpdateAppointmentStatusCommand,
+  UpdateAppointmentCommand,
+  CancelAppointmentCommand,
+  UpdateTimeBlockCommand,
+  DeactivateTimeBlockCommand,
   UpdateCustomerCommand,
   UpdateServiceCommand,
   UpdateStaffCommand,
@@ -43,6 +47,10 @@ export interface BeautyRepository {
   createTimeBlock(businessId: string, timezone: string, command: CreateTimeBlockCommand): Promise<string>;
   getAvailability(businessId: string, command: AvailabilityCommand): Promise<AvailabilitySlot[]>;
   createAppointment(businessId: string, command: CreateAppointmentCommand): Promise<string>;
+  updateAppointment(businessId: string, command: UpdateAppointmentCommand): Promise<string>;
+  cancelAppointment(businessId: string, command: CancelAppointmentCommand): Promise<string>;
+  updateTimeBlock(businessId: string, timezone: string, command: UpdateTimeBlockCommand): Promise<string>;
+  deactivateTimeBlock(businessId: string, command: DeactivateTimeBlockCommand): Promise<string>;
   createCustomer(businessId: string, command: CreateCustomerCommand): Promise<string>;
   updateCustomer(businessId: string, command: UpdateCustomerCommand): Promise<string>;
   deactivateCustomer(businessId: string, command: DeactivateCustomerCommand): Promise<string>;

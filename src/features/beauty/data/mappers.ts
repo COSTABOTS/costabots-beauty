@@ -110,7 +110,7 @@ export function mapTimeBlocks(rows: TimeBlockRow[], timezone: string): TimeBlock
   return rows.map((row) => {
     const start = formatInTimezone(row.starts_at, timezone);
     const end = formatInTimezone(row.ends_at, timezone);
-    return { id: row.id, date: start.date, start: start.time, end: end.time, staffId: row.staff_member_id ?? 'all', reason: row.reason ?? (row.block_type === 'business_closed' ? 'Negocio cerrado' : 'Bloqueo') };
+    return { id: row.id, date: start.date, start: start.time, end: end.time, staffId: row.staff_member_id ?? 'all', reason: row.reason ?? (row.block_type === 'business_closed' ? 'Negocio cerrado' : 'Bloqueo'), type: row.block_type as import('./types').BeautyTimeBlockType };
   });
 }
 
@@ -187,6 +187,12 @@ const eventLabels: Record<string, string> = {
   rescheduled: 'Cita reprogramada',
   cancelled: 'Cita cancelada',
   note_added: 'Nota añadida',
+  confirmed: 'Cita confirmada',
+  completed: 'Cita finalizada',
+  no_show: 'No presentado',
+  staff_changed: 'Profesional modificado',
+  services_changed: 'Servicios modificados',
+  notes_updated: 'Notas actualizadas',
 };
 
 export function mapAppointmentEvents(rows: AppointmentEventRow[], timezone: string) {

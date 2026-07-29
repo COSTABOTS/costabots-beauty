@@ -112,3 +112,42 @@ Las ausencias, vacaciones, pausas puntuales y cierres globales continúan
 representándose mediante `time_blocks`; no se introduce una tabla paralela.
 El frontend de producción permanece en modo `mock` hasta una activación
 posterior y controlada.
+
+## Operativa diaria de Agenda
+
+El 29 de julio de 2026 se aplicaron, en orden:
+
+- `20260729200019_agenda_event_types.sql`;
+- `20260729201020_agenda_operations.sql`;
+- `20260729202021_agenda_status_events.sql`.
+
+Estas migraciones incorporan disponibilidad ordenada para varios servicios,
+edición transaccional de citas, cancelación con motivo y gestión de bloqueos.
+La disponibilidad suma las duraciones efectivas por profesional, usa los
+buffers del primer y último servicio, respeta los distintos tramos semanales,
+bloqueos globales o individuales y permite excluir la propia cita al
+reprogramarla. La edición conserva `customer_id` y recalcula en servidor
+duración, precio, moneda y servicios.
+
+Las escrituras usan `SECURITY DEFINER`, `search_path` fijo, membresía y rol,
+advisory lock por negocio/profesional/día local y permisos exclusivos para
+`authenticated`; `anon` y `public` permanecen revocados. El historial registra
+eventos específicos de reprogramación, cambio de profesional, servicios,
+notas, cancelación, confirmación, finalización y no presentado.
+
+Se validaron contra Supabase real la disponibilidad multservicio, una
+reprogramación con dos servicios, el recálculo de 180 minutos y 115 EUR, la
+persistencia y los eventos generados, además de la edición de un bloqueo. La
+prueba estricta con dos conexiones autenticadas simultáneas continúa pendiente:
+la protección está implementada mediante advisory lock transaccional, pero una
+única sesión de navegador no demuestra por sí sola la carrera real.
+
+Antes de activar Supabase para operaciones de producción debe ejecutarse con
+dos sesiones autenticadas distintas, pertenecientes a la misma empresa, una
+creación o reprogramación simultánea para el mismo profesional, fecha y hora.
+La aceptación exige que solo una operación se complete, que la segunda reciba
+un error funcional y comprensible y que no quede ningún solapamiento
+persistente.
+
+El frontend de producción y `.env.example` continúan en
+`VITE_BEAUTY_DATA_MODE=mock`.

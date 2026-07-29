@@ -260,13 +260,12 @@ export const supabaseBeautyRepository: BeautyRepository = {
   },
 
   async getAvailability(businessId, command) {
-    const result = await supabase.rpc('get_service_availability', {
+    const result = await supabase.rpc('get_multi_service_availability', {
       p_business_id: businessId,
-      p_service_id: command.serviceId,
+      p_service_ids: command.serviceIds,
       p_date: command.date,
       p_staff_member_id: command.staffId,
-      p_time_from: null,
-      p_time_to: null,
+      p_exclude_appointment_id: command.excludeAppointmentId ?? null,
       p_slot_interval_minutes: 15,
     });
     if (result.error) throw mutationError(result.error);
@@ -295,6 +294,47 @@ export const supabaseBeautyRepository: BeautyRepository = {
     const row = result.data as { id?: string } | null;
     if (!row?.id) throw new BeautyRepositoryError('No hemos podido confirmar la cita.');
     return row.id;
+  },
+
+  async updateAppointment(businessId, command) {
+    const result = await supabase.rpc('update_beauty_appointment', {
+      p_business_id: businessId, p_appointment_id: command.appointmentId,
+      p_starts_at: command.startsAt, p_assigned_staff_member_id: command.staffId,
+      p_service_ids: command.serviceIds, p_internal_notes: command.internalNotes || null,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido actualizar la cita.');
+    return row.id;
+  },
+
+  async cancelAppointment(businessId, command) {
+    const result = await supabase.rpc('cancel_beauty_appointment', {
+      p_business_id: businessId, p_appointment_id: command.appointmentId, p_reason: command.reason || null,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido cancelar la cita.');
+    return row.id;
+  },
+
+  async updateTimeBlock(businessId, timezone, command) {
+    const result = await supabase.rpc('update_beauty_time_block', {
+      p_business_id: businessId, p_block_id: command.blockId, p_staff_member_id: command.staffId,
+      p_starts_at: localDateTimeToIso(command.date, command.start, timezone),
+      p_ends_at: localDateTimeToIso(command.date, command.end, timezone),
+      p_block_type: command.type, p_reason: command.reason || null, p_notes: command.notes || null,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido actualizar el bloqueo.');
+    return row.id;
+  },
+
+  async deactivateTimeBlock(businessId, command) {
+    const result = await supabase.rpc('deactivate_beauty_time_block', { p_business_id: businessId, p_block_id: command.blockId });
+    if (result.error) throw mutationError(result.error);
+    return String(result.data);
   },
 
   async createCustomer(businessId, command) {

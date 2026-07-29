@@ -122,20 +122,37 @@ export const mockBeautyRepository: BeautyRepository = {
   async createTimeBlock(_businessId, _timezone, command) {
     if (command.start >= command.end) throw new BeautyRepositoryError('La hora de inicio debe ser anterior a la hora de fin.', 'invalid');
     const id = `mock-block-${Date.now()}`;
-    mockTimeBlocks.push({ id, date: command.date, start: command.start, end: command.end, staffId: command.staffId ?? 'all', reason: command.reason || 'Bloqueo' });
+    mockTimeBlocks.push({ id, date: command.date, start: command.start, end: command.end, staffId: command.staffId ?? 'all', reason: command.reason || 'Bloqueo', type: command.type });
     return id;
   },
   async getAvailability(_businessId, command) {
     const slots = ['09:00', '10:00', '11:00', '12:00', '16:00', '17:00'];
-    const service = services.find((item) => item.id === command.serviceId);
+    if (new Set(command.serviceIds).size !== command.serviceIds.length) throw new BeautyRepositoryError('No puedes repetir un servicio.', 'invalid');
+    const assignments = command.serviceIds.map((id) => mockStaffServices.find((item) => item.staffId === command.staffId && item.serviceId === id && item.active));
+    if (assignments.some((item) => !item)) throw new BeautyRepositoryError('El profesional no realiza uno de los servicios seleccionados.', 'invalid');
+    const selected = command.serviceIds.map((id) => mockServices.find((item) => item.id === id && item.active)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (selected.length !== command.serviceIds.length) throw new BeautyRepositoryError('Uno de los servicios no está disponible.', 'invalid');
+    const duration = assignments.reduce((total, item) => total + (item?.durationMinutes ?? 0), 0);
+    const bufferBefore = selected[0]?.bufferBeforeMinutes ?? 0;
+    const bufferAfter = selected[selected.length - 1]?.bufferAfterMinutes ?? 0;
     return slots.map((time) => {
       const startsAt = localDateTimeToIso(command.date, time, 'Europe/Madrid');
       return {
         staffId: command.staffId,
         startsAt,
-        endsAt: new Date(new Date(startsAt).getTime() + (service?.durationMinutes ?? 30) * 60000).toISOString(),
-        durationMinutes: service?.durationMinutes ?? 30,
+        endsAt: new Date(new Date(startsAt).getTime() + duration * 60000).toISOString(),
+        durationMinutes: duration,
       };
+    }).filter((slot) => {
+      const occupiedStart = new Date(slot.startsAt).getTime() - bufferBefore * 60000;
+      const occupiedEnd = new Date(slot.endsAt).getTime() + bufferAfter * 60000;
+      const appointmentConflict = mockAppointments.some((appointment) => appointment.id !== command.excludeAppointmentId && appointment.staffId === command.staffId && appointment.status !== 'cancelled' && appointment.date === command.date
+        && new Date(localDateTimeToIso(appointment.date, appointment.start, 'Europe/Madrid')).getTime() < occupiedEnd
+        && new Date(localDateTimeToIso(appointment.date, appointment.end, 'Europe/Madrid')).getTime() > occupiedStart);
+      const blockConflict = mockTimeBlocks.some((block) => block.date === command.date && (block.staffId === 'all' || block.staffId === command.staffId)
+        && new Date(localDateTimeToIso(block.date, block.start, 'Europe/Madrid')).getTime() < occupiedEnd
+        && new Date(localDateTimeToIso(block.date, block.end, 'Europe/Madrid')).getTime() > occupiedStart);
+      return !appointmentConflict && !blockConflict;
     });
   },
   async createAppointment(_businessId, command) {
@@ -166,6 +183,30 @@ export const mockBeautyRepository: BeautyRepository = {
       currency: 'EUR',
     });
     return id;
+  },
+  async updateAppointment(_businessId, command) {
+    const appointment = mockAppointments.find((item) => item.id === command.appointmentId);
+    if (!appointment || !['pending','confirmed'].includes(appointment.status)) throw new BeautyRepositoryError('La cita no se puede editar.', 'invalid');
+    const selected = command.serviceIds.map((id) => mockServices.find((item) => item.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const duration = selected.reduce((total,item)=>total+item.durationMinutes,0);
+    const start = new Date(command.startsAt);
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(start);
+    const part=(type:Intl.DateTimeFormatPartTypes)=>parts.find((item)=>item.type===type)?.value??'';
+    Object.assign(appointment,{date:`${part('year')}-${part('month')}-${part('day')}`,start:`${part('hour')}:${part('minute')}`,end:new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Madrid',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(start.getTime()+duration*60000)),staffId:command.staffId,serviceId:command.serviceIds[0],serviceIds:command.serviceIds,notes:command.internalNotes,totalDurationMinutes:duration,totalPrice:selected.reduce((t,s)=>t+s.price,0)});
+    appointment.history=[{id:`mock-event-${Date.now()}`,label:'Cita actualizada',at:'Ahora'},...appointment.history];
+    return appointment.id;
+  },
+  async cancelAppointment(_businessId, command) {
+    const appointment=mockAppointments.find((item)=>item.id===command.appointmentId);
+    if(!appointment||!['pending','confirmed'].includes(appointment.status)) throw new BeautyRepositoryError('La cita no se puede cancelar.','invalid');
+    appointment.status='cancelled'; appointment.history=[{id:`mock-event-${Date.now()}`,label:`Cita cancelada${command.reason?`: ${command.reason}`:''}`,at:'Ahora'},...appointment.history]; return appointment.id;
+  },
+  async updateTimeBlock(_businessId,_timezone,command) {
+    const block=mockTimeBlocks.find((item)=>item.id===command.blockId); if(!block) throw new BeautyRepositoryError('No se encuentra el bloqueo.','not_found');
+    Object.assign(block,{date:command.date,start:command.start,end:command.end,staffId:command.staffId??'all',reason:command.reason||'Bloqueo',type:command.type}); return block.id;
+  },
+  async deactivateTimeBlock(_businessId,command) {
+    const index=mockTimeBlocks.findIndex((item)=>item.id===command.blockId); if(index<0) throw new BeautyRepositoryError('No se encuentra el bloqueo.','not_found'); mockTimeBlocks.splice(index,1); return command.blockId;
   },
   async createCustomer(_businessId, command) {
     const digits = command.phone.replace(/\D/g, '');

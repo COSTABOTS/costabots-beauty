@@ -121,4 +121,5 @@ export interface TimeBlock {
   end: string;
   staffId: string;
   reason: string;
+  type?: import('../data/types').BeautyTimeBlockType;
 }

@@ -103,9 +103,10 @@ export type CreateTimeBlockCommand = {
 };
 
 export type AvailabilityCommand = {
-  serviceId: string;
+  serviceIds: string[];
   date: string;
   staffId: string;
+  excludeAppointmentId?: string;
 };
 
 export type AvailabilitySlot = {
@@ -123,6 +124,22 @@ export type CreateAppointmentCommand = {
   customerNotes?: string;
   internalNotes?: string;
 };
+
+export type UpdateAppointmentCommand = {
+  appointmentId: string;
+  staffId: string;
+  serviceIds: string[];
+  startsAt: string;
+  internalNotes: string;
+};
+
+export type CancelAppointmentCommand = {
+  appointmentId: string;
+  reason: string;
+};
+
+export type UpdateTimeBlockCommand = CreateTimeBlockCommand & { blockId: string };
+export type DeactivateTimeBlockCommand = { blockId: string };
 
 export type CustomerInput = {
   firstName: string;
