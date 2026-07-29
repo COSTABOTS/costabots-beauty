@@ -85,3 +85,30 @@ informar `cancelled_at` para satisfacer
 `appointments_cancellation_consistency`. La corrección queda representada en
 `20260729153016_fix_appointment_cancellation_timestamp.sql`; no altera campos
 de cliente, profesional, horario, duración, precio ni negocio.
+
+## Profesionales, servicios y horarios
+
+El 29 de julio de 2026 se aplicó
+`20260729170017_staff_services_schedules_management.sql`. Incorpora RPC
+autenticadas para crear, editar y desactivar profesionales y servicios,
+gestionar la relación `staff_services` y reemplazar de forma transaccional el
+horario semanal habitual de un profesional.
+
+Todas las escrituras requieren rol `owner` o `admin`, fijan `search_path`,
+mantienen `user_id` fuera de los contratos del frontend y revocan ejecución a
+`anon` y `public`. La desactivación es lógica y se rechaza si el profesional o
+servicio participa en citas futuras activas. Los horarios conservan la
+convención ISO existente (`1 = lunes`, `7 = domingo`), admiten varios tramos
+diarios y rechazan intervalos inválidos o solapados.
+
+La primera ejecución de la RPC de horarios en PostgreSQL real detectó que
+`WITH ORDINALITY` no puede combinarse con una lista de definición de columnas.
+La corrección incremental queda registrada en
+`20260729173018_fix_weekly_schedule_overlap_validation.sql`, que sustituye
+únicamente esa RPC usando segmentos numerados mediante `row_number()` y
+mantiene intactos permisos, validaciones y reemplazo transaccional.
+
+Las ausencias, vacaciones, pausas puntuales y cierres globales continúan
+representándose mediante `time_blocks`; no se introduce una tabla paralela.
+El frontend de producción permanece en modo `mock` hasta una activación
+posterior y controlada.

@@ -37,6 +37,15 @@ function mutationError(error: { code?: string; message?: string } | null) {
   if (code === '42501' || /not authorized|not allowed|permission/i.test(message)) {
     return new BeautyRepositoryError('No tienes permisos para realizar esta acción.', 'permission');
   }
+  if (/staff member has future appointments/i.test(message)) {
+    return new BeautyRepositoryError('No puedes desactivar este profesional porque tiene citas futuras activas.', 'conflict');
+  }
+  if (/service is used in future appointments/i.test(message)) {
+    return new BeautyRepositoryError('No puedes desactivar este servicio porque aparece en citas futuras activas.', 'conflict');
+  }
+  if (/schedule segments overlap/i.test(message)) {
+    return new BeautyRepositoryError('Hay tramos del horario que se solapan.', 'conflict');
+  }
   if (code === '23P01' || /not available|conflict/i.test(message)) {
     return new BeautyRepositoryError('Ese hueco ya no está disponible o existe un bloqueo.', 'conflict');
   }
@@ -93,9 +102,8 @@ export const supabaseBeautyRepository: BeautyRepository = {
   async getStaff(businessId) {
     const result = await supabase
       .from('staff_members')
-      .select('id,display_name,color_key,sort_order')
+      .select('id,display_name,phone,email,color_key,sort_order,active')
       .eq('business_id', businessId)
-      .eq('active', true)
       .order('sort_order');
     return mapStaff(ensureData(result.data as StaffRow[] | null, result.error, 'No hemos podido cargar los profesionales.'));
   },
@@ -103,16 +111,15 @@ export const supabaseBeautyRepository: BeautyRepository = {
   async getServices(businessId) {
     const result = await supabase
       .from('beauty_services')
-      .select('id,name,duration_minutes,price,currency')
+      .select('id,name,description,duration_minutes,buffer_before_minutes,buffer_after_minutes,price,currency,active,online_booking_enabled,reactivation_days')
       .eq('business_id', businessId)
-      .eq('active', true)
       .order('name');
     return mapServices(ensureData(result.data as ServiceRow[] | null, result.error, 'No hemos podido cargar los servicios.'));
   },
 
   async getStaffServices(businessId) {
     const [rowsResult, services] = await Promise.all([
-      supabase.from('staff_services').select('id,staff_member_id,service_id,custom_duration_minutes,custom_price,active').eq('business_id', businessId).eq('active', true),
+      supabase.from('staff_services').select('id,staff_member_id,service_id,custom_duration_minutes,custom_price,active').eq('business_id', businessId),
       this.getServices(businessId),
     ]);
     const rows = ensureData(rowsResult.data as StaffServiceRow[] | null, rowsResult.error, 'No hemos podido cargar la asignación de servicios.');
@@ -206,7 +213,7 @@ export const supabaseBeautyRepository: BeautyRepository = {
       fetchAppointmentRows(businessId, range),
     ]);
     const [staffServicesResult, appointmentServices] = await Promise.all([
-      supabase.from('staff_services').select('id,staff_member_id,service_id,custom_duration_minutes,custom_price,active').eq('business_id', businessId).eq('active', true),
+      supabase.from('staff_services').select('id,staff_member_id,service_id,custom_duration_minutes,custom_price,active').eq('business_id', businessId),
       this.getAppointmentServices(businessId, appointmentRows.map((row) => row.id)),
     ]);
     const staffServiceRows = ensureData(staffServicesResult.data as StaffServiceRow[] | null, staffServicesResult.error, 'No hemos podido cargar la asignación de servicios.');
@@ -337,5 +344,91 @@ export const supabaseBeautyRepository: BeautyRepository = {
     const row = result.data as { id?: string } | null;
     if (!row?.id) throw new BeautyRepositoryError('No hemos podido desactivar el cliente.');
     return row.id;
+  },
+
+  async createStaff(businessId, command) {
+    const result = await supabase.rpc('create_beauty_staff_member', {
+      p_business_id: businessId, p_display_name: command.name, p_phone: command.phone || null,
+      p_email: command.email || null, p_color_key: command.colorKey, p_sort_order: command.sortOrder,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido crear el profesional.');
+    return row.id;
+  },
+
+  async updateStaff(businessId, command) {
+    const result = await supabase.rpc('update_beauty_staff_member', {
+      p_business_id: businessId, p_staff_member_id: command.staffId, p_display_name: command.name,
+      p_phone: command.phone || null, p_email: command.email || null, p_color_key: command.colorKey,
+      p_sort_order: command.sortOrder, p_active: command.active,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido actualizar el profesional.');
+    return row.id;
+  },
+
+  async deactivateStaff(businessId, command) {
+    const result = await supabase.rpc('deactivate_beauty_staff_member', { p_business_id: businessId, p_staff_member_id: command.staffId });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido desactivar el profesional.');
+    return row.id;
+  },
+
+  async createService(businessId, command) {
+    const result = await supabase.rpc('create_beauty_service', {
+      p_business_id: businessId, p_name: command.name, p_description: command.description || null,
+      p_duration_minutes: command.durationMinutes, p_buffer_before_minutes: command.bufferBeforeMinutes,
+      p_buffer_after_minutes: command.bufferAfterMinutes, p_price: command.price, p_currency: command.currency,
+      p_online_booking_enabled: command.onlineBookingEnabled, p_reactivation_days: command.reactivationDays,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido crear el servicio.');
+    return row.id;
+  },
+
+  async updateService(businessId, command) {
+    const result = await supabase.rpc('update_beauty_service', {
+      p_business_id: businessId, p_service_id: command.serviceId, p_name: command.name,
+      p_description: command.description || null, p_duration_minutes: command.durationMinutes,
+      p_buffer_before_minutes: command.bufferBeforeMinutes, p_buffer_after_minutes: command.bufferAfterMinutes,
+      p_price: command.price, p_currency: command.currency, p_online_booking_enabled: command.onlineBookingEnabled,
+      p_reactivation_days: command.reactivationDays, p_active: command.active,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido actualizar el servicio.');
+    return row.id;
+  },
+
+  async deactivateService(businessId, command) {
+    const result = await supabase.rpc('deactivate_beauty_service', { p_business_id: businessId, p_service_id: command.serviceId });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido desactivar el servicio.');
+    return row.id;
+  },
+
+  async setStaffService(businessId, command) {
+    const result = await supabase.rpc('set_beauty_staff_service', {
+      p_business_id: businessId, p_staff_member_id: command.staffId, p_service_id: command.serviceId,
+      p_custom_duration_minutes: command.durationMinutes, p_custom_price: command.price, p_active: command.active,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido guardar la asignación.');
+    return row.id;
+  },
+
+  async replaceWeeklySchedule(businessId, command) {
+    const result = await supabase.rpc('replace_beauty_staff_weekly_schedule', {
+      p_business_id: businessId, p_staff_member_id: command.staffId, p_segments: command.segments.map((segment) => ({
+        day_of_week: segment.dayOfWeek, start_time: segment.start, end_time: segment.end,
+      })),
+    });
+    if (result.error) throw mutationError(result.error);
   },
 };

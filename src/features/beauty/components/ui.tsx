@@ -160,7 +160,7 @@ export function DetailRow({ icon, label, value }: { icon?: ReactNode; label: str
   );
 }
 
-export function Sheet({ children, title, subtitle, onClose, wide = false }: { children: ReactNode; title: string; subtitle?: string; onClose: () => void; wide?: boolean }) {
+export function Sheet({ bodyClassName = '', children, title, subtitle, onClose, wide = false }: { bodyClassName?: string; children: ReactNode; title: string; subtitle?: string; onClose: () => void; wide?: boolean }) {
   return (
     <div className="beauty-sheet-backdrop" role="presentation" onMouseDown={onClose}>
       <section aria-label={title} aria-modal="true" className={`beauty-sheet ${wide ? 'beauty-sheet--wide' : ''}`} onMouseDown={(event) => event.stopPropagation()} role="dialog">
@@ -171,7 +171,7 @@ export function Sheet({ children, title, subtitle, onClose, wide = false }: { ch
           </div>
           <button aria-label="Cerrar" className="icon-button-soft" onClick={onClose} type="button"><X size={21} /></button>
         </header>
-        <div className="beauty-sheet__body">{children}</div>
+        <div className={`beauty-sheet__body ${bodyClassName}`.trim()}>{children}</div>
       </section>
     </div>
   );

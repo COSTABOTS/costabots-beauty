@@ -151,6 +151,42 @@ export type CustomerHistory = {
   appointmentServices: AppointmentService[];
 };
 
+export type StaffInput = {
+  name: string;
+  phone: string;
+  email: string;
+  colorKey: 'coral' | 'sage' | 'sand';
+  sortOrder: number;
+};
+export type CreateStaffCommand = StaffInput;
+export type UpdateStaffCommand = StaffInput & { staffId: string; active: boolean };
+export type DeactivateStaffCommand = { staffId: string };
+
+export type ServiceInput = {
+  name: string;
+  description: string;
+  durationMinutes: number;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  price: number;
+  currency: string;
+  onlineBookingEnabled: boolean;
+  reactivationDays: number | null;
+};
+export type CreateServiceCommand = ServiceInput;
+export type UpdateServiceCommand = ServiceInput & { serviceId: string; active: boolean };
+export type DeactivateServiceCommand = { serviceId: string };
+
+export type SetStaffServiceCommand = {
+  staffId: string;
+  serviceId: string;
+  durationMinutes: number | null;
+  price: number | null;
+  active: boolean;
+};
+export type WeeklyScheduleSegmentInput = { dayOfWeek: number; start: string; end: string };
+export type ReplaceWeeklyScheduleCommand = { staffId: string; segments: WeeklyScheduleSegmentInput[] };
+
 export type BusinessRow = {
   id: string;
   name: string;
@@ -163,16 +199,25 @@ export type BusinessRow = {
 export type StaffRow = {
   id: string;
   display_name: string;
+  phone: string | null;
+  email: string | null;
   color_key: string;
   sort_order: number;
+  active: boolean;
 };
 
 export type ServiceRow = {
   id: string;
   name: string;
+  description: string | null;
   duration_minutes: number;
+  buffer_before_minutes: number;
+  buffer_after_minutes: number;
   price: number | string;
   currency: string;
+  active: boolean;
+  online_booking_enabled: boolean;
+  reactivation_days: number | null;
 };
 
 export type StaffServiceRow = {

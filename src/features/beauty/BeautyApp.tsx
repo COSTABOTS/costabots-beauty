@@ -50,6 +50,7 @@ import {
 } from './components/ui';
 import { BeautyBrandLockup, BeautyBrandMark } from './components/BeautyBrand';
 import { CustomerForm } from './components/CustomerForm';
+import { SchedulesManagementPage, ServicesManagementPage, StaffManagementPage } from './components/BusinessSetup';
 import './beauty.css';
 
 const dates = ['2026-07-27', demoToday, '2026-07-29', '2026-07-30'];
@@ -144,6 +145,7 @@ function BeautyManager() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [appointmentCustomerId, setAppointmentCustomerId] = useState<string | null>(null);
   const [extraAppointmentServices, setExtraAppointmentServices] = useState<import('./data/types').AppointmentService[]>([]);
+  const [setupStaffId, setSetupStaffId] = useState<string | undefined>();
   const [toast, setToast] = useState('');
   const [activeForm, setActiveForm] = useState<'appointment' | 'block' | 'customer' | 'edit-customer' | null>(null);
   const canManageCustomers = membership.role === 'owner' || membership.role === 'admin';
@@ -189,14 +191,17 @@ function BeautyManager() {
       <main className="beauty-main">
         {mode === 'mock' && <div className="mode-notice"><FeatureStateBadge state="demo" /><span>Los datos y acciones simuladas no se guardan fuera de esta demostración.</span></div>}
         {route === 'today' && <TodayPage appointments={appointments} businessName={businessName} customers={customers} mode={mode} navigate={navigate} onCreateAppointment={() => setActiveForm('appointment')} onCreateBlock={() => setActiveForm('block')} onOpenAppointment={setSelectedAppointmentId} onStatusChange={updateAppointmentStatus} ownerDisplayName={ownerDisplayName} services={services} staff={staff} today={operationalToday} timezone={beautyData.data.business.timezone} />}
-        {route === 'agenda' && <AgendaPage appointments={appointments} customers={customers} date={selectedDate} mode={mode} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
+        {route === 'agenda' && <AgendaPage appointments={appointments} customers={customers} date={selectedDate} mode={mode} onCreateAppointment={() => setActiveForm('appointment')} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
         {route === 'customers' && <CustomersPage canManage={canManageCustomers} customers={customers} mode={mode} onCreateCustomer={() => setActiveForm('customer')} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />}
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void signOut()} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
+        {route === 'staff' && <StaffManagementPage appointments={appointments} canManage={canManageCustomers} mode={mode} onBack={() => navigate('more')} onCreate={beautyData.createStaff} onDeactivate={(staffId) => beautyData.deactivateStaff({ staffId })} onOpenSchedules={(staffId) => { setSetupStaffId(staffId); navigate('schedules'); }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateStaff} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
+        {route === 'services' && <ServicesManagementPage canManage={canManageCustomers} mode={mode} onBack={() => navigate('more')} onCreate={beautyData.createService} onDeactivate={(serviceId) => beautyData.deactivateService({ serviceId })} onUpdate={beautyData.updateService} services={services} staffServices={beautyData.data.staffServices} />}
+        {route === 'schedules' && <SchedulesManagementPage initialStaffId={setupStaffId} mode={mode} onBack={() => navigate('more')} onCreateAbsence={(staffId) => { setSetupStaffId(staffId); setActiveForm('block'); }} onSave={(staffId, segments) => beautyData.replaceWeeklySchedule({ staffId, segments })} schedules={beautyData.data.schedules} staff={staff} />}
       </main>
 
-      <BeautyNavigation active={route === 'automations' ? 'more' : route} onNavigate={navigate} />
+      <BeautyNavigation active={['automations', 'staff', 'services', 'schedules'].includes(route) ? 'more' : route} onNavigate={navigate} />
 
       {selectedAppointment && (
         <AppointmentDetail
@@ -225,8 +230,8 @@ function BeautyManager() {
           onStatusChange={(status) => updateConversationStatus(selectedConversation.id, status)}
         />
       )}
-      {activeForm === 'block' && <TimeBlockForm defaultDate={selectedDate} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => setActiveForm(null)} onCreate={async (command) => { await beautyData.createTimeBlock(command); setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Bloqueo guardado' : 'Bloqueo creado en la demo'); }} staff={staff} />}
-      {activeForm === 'appointment' && <NewAppointmentForm customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedDate} initialCustomerId={appointmentCustomerId} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => { setActiveForm(null); setAppointmentCustomerId(null); }} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setAppointmentCustomerId(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services} staff={staff} staffServices={beautyData.data.staffServices} timezone={beautyData.data.business.timezone} />}
+      {activeForm === 'block' && <TimeBlockForm defaultDate={selectedDate} initialStaffId={setupStaffId} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => setActiveForm(null)} onCreate={async (command) => { await beautyData.createTimeBlock(command); setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Bloqueo guardado' : 'Bloqueo creado en la demo'); }} staff={staff.filter((item) => item.active !== false)} />}
+      {activeForm === 'appointment' && <NewAppointmentForm customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedDate} initialCustomerId={appointmentCustomerId} maxDate={addDays(beautyDataRange.to, -1)} minDate={beautyDataRange.from} onClose={() => { setActiveForm(null); setAppointmentCustomerId(null); }} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setAppointmentCustomerId(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services.filter((item) => item.active !== false)} staff={staff.filter((item) => item.active !== false)} staffServices={beautyData.data.staffServices.filter((item) => item.active)} timezone={beautyData.data.business.timezone} />}
       {activeForm === 'customer' && <CustomerForm mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { const id = await beautyData.createCustomer(value); setActiveForm(null); setSelectedCustomerId(id); showToast(mode === 'mock' ? 'Cliente creado en la demo' : 'Cliente creado'); }} staff={staff} />}
       {activeForm === 'edit-customer' && selectedCustomer && <CustomerForm customer={selectedCustomer} mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { await beautyData.updateCustomer({ ...value, customerId: selectedCustomer.id }); setActiveForm(null); showToast(mode === 'mock' ? 'Cliente actualizado en la demo' : 'Cliente actualizado'); }} staff={staff} />}
       {toast && <div className="beauty-toast"><Check size={17} />{toast}</div>}
@@ -304,7 +309,7 @@ function TodayPage({ appointments, businessName, customers, mode, navigate, onCr
   );
 }
 
-function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenAppointment, onStatusChange, services, staff, staffFilter, setStaffFilter, timeBlocks, timezone, today }: { appointments: Appointment[]; customers: Customer[]; date: string; mode: 'mock' | 'supabase'; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffFilter: string; setStaffFilter: (id: string) => void; timeBlocks: import('./types').TimeBlock[]; timezone: string; today: string }) {
+function AgendaPage({ appointments, customers, date, mode, onCreateAppointment, onDateChange, onOpenAppointment, onStatusChange, services, staff, staffFilter, setStaffFilter, timeBlocks, timezone, today }: { appointments: Appointment[]; customers: Customer[]; date: string; mode: 'mock' | 'supabase'; onCreateAppointment: () => void; onDateChange: (date: string) => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffFilter: string; setStaffFilter: (id: string) => void; timeBlocks: import('./types').TimeBlock[]; timezone: string; today: string }) {
   const index = dates.indexOf(date);
   const lastLoadedDate = addDays(beautyDataRange.to, -1);
   const previousDisabled = mode === 'mock' ? index <= 0 : date <= beautyDataRange.from;
@@ -315,7 +320,7 @@ function AgendaPage({ appointments, customers, date, mode, onDateChange, onOpenA
 
   return (
     <div className="beauty-page">
-      <PageHeader eyebrow="Organiza tu día" title="Agenda" action={<button className="primary-icon-button" onClick={() => onDateChange(today)} type="button">Hoy</button>} />
+      <PageHeader eyebrow="Organiza tu día" title="Agenda" action={<div className="heading-actions"><button className="primary-icon-button" onClick={() => onDateChange(today)} type="button">Hoy</button><button aria-label="Nueva cita" className="primary-icon-button" onClick={onCreateAppointment} type="button"><CirclePlus size={17} /></button></div>} />
       <div className="date-switcher">
         <button aria-label="Día anterior" disabled={previousDisabled} onClick={() => onDateChange(mode === 'mock' ? dates[index - 1] : addDays(date, -1))} type="button"><ChevronLeft /></button>
         <span><small>Vista diaria</small><strong>{mode === 'mock' ? dateLabels[date] : dateLabel(date, timezone)}</strong></span>
@@ -368,10 +373,10 @@ function CustomersPage({ canManage, customers, mode, onCreateCustomer, onOpenCus
   );
 }
 
-function TimeBlockForm({ defaultDate, maxDate, minDate, onClose, onCreate, staff }: { defaultDate: string; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateTimeBlockCommand) => Promise<void>; staff: import('./types').StaffMember[] }) {
+function TimeBlockForm({ defaultDate, initialStaffId, maxDate, minDate, onClose, onCreate, staff }: { defaultDate: string; initialStaffId?: string; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateTimeBlockCommand) => Promise<void>; staff: import('./types').StaffMember[] }) {
   const membership = useBeautyBusiness();
   const canManageAll = membership.role === 'owner' || membership.role === 'admin';
-  const [staffId, setStaffId] = useState(canManageAll ? 'all' : staff[0]?.id ?? '');
+  const [staffId, setStaffId] = useState(initialStaffId ?? (canManageAll ? 'all' : staff[0]?.id ?? ''));
   const [date, setDate] = useState(defaultDate);
   const [start, setStart] = useState('13:00');
   const [end, setEnd] = useState('14:00');
@@ -432,6 +437,16 @@ function NewAppointmentForm({ customers, defaultDate, initialCustomerId, maxDate
   const selectedAssignments = serviceIds.map((id) => assignments.find((item) => item.serviceId === id)).filter((item): item is import('./data/types').StaffServiceAssignment => Boolean(item));
   const totalDuration = selectedAssignments.reduce((total, item) => total + item.durationMinutes, 0);
   const totalPrice = selectedAssignments.reduce((total, item) => total + item.price, 0);
+  const canSubmit = Boolean(customerId && staffId && serviceIds.length && startsAt);
+  const submitHint = !customerId
+    ? 'Selecciona un cliente para continuar.'
+    : !staffId
+      ? 'Selecciona un profesional para continuar.'
+      : serviceIds.length === 0
+        ? 'Selecciona al menos un servicio.'
+        : !startsAt
+          ? 'Consulta y selecciona una hora disponible.'
+          : '';
 
   async function findSlots() {
     if (!staffId || !date || serviceIds.length === 0) {
@@ -469,8 +484,9 @@ function NewAppointmentForm({ customers, defaultDate, initialCustomerId, maxDate
 
   const slotLabel = (value: string) => new Intl.DateTimeFormat('es-ES', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(value));
   return (
-    <Sheet onClose={onClose} subtitle="Disponibilidad real" title="Nueva cita" wide>
-      <form className="beauty-command-form" onSubmit={submit}>
+    <Sheet bodyClassName="beauty-sheet__body--appointment" onClose={onClose} subtitle="Disponibilidad real" title="Nueva cita" wide>
+      <form className="beauty-command-form appointment-create-form" onSubmit={submit}>
+        <div className="appointment-create-form__body">
         <label><span>Cliente</span><select onChange={(event) => setCustomerId(event.target.value)} value={customerId}>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
         <div className="form-columns"><label><span>Profesional</span><select onChange={(event) => { setStaffId(event.target.value); setServiceIds([]); setSlots([]); setStartsAt(''); }} value={staffId}>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label><label><span>Fecha</span><input max={maxDate} min={minDate} onChange={(event) => { setDate(event.target.value); setSlots([]); setStartsAt(''); }} required type="date" value={date} /></label></div>
         <fieldset><legend>Servicios</legend><div className="service-options">{eligibleServices.map((service) => <label key={service.id}><input checked={serviceIds.includes(service.id)} onChange={(event) => { setServiceIds((current) => event.target.checked ? [...current, service.id] : current.filter((id) => id !== service.id)); setSlots([]); setStartsAt(''); }} type="checkbox" /><span><strong>{service.name}</strong><small>{assignments.find((item) => item.serviceId === service.id)?.durationMinutes} min · {assignments.find((item) => item.serviceId === service.id)?.price} €</small></span></label>)}</div></fieldset>
@@ -479,8 +495,15 @@ function NewAppointmentForm({ customers, defaultDate, initialCustomerId, maxDate
         {slots.length > 0 && <fieldset><legend>Hora disponible</legend><div className="slot-options">{slots.map((slot) => <button aria-pressed={startsAt === slot.startsAt} className={startsAt === slot.startsAt ? 'is-selected' : ''} key={slot.startsAt} onClick={() => setStartsAt(slot.startsAt)} type="button">{slotLabel(slot.startsAt)}</button>)}</div></fieldset>}
         {!loadingSlots && serviceIds.length > 0 && slots.length === 0 && <p className="inline-data-message">Consulta la disponibilidad para mostrar horas reales.</p>}
         <label><span>Notas opcionales</span><textarea maxLength={500} onChange={(event) => setNotes(event.target.value)} value={notes} /></label>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="form-submit" disabled={saving || !startsAt} type="submit">{saving ? 'Creando cita…' : 'Crear cita'}</button>
+        </div>
+        <footer className="appointment-create-form__footer">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {!canSubmit && !saving && <p className="appointment-create-form__hint">{submitHint}</p>}
+          <div>
+            <button className="form-cancel" disabled={saving} onClick={onClose} type="button">Cancelar</button>
+            <button className="form-submit" disabled={saving || !canSubmit} type="submit">{saving ? 'Creando cita…' : 'Confirmar nueva cita'}</button>
+          </div>
+        </footer>
       </form>
     </Sheet>
   );
@@ -531,9 +554,9 @@ function MessagesPage({ conversations, mode, onOpenConversation }: { conversatio
 
 function MorePage({ businessName, mode, navigate, onSignOut, serviceCount, staffCount }: { businessName: string; mode: 'mock' | 'supabase'; navigate: (route: BeautyRoute) => void; onSignOut: () => void; serviceCount: number; staffCount: number }) {
   const items = [
-    { icon: Sparkles, label: 'Servicios', detail: `${serviceCount} servicios · Gestión próximamente` },
-    { icon: UsersRound, label: 'Profesionales', detail: `${staffCount} profesionales · Gestión próximamente` },
-    { icon: Clock3, label: 'Horarios', detail: 'Horarios y descansos · Próximamente' },
+    { icon: Sparkles, label: 'Servicios', detail: `${serviceCount} servicios`, route: 'services' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
+    { icon: UsersRound, label: 'Profesionales', detail: `${staffCount} profesionales`, route: 'staff' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
+    { icon: Clock3, label: 'Horarios', detail: 'Semana, descansos y ausencias', route: 'schedules' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
     { icon: WandSparkles, label: 'Automatizaciones', detail: mode === 'mock' ? 'Vista conceptual' : 'No configurado', route: 'automations' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : 'soon' as const },
     { icon: Settings2, label: 'Configuración', detail: 'Preferencias · Próximamente' },
     { icon: UserRound, label: 'Perfil del negocio', detail: `${businessName} · Edición próximamente` },
@@ -543,7 +566,7 @@ function MorePage({ businessName, mode, navigate, onSignOut, serviceCount, staff
       <PageHeader eyebrow="Tu espacio de trabajo" title="Más" />
       <section className="business-card"><BeautyBrandMark size="lg" /><span><strong>{businessName}</strong><small>COSTABOTS Beauty · Sesión protegida</small></span><ShieldCheck size={20} /></section>
       <div className="more-list">
-        {items.map(({ icon: Icon, label, detail, route, state }) => <button disabled={!route} key={label} onClick={() => route && navigate(route)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span>{state ? <FeatureStateBadge state={state} /> : <FeatureStateBadge state="soon" />}</button>)}
+        {items.map(({ icon: Icon, label, detail, route, state }) => <button disabled={!route} key={label} onClick={() => route && navigate(route)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span>{state && <FeatureStateBadge state={state} />}{!route && <FeatureStateBadge state="soon" />}</button>)}
       </div>
       <div className="isolation-note"><ShieldCheck size={20} /><span><strong>{mode === 'mock' ? 'Modo demostración' : 'Conexión segura'}</strong><small>{mode === 'mock' ? 'Datos y acciones locales identificados como demo' : 'Solo están activas las operaciones conectadas y validadas'}</small></span></div>
       <button className="beauty-signout" onClick={onSignOut} type="button"><LogOut size={19} />Cerrar sesión</button>

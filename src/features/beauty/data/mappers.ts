@@ -62,11 +62,28 @@ export function mapStaff(rows: StaffRow[]): StaffMember[] {
     role: 'Profesional',
     initials: row.display_name.split(' ').map((part) => part[0]).join('').slice(0, 2),
     accent: accents.includes(row.color_key as StaffMember['accent']) ? row.color_key as StaffMember['accent'] : accents[index % accents.length],
+    phone: row.phone ?? undefined,
+    email: row.email ?? undefined,
+    active: row.active,
+    sortOrder: row.sort_order,
   }));
 }
 
 export function mapServices(rows: ServiceRow[]): BeautyService[] {
-  return rows.map((row) => ({ id: row.id, name: row.name, durationMinutes: row.duration_minutes, price: Number(row.price), category: inferCategory(row.name) }));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    durationMinutes: row.duration_minutes,
+    bufferBeforeMinutes: row.buffer_before_minutes,
+    bufferAfterMinutes: row.buffer_after_minutes,
+    price: Number(row.price),
+    currency: row.currency,
+    active: row.active,
+    onlineBookingEnabled: row.online_booking_enabled,
+    reactivationDays: row.reactivation_days,
+    category: inferCategory(row.name),
+  }));
 }
 
 export function mapStaffServices(rows: StaffServiceRow[], services: BeautyService[]): StaffServiceAssignment[] {

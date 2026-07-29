@@ -10,9 +10,17 @@ import type { BeautyRepository } from './BeautyRepository';
 import { BeautyRepositoryError } from './BeautyRepository';
 import { localDateTimeToIso } from './mappers';
 import type { BeautyOperationalData, DateRange, WritableAppointmentStatus } from './types';
+import type { BeautyService } from '../types';
 
 let mockAppointments = appointments.map((appointment) => ({ ...appointment }));
 let mockTimeBlocks = timeBlocks.map((block) => ({ ...block }));
+let mockStaff = staff.map((member, index) => ({ ...member, active: true, sortOrder: index, phone: '', email: '' }));
+let mockServices: BeautyService[] = services.map((service) => ({ ...service, active: true, description: '', bufferBeforeMinutes: 0, bufferAfterMinutes: 0, currency: 'EUR', onlineBookingEnabled: true, reactivationDays: null }));
+let mockStaffServices = mockStaff.flatMap((member) => mockServices.map((service) => ({
+  id: `${member.id}-${service.id}`, staffId: member.id, serviceId: service.id,
+  durationMinutes: service.durationMinutes, price: service.price, active: true,
+})));
+let mockSchedules: import('./types').StaffSchedule[] = [];
 let mockCustomers = seededCustomers.map((customer) => ({
   ...customer,
   firstName: customer.name.split(' ')[0] ?? customer.name,
@@ -32,23 +40,16 @@ export const mockBeautyRepository: BeautyRepository = {
     return { id: business.id, name: business.name, slug: 'luna-beauty-studio', timezone: 'Europe/Madrid', currency: 'EUR', language: 'es' };
   },
   async getStaff() {
-    return staff;
+    return mockStaff.map((member) => ({ ...member }));
   },
   async getServices() {
-    return services;
+    return mockServices.map((service) => ({ ...service }));
   },
   async getStaffServices() {
-    return staff.flatMap((member) => services.map((service) => ({
-      id: `${member.id}-${service.id}`,
-      staffId: member.id,
-      serviceId: service.id,
-      durationMinutes: service.durationMinutes,
-      price: service.price,
-      active: true,
-    })));
+    return mockStaffServices.map((item) => ({ ...item }));
   },
   async getSchedules() {
-    return [];
+    return mockSchedules.map((item) => ({ ...item }));
   },
   async getTimeBlocks(_businessId, range) {
     return mockTimeBlocks.filter((block) => inRange(block.date, range));
@@ -81,8 +82,8 @@ export const mockBeautyRepository: BeautyRepository = {
         serviceId,
         staffId: appointment.staffId,
         position: index + 1,
-        durationMinutes: services.find((service) => service.id === serviceId)?.durationMinutes ?? 30,
-        price: services.find((service) => service.id === serviceId)?.price ?? 0,
+        durationMinutes: mockServices.find((service) => service.id === serviceId)?.durationMinutes ?? 30,
+        price: mockServices.find((service) => service.id === serviceId)?.price ?? 0,
       })));
   },
   async getAppointmentEvents(_businessId, appointmentId) {
@@ -92,10 +93,10 @@ export const mockBeautyRepository: BeautyRepository = {
     const visibleAppointments = mockAppointments.filter((appointment) => inRange(appointment.date, range)).map((appointment) => ({ ...appointment, historyLoaded: true }));
     return {
       business: await this.getBusiness(businessId),
-      staff,
-      services,
+      staff: await this.getStaff(businessId),
+      services: await this.getServices(businessId),
       staffServices: await this.getStaffServices(businessId),
-      schedules: [],
+      schedules: await this.getSchedules(businessId),
       timeBlocks: mockTimeBlocks.filter((block) => inRange(block.date, range)),
       customers: mockCustomers.map((customer) => ({ ...customer })),
       appointments: visibleAppointments,
@@ -233,5 +234,61 @@ export const mockBeautyRepository: BeautyRepository = {
     if (!customer) throw new BeautyRepositoryError('El cliente ya no existe.', 'not_found');
     customer.active = false;
     return customer.id;
+  },
+  async createStaff(_businessId, command) {
+    if (!command.name.trim()) throw new BeautyRepositoryError('El nombre es obligatorio.', 'invalid');
+    const id = `mock-staff-${Date.now()}`;
+    mockStaff.push({ id, name: command.name.trim(), role: 'Profesional', initials: command.name.trim().split(' ').map((part) => part[0]).join('').slice(0, 2), accent: command.colorKey, phone: command.phone, email: command.email, sortOrder: command.sortOrder, active: true });
+    return id;
+  },
+  async updateStaff(_businessId, command) {
+    const item = mockStaff.find((member) => member.id === command.staffId);
+    if (!item) throw new BeautyRepositoryError('No se encuentra el profesional.', 'not_found');
+    Object.assign(item, { name: command.name.trim(), initials: command.name.trim().split(' ').map((part) => part[0]).join('').slice(0, 2), accent: command.colorKey, phone: command.phone, email: command.email, sortOrder: command.sortOrder, active: command.active });
+    return item.id;
+  },
+  async deactivateStaff(_businessId, command) {
+    const item = mockStaff.find((member) => member.id === command.staffId);
+    if (!item) throw new BeautyRepositoryError('No se encuentra el profesional.', 'not_found');
+    item.active = false;
+    return item.id;
+  },
+  async createService(_businessId, command) {
+    if (command.durationMinutes <= 0 || command.price < 0) throw new BeautyRepositoryError('La duración o el precio no son válidos.', 'invalid');
+    const id = `mock-service-${Date.now()}`;
+    mockServices.push({ id, name: command.name.trim(), description: command.description, durationMinutes: command.durationMinutes, bufferBeforeMinutes: command.bufferBeforeMinutes, bufferAfterMinutes: command.bufferAfterMinutes, price: command.price, currency: command.currency, onlineBookingEnabled: command.onlineBookingEnabled, reactivationDays: command.reactivationDays, active: true, category: 'hair' });
+    return id;
+  },
+  async updateService(_businessId, command) {
+    const item = mockServices.find((service) => service.id === command.serviceId);
+    if (!item) throw new BeautyRepositoryError('No se encuentra el servicio.', 'not_found');
+    Object.assign(item, command, { id: item.id });
+    return item.id;
+  },
+  async deactivateService(_businessId, command) {
+    const item = mockServices.find((service) => service.id === command.serviceId);
+    if (!item) throw new BeautyRepositoryError('No se encuentra el servicio.', 'not_found');
+    item.active = false;
+    return item.id;
+  },
+  async setStaffService(_businessId, command) {
+    const existing = mockStaffServices.find((item) => item.staffId === command.staffId && item.serviceId === command.serviceId);
+    const service = mockServices.find((item) => item.id === command.serviceId);
+    if (!service) throw new BeautyRepositoryError('No se encuentra el servicio.', 'not_found');
+    if (existing) Object.assign(existing, { durationMinutes: command.durationMinutes ?? service.durationMinutes, price: command.price ?? service.price, active: command.active });
+    else mockStaffServices.push({ id: `mock-assignment-${Date.now()}`, staffId: command.staffId, serviceId: command.serviceId, durationMinutes: command.durationMinutes ?? service.durationMinutes, price: command.price ?? service.price, active: command.active });
+    return existing?.id ?? mockStaffServices[mockStaffServices.length - 1].id;
+  },
+  async replaceWeeklySchedule(_businessId, command) {
+    for (const segment of command.segments) {
+      if (segment.start >= segment.end) throw new BeautyRepositoryError('La hora de inicio debe ser anterior a la hora final.', 'invalid');
+      if (command.segments.some((other) => other !== segment && other.dayOfWeek === segment.dayOfWeek && segment.start < other.end && segment.end > other.start)) {
+        throw new BeautyRepositoryError('Hay tramos de horario solapados.', 'conflict');
+      }
+    }
+    mockSchedules = [
+      ...mockSchedules.filter((item) => item.staffId !== command.staffId),
+      ...command.segments.map((segment, index) => ({ id: `mock-schedule-${Date.now()}-${index}`, staffId: command.staffId, dayOfWeek: segment.dayOfWeek, start: segment.start, end: segment.end, active: true })),
+    ];
   },
 };

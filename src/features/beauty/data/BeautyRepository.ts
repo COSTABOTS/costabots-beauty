@@ -12,9 +12,17 @@ import type {
   CreateCustomerCommand,
   CreateTimeBlockCommand,
   CustomerHistory,
+  CreateServiceCommand,
+  CreateStaffCommand,
   DeactivateCustomerCommand,
+  DeactivateServiceCommand,
+  DeactivateStaffCommand,
+  ReplaceWeeklyScheduleCommand,
+  SetStaffServiceCommand,
   UpdateAppointmentStatusCommand,
   UpdateCustomerCommand,
+  UpdateServiceCommand,
+  UpdateStaffCommand,
 } from './types';
 import type { Appointment, BeautyService, Customer, StaffMember, TimeBlock } from '../types';
 
@@ -38,6 +46,14 @@ export interface BeautyRepository {
   createCustomer(businessId: string, command: CreateCustomerCommand): Promise<string>;
   updateCustomer(businessId: string, command: UpdateCustomerCommand): Promise<string>;
   deactivateCustomer(businessId: string, command: DeactivateCustomerCommand): Promise<string>;
+  createStaff(businessId: string, command: CreateStaffCommand): Promise<string>;
+  updateStaff(businessId: string, command: UpdateStaffCommand): Promise<string>;
+  deactivateStaff(businessId: string, command: DeactivateStaffCommand): Promise<string>;
+  createService(businessId: string, command: CreateServiceCommand): Promise<string>;
+  updateService(businessId: string, command: UpdateServiceCommand): Promise<string>;
+  deactivateService(businessId: string, command: DeactivateServiceCommand): Promise<string>;
+  setStaffService(businessId: string, command: SetStaffServiceCommand): Promise<string>;
+  replaceWeeklySchedule(businessId: string, command: ReplaceWeeklyScheduleCommand): Promise<void>;
 }
 
 export class BeautyRepositoryError extends Error {

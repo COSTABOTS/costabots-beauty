@@ -1,4 +1,4 @@
-export type BeautyRoute = 'today' | 'agenda' | 'customers' | 'messages' | 'more' | 'automations';
+export type BeautyRoute = 'today' | 'agenda' | 'customers' | 'messages' | 'more' | 'automations' | 'staff' | 'services' | 'schedules';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'arrived' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
 export type ConversationStatus = 'ai_handled' | 'waiting_customer' | 'needs_human' | 'human_handled' | 'closed';
 
@@ -15,6 +15,10 @@ export interface StaffMember {
   role: string;
   initials: string;
   accent: 'coral' | 'sage' | 'sand';
+  phone?: string;
+  email?: string;
+  active?: boolean;
+  sortOrder?: number;
 }
 
 export interface BeautyService {
@@ -23,6 +27,13 @@ export interface BeautyService {
   durationMinutes: number;
   price: number;
   category: 'hair' | 'barber' | 'nails';
+  description?: string;
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+  currency?: string;
+  active?: boolean;
+  onlineBookingEnabled?: boolean;
+  reactivationDays?: number | null;
 }
 
 export interface Customer {
