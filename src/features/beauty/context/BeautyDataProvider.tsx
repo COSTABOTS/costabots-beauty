@@ -2,7 +2,16 @@ import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { beautyEnvironment } from '../../../config/environment';
 import { beautyRepository } from '../data/createBeautyRepository';
-import type { BeautyOperationalData, DateRange, OperationalCounts } from '../data/types';
+import type {
+  AvailabilityCommand,
+  AvailabilitySlot,
+  BeautyOperationalData,
+  CreateAppointmentCommand,
+  CreateTimeBlockCommand,
+  DateRange,
+  OperationalCounts,
+  UpdateAppointmentStatusCommand,
+} from '../data/types';
 import { useBeautyBusiness } from './BeautyBusinessProvider';
 
 type BeautyDataState =
@@ -15,6 +24,10 @@ type BeautyDataContextValue = BeautyDataState & {
   retry: () => void;
   loadAppointmentHistory: (appointmentId: string) => Promise<void>;
   counts: OperationalCounts | null;
+  updateAppointmentStatus: (command: UpdateAppointmentStatusCommand) => Promise<void>;
+  createTimeBlock: (command: CreateTimeBlockCommand) => Promise<void>;
+  getAvailability: (command: AvailabilityCommand) => Promise<AvailabilitySlot[]>;
+  createAppointment: (command: CreateAppointmentCommand) => Promise<string>;
 };
 
 const BeautyDataContext = createContext<BeautyDataContextValue | null>(null);
@@ -88,13 +101,43 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     appointments: state.data.appointments.length,
   } : null;
 
+  const refreshAfterWrite = useCallback(async () => {
+    const data = await beautyRepository.getOperationalData(membership.business.id, beautyDataRange);
+    setState({ status: 'ready', data, message: null });
+  }, [membership.business.id]);
+
+  const updateAppointmentStatus = useCallback(async (command: UpdateAppointmentStatusCommand) => {
+    await beautyRepository.updateAppointmentStatus(membership.business.id, command);
+    await refreshAfterWrite();
+  }, [membership.business.id, refreshAfterWrite]);
+
+  const createTimeBlock = useCallback(async (command: CreateTimeBlockCommand) => {
+    if (state.status !== 'ready') return;
+    await beautyRepository.createTimeBlock(membership.business.id, state.data.business.timezone, command);
+    await refreshAfterWrite();
+  }, [membership.business.id, refreshAfterWrite, state]);
+
+  const getAvailability = useCallback((command: AvailabilityCommand) => (
+    beautyRepository.getAvailability(membership.business.id, command)
+  ), [membership.business.id]);
+
+  const createAppointment = useCallback(async (command: CreateAppointmentCommand) => {
+    const appointmentId = await beautyRepository.createAppointment(membership.business.id, command);
+    await refreshAfterWrite();
+    return appointmentId;
+  }, [membership.business.id, refreshAfterWrite]);
+
   const value = useMemo<BeautyDataContextValue>(() => ({
     ...state,
     mode: beautyEnvironment.dataMode,
     retry: () => setAttempt((value) => value + 1),
     loadAppointmentHistory,
     counts,
-  }), [counts, loadAppointmentHistory, state]);
+    updateAppointmentStatus,
+    createTimeBlock,
+    getAvailability,
+    createAppointment,
+  }), [counts, createAppointment, createTimeBlock, getAvailability, loadAppointmentHistory, state, updateAppointmentStatus]);
 
   return <BeautyDataContext.Provider value={value}>{children}</BeautyDataContext.Provider>;
 }

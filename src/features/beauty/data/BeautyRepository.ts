@@ -6,6 +6,11 @@ import type {
   RepositoryBusiness,
   StaffSchedule,
   StaffServiceAssignment,
+  AvailabilityCommand,
+  AvailabilitySlot,
+  CreateAppointmentCommand,
+  CreateTimeBlockCommand,
+  UpdateAppointmentStatusCommand,
 } from './types';
 import type { Appointment, BeautyService, Customer, StaffMember, TimeBlock } from '../types';
 
@@ -21,11 +26,18 @@ export interface BeautyRepository {
   getAppointmentServices(businessId: string, appointmentIds: string[]): Promise<AppointmentService[]>;
   getAppointmentEvents(businessId: string, appointmentId: string, timezone: string): Promise<AppointmentEvent[]>;
   getOperationalData(businessId: string, range: DateRange): Promise<BeautyOperationalData>;
+  updateAppointmentStatus(businessId: string, command: UpdateAppointmentStatusCommand): Promise<string>;
+  createTimeBlock(businessId: string, timezone: string, command: CreateTimeBlockCommand): Promise<string>;
+  getAvailability(businessId: string, command: AvailabilityCommand): Promise<AvailabilitySlot[]>;
+  createAppointment(businessId: string, command: CreateAppointmentCommand): Promise<string>;
 }
 
 export class BeautyRepositoryError extends Error {
-  constructor(message = 'No hemos podido cargar los datos del negocio.') {
+  code: 'conflict' | 'permission' | 'session' | 'invalid' | 'network' | 'not_found' | 'unknown';
+
+  constructor(message = 'No hemos podido cargar los datos del negocio.', code: BeautyRepositoryError['code'] = 'unknown') {
     super(message);
     this.name = 'BeautyRepositoryError';
+    this.code = code;
   }
 }

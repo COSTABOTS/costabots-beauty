@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
+import { BeautyBrandLockup, BeautyBrandMark } from '../../beauty/components/BeautyBrand';
 
 export function AuthShell({
   children,
@@ -9,10 +10,7 @@ export function AuthShell({
   return (
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="auth-title">
-        <div className="auth-brand" aria-label="COSTABOTS Beauty">
-          <span className="auth-brand__mark">B</span>
-          <span><strong>COSTABOTS</strong><small>BEAUTY</small></span>
-        </div>
+        <BeautyBrandLockup />
         <header className="auth-heading">
           <h1 id="auth-title">{title}</h1>
           <p>{subtitle}</p>
@@ -28,6 +26,7 @@ export function AuthLoading({ label = 'Comprobando tu sesión…' }: { label?: s
   return (
     <main className="auth-shell">
       <div className="auth-loading" role="status">
+        <BeautyBrandMark size="lg" />
         <span className="auth-spinner" />
         <strong>{label}</strong>
         <small>Tu acceso se valida de forma segura.</small>

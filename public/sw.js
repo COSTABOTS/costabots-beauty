@@ -1,18 +1,19 @@
-const CACHE_NAME = 'costabots-beauty-isolated-v1';
+const CACHE_NAME = 'costabots-beauty-brand-v3';
 const IS_LOCAL_DEV = ['localhost', '127.0.0.1', '::1'].includes(self.location.hostname);
 const APP_SHELL = [
   '/',
   '/manifest.json',
-  '/LOGO_COSTABOTS_WHITE.png',
+  '/branding/costabots-beauty-logo-source.png',
+  '/branding/ui-symbol-transparent-256.png',
+  '/branding/ui-symbol-transparent-512.png',
   '/favicon.ico',
-  '/favicon.png',
   '/favicon-16x16.png',
   '/favicon-32x32.png',
   '/apple-touch-icon.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-192-maskable.png',
-  '/icons/icon-512-maskable.png',
+  '/branding/pwa-192x192.png',
+  '/branding/pwa-512x512.png',
+  '/branding/maskable-192x192.png',
+  '/branding/maskable-512x512.png',
 ];
 
 self.addEventListener('install', (event) => {

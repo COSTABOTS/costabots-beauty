@@ -39,3 +39,15 @@ La prueba transaccional remota confirmó disponibilidad, bloqueos, citas
 canceladas, creación atómica, recálculo de precio/duración y rollback. La prueba
 con dos conexiones PostgreSQL simultáneas continúa pendiente.
 
+## Fase 3B.3
+
+El 29 de julio de 2026 se aplicó
+`20260729090013_manager_write_rpcs.sql`. Esta migración incorpora
+exclusivamente RPC autenticadas para cambiar estados de citas y crear bloqueos
+horarios. No abre políticas RLS ni concede ejecución a `anon` o `public`.
+
+La validación transaccional confirmó las transiciones permitidas, la generación
+de eventos, los bloqueos globales e individuales, el aislamiento por rol y
+negocio y la ausencia de permisos de ejecución para `anon`. Todas las pruebas
+usaron datos ficticios con rollback; no quedó ningún usuario ni registro de
+prueba.

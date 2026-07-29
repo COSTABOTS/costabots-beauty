@@ -26,6 +26,10 @@ export function StatusBadge({ status }: { status: AppointmentStatus }) {
   return <span className={`beauty-status beauty-status--${status}`}>{appointmentStatusLabels[status]}</span>;
 }
 
+export function FeatureStateBadge({ state }: { state: 'demo' | 'soon' }) {
+  return <span className={`feature-state-badge feature-state-badge--${state}`}>{state === 'demo' ? 'Demo' : 'Próximamente'}</span>;
+}
+
 export function Avatar({ name, accent = 'coral', size = 'md' }: { name: string; accent?: StaffMember['accent']; size?: 'sm' | 'md' | 'lg' }) {
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2);
   return <span className={`beauty-avatar beauty-avatar--${accent} beauty-avatar--${size}`}>{initials}</span>;

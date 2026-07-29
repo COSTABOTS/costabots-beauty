@@ -70,6 +70,59 @@ export type OperationalCounts = {
 
 export type AppointmentEvent = AppointmentHistoryItem;
 
+export type WritableAppointmentStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'arrived'
+  | 'in_service'
+  | 'completed'
+  | 'no_show';
+
+export type BeautyTimeBlockType =
+  | 'break'
+  | 'absence'
+  | 'vacation'
+  | 'personal'
+  | 'business_closed'
+  | 'other';
+
+export type UpdateAppointmentStatusCommand = {
+  appointmentId: string;
+  status: WritableAppointmentStatus;
+};
+
+export type CreateTimeBlockCommand = {
+  staffId: string | null;
+  date: string;
+  start: string;
+  end: string;
+  type: BeautyTimeBlockType;
+  reason: string;
+  notes?: string;
+};
+
+export type AvailabilityCommand = {
+  serviceId: string;
+  date: string;
+  staffId: string;
+};
+
+export type AvailabilitySlot = {
+  staffId: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+};
+
+export type CreateAppointmentCommand = {
+  customerId: string;
+  staffId: string;
+  serviceIds: string[];
+  startsAt: string;
+  customerNotes?: string;
+  internalNotes?: string;
+};
+
 export type BusinessRow = {
   id: string;
   name: string;

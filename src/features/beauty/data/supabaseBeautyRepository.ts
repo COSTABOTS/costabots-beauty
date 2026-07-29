@@ -12,6 +12,7 @@ import {
   mapStaff,
   mapStaffServices,
   mapTimeBlocks,
+  localDateTimeToIso,
 } from './mappers';
 import type {
   AppointmentEventRow,
@@ -26,6 +27,26 @@ import type {
   StaffServiceRow,
   TimeBlockRow,
 } from './types';
+
+function mutationError(error: { code?: string; message?: string } | null) {
+  const code = error?.code ?? '';
+  const message = error?.message ?? '';
+  if (code === '42501' || /not authorized|not allowed|permission/i.test(message)) {
+    return new BeautyRepositoryError('No tienes permisos para realizar esta acción.', 'permission');
+  }
+  if (code === '23P01' || /not available|conflict/i.test(message)) {
+    return new BeautyRepositoryError('Ese hueco ya no está disponible o existe un bloqueo.', 'conflict');
+  }
+  if (code === '22023' || /invalid|must|may only|fit in one schedule/i.test(message)) {
+    if (/service.*not enabled/i.test(message)) return new BeautyRepositoryError('El profesional no está habilitado para uno de los servicios.', 'invalid');
+    if (/schedule/i.test(message)) return new BeautyRepositoryError('La cita queda fuera del horario disponible.', 'invalid');
+    return new BeautyRepositoryError('Los datos enviados no son válidos.', 'invalid');
+  }
+  if (code === 'P0002') return new BeautyRepositoryError('El registro solicitado ya no existe.', 'not_found');
+  if (/jwt|session/i.test(message)) return new BeautyRepositoryError('Tu sesión ha caducado. Inicia sesión de nuevo.', 'session');
+  if (/fetch|network/i.test(message)) return new BeautyRepositoryError('No hay conexión con el servicio. Inténtalo de nuevo.', 'network');
+  return new BeautyRepositoryError('No hemos podido guardar los cambios.', 'unknown');
+}
 
 function ensureData<T>(data: T | null, error: { message: string } | null, message: string): T {
   if (error || data === null) throw new BeautyRepositoryError(message);
@@ -174,5 +195,71 @@ export const supabaseBeautyRepository: BeautyRepository = {
       appointments,
       appointmentServices,
     };
+  },
+
+  async updateAppointmentStatus(businessId, command) {
+    const result = await supabase.rpc('update_beauty_appointment_status', {
+      p_business_id: businessId,
+      p_appointment_id: command.appointmentId,
+      p_new_status: command.status,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido confirmar el nuevo estado.');
+    return row.id;
+  },
+
+  async createTimeBlock(businessId, timezone, command) {
+    const result = await supabase.rpc('create_beauty_time_block', {
+      p_business_id: businessId,
+      p_staff_member_id: command.staffId,
+      p_starts_at: localDateTimeToIso(command.date, command.start, timezone),
+      p_ends_at: localDateTimeToIso(command.date, command.end, timezone),
+      p_block_type: command.type,
+      p_reason: command.reason || null,
+      p_notes: command.notes || null,
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido confirmar el bloqueo.');
+    return row.id;
+  },
+
+  async getAvailability(businessId, command) {
+    const result = await supabase.rpc('get_service_availability', {
+      p_business_id: businessId,
+      p_service_id: command.serviceId,
+      p_date: command.date,
+      p_staff_member_id: command.staffId,
+      p_time_from: null,
+      p_time_to: null,
+      p_slot_interval_minutes: 15,
+    });
+    if (result.error) throw mutationError(result.error);
+    const rows = (result.data ?? []) as Array<{ staff_member_id: string; starts_at: string; ends_at: string; service_duration_minutes: number; available: boolean }>;
+    return rows.filter((row) => row.available).map((row) => ({
+      staffId: row.staff_member_id,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      durationMinutes: row.service_duration_minutes,
+    }));
+  },
+
+  async createAppointment(businessId, command) {
+    const result = await supabase.rpc('create_appointment_with_services', {
+      p_business_id: businessId,
+      p_customer_id: command.customerId,
+      p_starts_at: command.startsAt,
+      p_assigned_staff_member_id: command.staffId,
+      p_status: 'confirmed',
+      p_source: 'manager',
+      p_customer_notes: command.customerNotes || null,
+      p_internal_notes: command.internalNotes || null,
+      p_services: command.serviceIds.map((serviceId) => ({ service_id: serviceId })),
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as { id?: string } | null;
+    if (!row?.id) throw new BeautyRepositoryError('No hemos podido confirmar la cita.');
+    return row.id;
   },
 };

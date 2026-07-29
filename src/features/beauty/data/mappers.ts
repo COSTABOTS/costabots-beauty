@@ -171,3 +171,25 @@ export function mapAppointmentEvents(rows: AppointmentEventRow[], timezone: stri
     return { id: row.id, label: eventLabels[row.event_type] ?? 'Actividad registrada', at: `${date.date} · ${date.time}` };
   });
 }
+
+export function localDateTimeToIso(date: string, time: string, timezone: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const target = Date.UTC(year, month - 1, day, hour, minute);
+  let candidate = target;
+  for (let iteration = 0; iteration < 2; iteration += 1) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(candidate));
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
+    const represented = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'));
+    candidate += target - represented;
+  }
+  return new Date(candidate).toISOString();
+}
