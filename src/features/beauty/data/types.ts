@@ -61,6 +61,11 @@ export type BeautyOperationalData = {
   appointmentServices: AppointmentService[];
 };
 
+export type BeautyAgendaRangeData = Pick<
+  BeautyOperationalData,
+  'appointments' | 'appointmentServices' | 'timeBlocks'
+>;
+
 export type OperationalCounts = {
   staff: number;
   services: number;

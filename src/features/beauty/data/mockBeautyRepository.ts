@@ -103,6 +103,14 @@ export const mockBeautyRepository: BeautyRepository = {
       appointmentServices: await this.getAppointmentServices(businessId, visibleAppointments.map((appointment) => appointment.id)),
     };
   },
+  async getAgendaRange(businessId, range) {
+    const appointments = await this.getAppointments(businessId, range, 'Europe/Madrid');
+    return {
+      appointments,
+      appointmentServices: await this.getAppointmentServices(businessId, appointments.map((appointment) => appointment.id)),
+      timeBlocks: await this.getTimeBlocks(businessId, range, 'Europe/Madrid'),
+    };
+  },
   async updateAppointmentStatus(_businessId, command) {
     const appointment = mockAppointments.find((item) => item.id === command.appointmentId);
     if (!appointment) throw new BeautyRepositoryError('No se encuentra la cita.', 'not_found');

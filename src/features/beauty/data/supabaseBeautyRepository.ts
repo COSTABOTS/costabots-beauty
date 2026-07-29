@@ -77,13 +77,15 @@ async function fetchCustomerRows(businessId: string) {
   return ensureData(result.data as CustomerRow[] | null, result.error, 'No hemos podido cargar los clientes.');
 }
 
-async function fetchAppointmentRows(businessId: string, range: DateRange) {
+async function fetchAppointmentRows(businessId: string, range: DateRange, timezone: string) {
+  const startsAt = localDateTimeToIso(range.from, '00:00', timezone);
+  const endsAt = localDateTimeToIso(range.to, '00:00', timezone);
   const result = await supabase
     .from('appointments')
     .select('id,customer_id,starts_at,ends_at,status,source,customer_notes,internal_notes,total_duration_minutes,total_price,currency,assigned_staff_member_id')
     .eq('business_id', businessId)
-    .gte('starts_at', `${range.from}T00:00:00Z`)
-    .lt('starts_at', `${range.to}T00:00:00Z`)
+    .lt('starts_at', endsAt)
+    .gt('ends_at', startsAt)
     .order('starts_at');
   return ensureData(result.data as AppointmentRow[] | null, result.error, 'No hemos podido cargar la agenda.');
 }
@@ -138,12 +140,14 @@ export const supabaseBeautyRepository: BeautyRepository = {
   },
 
   async getTimeBlocks(businessId, range, timezone) {
+    const startsAt = localDateTimeToIso(range.from, '00:00', timezone);
+    const endsAt = localDateTimeToIso(range.to, '00:00', timezone);
     const result = await supabase
       .from('time_blocks')
       .select('id,staff_member_id,starts_at,ends_at,block_type,reason')
       .eq('business_id', businessId)
-      .lt('starts_at', `${range.to}T00:00:00Z`)
-      .gt('ends_at', `${range.from}T00:00:00Z`)
+      .lt('starts_at', endsAt)
+      .gt('ends_at', startsAt)
       .order('starts_at');
     return mapTimeBlocks(ensureData(result.data as TimeBlockRow[] | null, result.error, 'No hemos podido cargar los bloqueos.'), timezone);
   },
@@ -176,7 +180,7 @@ export const supabaseBeautyRepository: BeautyRepository = {
   },
 
   async getAppointments(businessId, range, timezone) {
-    const rows = await fetchAppointmentRows(businessId, range);
+    const rows = await fetchAppointmentRows(businessId, range, timezone);
     const appointmentServices = await this.getAppointmentServices(businessId, rows.map((row) => row.id));
     return mapAppointments(rows, appointmentServices, timezone);
   },
@@ -210,7 +214,7 @@ export const supabaseBeautyRepository: BeautyRepository = {
       this.getSchedules(businessId),
       this.getTimeBlocks(businessId, range, business.timezone),
       fetchCustomerRows(businessId),
-      fetchAppointmentRows(businessId, range),
+      fetchAppointmentRows(businessId, range, business.timezone),
     ]);
     const [staffServicesResult, appointmentServices] = await Promise.all([
       supabase.from('staff_services').select('id,staff_member_id,service_id,custom_duration_minutes,custom_price,active').eq('business_id', businessId),
@@ -228,6 +232,19 @@ export const supabaseBeautyRepository: BeautyRepository = {
       customers: mapCustomers(customerRows, appointments, services),
       appointments,
       appointmentServices,
+    };
+  },
+
+  async getAgendaRange(businessId, range, timezone) {
+    const [rows, timeBlocks] = await Promise.all([
+      fetchAppointmentRows(businessId, range, timezone),
+      this.getTimeBlocks(businessId, range, timezone),
+    ]);
+    const appointmentServices = await this.getAppointmentServices(businessId, rows.map((row) => row.id));
+    return {
+      appointments: mapAppointments(rows, appointmentServices, timezone),
+      appointmentServices,
+      timeBlocks,
     };
   },
 

@@ -2,6 +2,7 @@ import type {
   AppointmentEvent,
   AppointmentService,
   BeautyOperationalData,
+  BeautyAgendaRangeData,
   DateRange,
   RepositoryBusiness,
   StaffSchedule,
@@ -43,6 +44,7 @@ export interface BeautyRepository {
   getAppointmentServices(businessId: string, appointmentIds: string[]): Promise<AppointmentService[]>;
   getAppointmentEvents(businessId: string, appointmentId: string, timezone: string): Promise<AppointmentEvent[]>;
   getOperationalData(businessId: string, range: DateRange): Promise<BeautyOperationalData>;
+  getAgendaRange(businessId: string, range: DateRange, timezone: string): Promise<BeautyAgendaRangeData>;
   updateAppointmentStatus(businessId: string, command: UpdateAppointmentStatusCommand): Promise<string>;
   createTimeBlock(businessId: string, timezone: string, command: CreateTimeBlockCommand): Promise<string>;
   getAvailability(businessId: string, command: AvailabilityCommand): Promise<AvailabilitySlot[]>;

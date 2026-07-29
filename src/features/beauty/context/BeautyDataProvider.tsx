@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { beautyEnvironment } from '../../../config/environment';
 import { beautyRepository } from '../data/createBeautyRepository';
 import type {
@@ -29,6 +29,7 @@ import type {
   UpdateStaffCommand,
 } from '../data/types';
 import { useBeautyBusiness } from './BeautyBusinessProvider';
+import { dateInTimeZone, dayRange, rangeContains, weekRange } from '../data/dateRange';
 
 type BeautyDataState =
   | { status: 'loading'; data: null; message: null }
@@ -60,26 +61,36 @@ type BeautyDataContextValue = BeautyDataState & {
   deactivateService: (command: DeactivateServiceCommand) => Promise<string>;
   setStaffService: (command: SetStaffServiceCommand) => Promise<string>;
   replaceWeeklySchedule: (command: ReplaceWeeklyScheduleCommand) => Promise<void>;
+  agendaRange: DateRange | null;
+  agendaStatus: 'idle' | 'loading' | 'ready' | 'error';
+  agendaMessage: string | null;
+  loadAgendaRange: (range: DateRange) => Promise<void>;
+  retryAgenda: () => void;
 };
 
 const BeautyDataContext = createContext<BeautyDataContextValue | null>(null);
-
-export const beautyDataRange: DateRange = {
-  from: '2026-07-25',
-  to: '2026-08-01',
-};
 
 export function BeautyDataProvider({ children }: PropsWithChildren) {
   const membership = useBeautyBusiness();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<BeautyDataState>({ status: 'loading', data: null, message: null });
+  const [agendaRange, setAgendaRange] = useState<DateRange | null>(null);
+  const [agendaStatus, setAgendaStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [agendaMessage, setAgendaMessage] = useState<string | null>(null);
+  const agendaRequestId = useRef(0);
 
   useEffect(() => {
     let active = true;
     setState({ status: 'loading', data: null, message: null });
-    void beautyRepository.getOperationalData(membership.business.id, beautyDataRange)
-      .then((data) => {
-        if (active) setState({ status: 'ready', data, message: null });
+    void beautyRepository.getBusiness(membership.business.id)
+      .then(async (business) => {
+        const range = weekRange(dateInTimeZone(business.timezone));
+        const data = await beautyRepository.getOperationalData(membership.business.id, range);
+        if (active) {
+          setAgendaRange(range);
+          setAgendaStatus('ready');
+          setState({ status: 'ready', data, message: null });
+        }
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -93,6 +104,42 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
       active = false;
     };
   }, [attempt, membership.business.id]);
+
+  const loadAgendaRange = useCallback(async (range: DateRange) => {
+    if (state.status !== 'ready') return;
+    const requestId = ++agendaRequestId.current;
+    const timezone = state.data.business.timezone;
+    const today = dateInTimeZone(timezone);
+    setAgendaRange(range);
+    setAgendaStatus('loading');
+    setAgendaMessage(null);
+    try {
+      const [visible, todayData] = await Promise.all([
+        beautyRepository.getAgendaRange(membership.business.id, range, timezone),
+        rangeContains(range, today)
+          ? Promise.resolve(null)
+          : beautyRepository.getAgendaRange(membership.business.id, dayRange(today), timezone),
+      ]);
+      if (requestId !== agendaRequestId.current) return;
+      const appointments = [...visible.appointments, ...(todayData?.appointments ?? [])];
+      const appointmentServices = [...visible.appointmentServices, ...(todayData?.appointmentServices ?? [])];
+      const timeBlocks = [...visible.timeBlocks, ...(todayData?.timeBlocks ?? [])];
+      setState((latest) => latest.status === 'ready' ? {
+        ...latest,
+        data: {
+          ...latest.data,
+          appointments: [...new Map(appointments.map((item) => [item.id, item])).values()],
+          appointmentServices: [...new Map(appointmentServices.map((item) => [item.id, item])).values()],
+          timeBlocks: [...new Map(timeBlocks.map((item) => [item.id, item])).values()],
+        },
+      } : latest);
+      setAgendaStatus('ready');
+    } catch (error) {
+      if (requestId !== agendaRequestId.current) return;
+      setAgendaStatus('error');
+      setAgendaMessage(error instanceof Error ? error.message : 'No hemos podido cargar este periodo.');
+    }
+  }, [membership.business.id, state]);
 
   const loadAppointmentHistory = useCallback(async (appointmentId: string) => {
     if (state.status !== 'ready') return;
@@ -133,21 +180,41 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     appointments: state.data.appointments.length,
   } : null;
 
-  const refreshAfterWrite = useCallback(async () => {
-    const data = await beautyRepository.getOperationalData(membership.business.id, beautyDataRange);
+  const refreshAgendaAfterWrite = useCallback(async () => {
+    if (state.status !== 'ready') return;
+    const today = dateInTimeZone(state.data.business.timezone);
+    await loadAgendaRange(agendaRange ?? weekRange(today));
+  }, [agendaRange, loadAgendaRange, state]);
+
+  const refreshAllAfterWrite = useCallback(async () => {
+    if (state.status !== 'ready') return;
+    const timezone = state.data.business.timezone;
+    const today = dateInTimeZone(timezone);
+    const range = agendaRange ?? weekRange(today);
+    const [data, todayData] = await Promise.all([
+      beautyRepository.getOperationalData(membership.business.id, range),
+      rangeContains(range, today)
+        ? Promise.resolve(null)
+        : beautyRepository.getAgendaRange(membership.business.id, dayRange(today), timezone),
+    ]);
+    if (todayData) {
+      data.appointments = [...new Map([...data.appointments, ...todayData.appointments].map((item) => [item.id, item])).values()];
+      data.appointmentServices = [...new Map([...data.appointmentServices, ...todayData.appointmentServices].map((item) => [item.id, item])).values()];
+      data.timeBlocks = [...new Map([...data.timeBlocks, ...todayData.timeBlocks].map((item) => [item.id, item])).values()];
+    }
     setState({ status: 'ready', data, message: null });
-  }, [membership.business.id]);
+  }, [agendaRange, membership.business.id, state]);
 
   const updateAppointmentStatus = useCallback(async (command: UpdateAppointmentStatusCommand) => {
     await beautyRepository.updateAppointmentStatus(membership.business.id, command);
-    await refreshAfterWrite();
-  }, [membership.business.id, refreshAfterWrite]);
+    await refreshAgendaAfterWrite();
+  }, [membership.business.id, refreshAgendaAfterWrite]);
 
   const createTimeBlock = useCallback(async (command: CreateTimeBlockCommand) => {
     if (state.status !== 'ready') return;
     await beautyRepository.createTimeBlock(membership.business.id, state.data.business.timezone, command);
-    await refreshAfterWrite();
-  }, [membership.business.id, refreshAfterWrite, state]);
+    await refreshAgendaAfterWrite();
+  }, [membership.business.id, refreshAgendaAfterWrite, state]);
 
   const getAvailability = useCallback((command: AvailabilityCommand) => (
     beautyRepository.getAvailability(membership.business.id, command)
@@ -155,13 +222,13 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
 
   const createAppointment = useCallback(async (command: CreateAppointmentCommand) => {
     const appointmentId = await beautyRepository.createAppointment(membership.business.id, command);
-    await refreshAfterWrite();
+    await refreshAgendaAfterWrite();
     return appointmentId;
-  }, [membership.business.id, refreshAfterWrite]);
-  const updateAppointment = useCallback(async (command: UpdateAppointmentCommand) => { const id=await beautyRepository.updateAppointment(membership.business.id,command); await refreshAfterWrite(); return id; },[membership.business.id,refreshAfterWrite]);
-  const cancelAppointment = useCallback(async (command: CancelAppointmentCommand) => { const id=await beautyRepository.cancelAppointment(membership.business.id,command); await refreshAfterWrite(); return id; },[membership.business.id,refreshAfterWrite]);
-  const updateTimeBlock = useCallback(async (command: UpdateTimeBlockCommand) => { if(state.status!=='ready') return ''; const id=await beautyRepository.updateTimeBlock(membership.business.id,state.data.business.timezone,command); await refreshAfterWrite(); return id; },[membership.business.id,refreshAfterWrite,state]);
-  const deactivateTimeBlock = useCallback(async (command: DeactivateTimeBlockCommand) => { const id=await beautyRepository.deactivateTimeBlock(membership.business.id,command); await refreshAfterWrite(); return id; },[membership.business.id,refreshAfterWrite]);
+  }, [membership.business.id, refreshAgendaAfterWrite]);
+  const updateAppointment = useCallback(async (command: UpdateAppointmentCommand) => { const id=await beautyRepository.updateAppointment(membership.business.id,command); await refreshAgendaAfterWrite(); return id; },[membership.business.id,refreshAgendaAfterWrite]);
+  const cancelAppointment = useCallback(async (command: CancelAppointmentCommand) => { const id=await beautyRepository.cancelAppointment(membership.business.id,command); await refreshAgendaAfterWrite(); return id; },[membership.business.id,refreshAgendaAfterWrite]);
+  const updateTimeBlock = useCallback(async (command: UpdateTimeBlockCommand) => { if(state.status!=='ready') return ''; const id=await beautyRepository.updateTimeBlock(membership.business.id,state.data.business.timezone,command); await refreshAgendaAfterWrite(); return id; },[membership.business.id,refreshAgendaAfterWrite,state]);
+  const deactivateTimeBlock = useCallback(async (command: DeactivateTimeBlockCommand) => { const id=await beautyRepository.deactivateTimeBlock(membership.business.id,command); await refreshAgendaAfterWrite(); return id; },[membership.business.id,refreshAgendaAfterWrite]);
 
   const getCustomerHistory = useCallback(async (customerId: string) => {
     if (state.status !== 'ready') return { appointments: [], appointmentServices: [] };
@@ -174,30 +241,30 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
 
   const createCustomer = useCallback(async (command: CreateCustomerCommand) => {
     const customerId = await beautyRepository.createCustomer(membership.business.id, command);
-    await refreshAfterWrite();
+    await refreshAllAfterWrite();
     return customerId;
-  }, [membership.business.id, refreshAfterWrite]);
+  }, [membership.business.id, refreshAllAfterWrite]);
 
   const updateCustomer = useCallback(async (command: UpdateCustomerCommand) => {
     const customerId = await beautyRepository.updateCustomer(membership.business.id, command);
-    await refreshAfterWrite();
+    await refreshAllAfterWrite();
     return customerId;
-  }, [membership.business.id, refreshAfterWrite]);
+  }, [membership.business.id, refreshAllAfterWrite]);
 
   const deactivateCustomer = useCallback(async (command: DeactivateCustomerCommand) => {
     const customerId = await beautyRepository.deactivateCustomer(membership.business.id, command);
-    await refreshAfterWrite();
+    await refreshAllAfterWrite();
     return customerId;
-  }, [membership.business.id, refreshAfterWrite]);
+  }, [membership.business.id, refreshAllAfterWrite]);
 
-  const createStaff = useCallback(async (command: CreateStaffCommand) => { const id = await beautyRepository.createStaff(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const updateStaff = useCallback(async (command: UpdateStaffCommand) => { const id = await beautyRepository.updateStaff(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const deactivateStaff = useCallback(async (command: DeactivateStaffCommand) => { const id = await beautyRepository.deactivateStaff(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const createService = useCallback(async (command: CreateServiceCommand) => { const id = await beautyRepository.createService(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const updateService = useCallback(async (command: UpdateServiceCommand) => { const id = await beautyRepository.updateService(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const deactivateService = useCallback(async (command: DeactivateServiceCommand) => { const id = await beautyRepository.deactivateService(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const setStaffService = useCallback(async (command: SetStaffServiceCommand) => { const id = await beautyRepository.setStaffService(membership.business.id, command); await refreshAfterWrite(); return id; }, [membership.business.id, refreshAfterWrite]);
-  const replaceWeeklySchedule = useCallback(async (command: ReplaceWeeklyScheduleCommand) => { await beautyRepository.replaceWeeklySchedule(membership.business.id, command); await refreshAfterWrite(); }, [membership.business.id, refreshAfterWrite]);
+  const createStaff = useCallback(async (command: CreateStaffCommand) => { const id = await beautyRepository.createStaff(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const updateStaff = useCallback(async (command: UpdateStaffCommand) => { const id = await beautyRepository.updateStaff(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const deactivateStaff = useCallback(async (command: DeactivateStaffCommand) => { const id = await beautyRepository.deactivateStaff(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const createService = useCallback(async (command: CreateServiceCommand) => { const id = await beautyRepository.createService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const updateService = useCallback(async (command: UpdateServiceCommand) => { const id = await beautyRepository.updateService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const deactivateService = useCallback(async (command: DeactivateServiceCommand) => { const id = await beautyRepository.deactivateService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const setStaffService = useCallback(async (command: SetStaffServiceCommand) => { const id = await beautyRepository.setStaffService(membership.business.id, command); await refreshAllAfterWrite(); return id; }, [membership.business.id, refreshAllAfterWrite]);
+  const replaceWeeklySchedule = useCallback(async (command: ReplaceWeeklyScheduleCommand) => { await beautyRepository.replaceWeeklySchedule(membership.business.id, command); await refreshAllAfterWrite(); }, [membership.business.id, refreshAllAfterWrite]);
 
   const value = useMemo<BeautyDataContextValue>(() => ({
     ...state,
@@ -214,7 +281,12 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
     updateCustomer,
     deactivateCustomer,
     createStaff, updateStaff, deactivateStaff, createService, updateService, deactivateService, setStaffService, replaceWeeklySchedule,
-  }), [cancelAppointment, counts, createAppointment, createCustomer, createService, createStaff, createTimeBlock, deactivateCustomer, deactivateService, deactivateStaff, deactivateTimeBlock, getAvailability, getCustomerHistory, loadAppointmentHistory, replaceWeeklySchedule, setStaffService, state, updateAppointment, updateAppointmentStatus, updateCustomer, updateService, updateStaff, updateTimeBlock]);
+    agendaRange,
+    agendaStatus,
+    agendaMessage,
+    loadAgendaRange,
+    retryAgenda: () => agendaRange ? void loadAgendaRange(agendaRange) : undefined,
+  }), [agendaMessage, agendaRange, agendaStatus, cancelAppointment, counts, createAppointment, createCustomer, createService, createStaff, createTimeBlock, deactivateCustomer, deactivateService, deactivateStaff, deactivateTimeBlock, getAvailability, getCustomerHistory, loadAgendaRange, loadAppointmentHistory, replaceWeeklySchedule, setStaffService, state, updateAppointment, updateAppointmentStatus, updateCustomer, updateService, updateStaff, updateTimeBlock]);
 
   return <BeautyDataContext.Provider value={value}>{children}</BeautyDataContext.Provider>;
 }

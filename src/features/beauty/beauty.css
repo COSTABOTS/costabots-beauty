@@ -138,17 +138,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .heading-actions { display: flex; align-items: center; gap: 8px; }
 .future-action { display: inline-flex; min-height: 42px; align-items: center; gap: 7px; padding: 0 10px; color: var(--beauty-muted); border: 1px solid var(--beauty-line); border-radius: 13px; background: #f5f2ef; }
 .future-action:disabled { cursor: not-allowed; opacity: 1; }
-.date-switcher { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; gap: 7px; padding: 8px; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
-.date-switcher button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 14px; background: var(--beauty-bg); cursor: pointer; }
+.date-switcher, .week-switcher { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; gap: 7px; padding: 8px; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
+.week-switcher { margin-bottom: -6px; background: #f4efea; }
+.date-switcher button, .week-switcher button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 14px; background: var(--beauty-bg); cursor: pointer; }
 .date-switcher button:disabled { opacity: .3; }
-.date-switcher > span { display: grid; text-align: center; }
-.date-switcher small { color: var(--beauty-muted); font-size: .65rem; }
-.date-switcher strong { margin-top: 3px; font-size: .87rem; }
+.date-switcher > span, .week-switcher > span { display: grid; min-width: 0; text-align: center; }
+.date-switcher small, .week-switcher small { color: var(--beauty-muted); font-size: .65rem; }
+.date-switcher strong, .week-switcher strong { margin-top: 3px; overflow: hidden; font-size: .87rem; text-overflow: ellipsis; white-space: nowrap; }
 .staff-filters { display: flex; gap: 7px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
 .staff-filters button { display: inline-flex; min-height: 42px; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--beauty-line); border-radius: 999px; background: var(--beauty-card); white-space: nowrap; cursor: pointer; }
 .staff-filters button.is-active { color: #fff; border-color: var(--beauty-primary); background: var(--beauty-primary); }
 .agenda-summary { display: flex; gap: 18px; padding: 12px 14px; color: var(--beauty-muted); font-size: .78rem; border-radius: 14px; background: #eee8e1; }
 .agenda-summary strong { color: var(--beauty-ink); }
+.agenda-range-state { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; padding: 10px 14px; color: var(--beauty-muted); border: 1px solid var(--beauty-line); border-radius: 15px; background: var(--beauty-card); font-size: .78rem; }
+.agenda-range-state--error { justify-content: space-between; color: #8c4d48; border-color: #e7b8b3; background: #fff3f1; }
+.agenda-range-state button, .empty-state__actions button { min-height: 40px; padding: 0 13px; color: var(--beauty-primary-strong); border: 1px solid var(--beauty-primary-soft); border-radius: 12px; background: #fff; font-weight: 700; cursor: pointer; }
+.loading-spinner { width: 17px; height: 17px; border: 2px solid #ead8d0; border-top-color: var(--beauty-primary); border-radius: 50%; animation: beauty-spin .8s linear infinite; }
+.empty-state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.empty-state__actions button { display: inline-flex; align-items: center; gap: 6px; }
+@keyframes beauty-spin { to { transform: rotate(360deg); } }
 .empty-slot, .time-block { display: flex; min-height: 50px; align-items: center; gap: 9px; padding: 10px 14px; color: #68796b; font-size: .75rem; border: 1px dashed #b9cbbc; border-radius: 15px; background: #f4f8f4; }
 .time-block { width: 100%; color: #766b62; text-align: left; border-color: #d8cbbd; background: #eee9e3; cursor: pointer; }
 .time-block__action { margin-left: auto; color: var(--beauty-primary); font-weight: 700; }
