@@ -3,10 +3,17 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 export const jsonHeaders = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
+  'access-control-allow-methods': 'POST, OPTIONS',
 };
 
 export function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+}
+
+export function optionsResponse() {
+  return new Response(null, { status: 204, headers: jsonHeaders });
 }
 
 export function safeError(error: unknown) {

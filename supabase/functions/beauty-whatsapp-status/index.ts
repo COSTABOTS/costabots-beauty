@@ -1,9 +1,10 @@
 import {
-  connectionView, evolutionFetch, json, normalizeConnectionState, parseBody,
+  connectionView, evolutionFetch, json, normalizeConnectionState, optionsResponse, parseBody,
   requireMembership, requireUser, safeError, serverClient,
 } from '../_shared/beautyWhatsapp.ts';
 
 Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return optionsResponse();
   if (request.method !== 'POST') return json(405, { error: 'METHOD_NOT_ALLOWED' });
   const client = serverClient();
   try {
