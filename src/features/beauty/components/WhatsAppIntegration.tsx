@@ -1,5 +1,5 @@
 import { ArrowLeft, CheckCircle2, MessageCircle, RefreshCw, Send, ShieldCheck, Smartphone, Unplug } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Customer } from '../types';
 import {
   disconnectWhatsApp,
@@ -132,20 +132,31 @@ export function SupabaseWhatsAppInbox({
   const [messageLimit, setMessageLimit] = useState(50);
   const [draft, setDraft] = useState('');
   const [working, setWorking] = useState(false);
+  const reloadRequestId = useRef(0);
+  useEffect(() => () => {
+    reloadRequestId.current += 1;
+  }, []);
 
   const reload = useCallback(async () => {
     if (!enabled) return;
+    const requestId = ++reloadRequestId.current;
     setLoading(true); setError('');
     try {
       const [nextConnection, nextConversations] = await Promise.all([
         loadWhatsAppConnection(businessId),
         loadWhatsAppConversations(businessId),
       ]);
+      if (requestId !== reloadRequestId.current) return;
       setConnection(nextConnection);
       setConversations(nextConversations);
       setSelected((current) => current ? nextConversations.find((item) => item.id === current.id) ?? null : null);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'No hemos podido cargar Mensajes.'); }
-    finally { setLoading(false); }
+    } catch (cause) {
+      if (requestId === reloadRequestId.current) {
+        setError(cause instanceof Error ? cause.message : 'No hemos podido cargar Mensajes.');
+      }
+    } finally {
+      if (requestId === reloadRequestId.current) setLoading(false);
+    }
   }, [businessId, enabled]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -199,7 +210,7 @@ export function SupabaseWhatsAppInbox({
     <div className="conversation-tabs"><button className={filter === 'all' ? 'is-active' : ''} onClick={() => setFilter('all')} type="button">Todas</button><button className={filter === 'attention' ? 'is-active' : ''} onClick={() => setFilter('attention')} type="button">Necesitan atención</button></div>
     {loading && <p className="inline-data-message">Cargando conversaciones…</p>}
     {error && <div className="empty-state"><ShieldCheck /><h2>No se ha podido cargar</h2><p>{error}</p><button onClick={() => void reload()} type="button">Reintentar</button></div>}
-    {!loading && !error && !visible.length && <div className="empty-state"><Smartphone /><h2>{connection.status === 'connected' ? 'Todavía no hay mensajes' : 'WhatsApp no está conectado'}</h2><p>{connection.status === 'connected' ? 'Las conversaciones nuevas aparecerán aquí.' : 'Configura la conexión desde Más → Configuración.'}</p></div>}
+    {!loading && !error && !visible.length && <div className="empty-state"><Smartphone /><h2>Aún no hay conversaciones</h2><p>Cuando llegue un mensaje por WhatsApp aparecerá aquí.</p></div>}
     <div className="conversation-list">{visible.map((conversation) => <button key={conversation.id} onClick={() => { setMessageLimit(50); setSelected(conversation); }} type="button"><span className="conversation-avatar"><MessageCircle /></span><span><strong>{conversation.contact_name || `+${conversation.remote_phone_normalized ?? ''}`}</strong><small>{conversation.last_message_preview || 'Sin vista previa'}</small></span><span className="conversation-meta"><small>{conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</small>{conversation.unread_count > 0 && <b>{conversation.unread_count}</b>}<em>{conversation.needs_attention ? 'Necesita atención' : conversation.mode === 'manual' ? 'Atención manual' : 'IA atendiendo'}</em></span></button>)}</div>
   </div>;
 }

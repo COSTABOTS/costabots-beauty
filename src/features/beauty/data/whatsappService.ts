@@ -47,6 +47,33 @@ function functionError(error: unknown, fallback: string) {
   return new Error(fallback);
 }
 
+type QueryResult<T> = {
+  data: T;
+  error: { code?: string; message?: string; status?: number } | null;
+};
+
+function isExpiredSessionError(error: QueryResult<unknown>['error']) {
+  if (!error) return false;
+  const code = String(error.code ?? '').toUpperCase();
+  const message = String(error.message ?? '').toLowerCase();
+  return error.status === 401
+    || code === 'PGRST301'
+    || code === 'PGRST303'
+    || message.includes('jwt expired')
+    || message.includes('invalid jwt');
+}
+
+async function authenticatedQuery<T>(
+  operation: () => PromiseLike<QueryResult<T>>,
+): Promise<QueryResult<T>> {
+  const initial = await operation();
+  if (!isExpiredSessionError(initial.error)) return initial;
+
+  const { error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError) return initial;
+  return operation();
+}
+
 async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) throw functionError(error, 'No hemos podido completar la operación de WhatsApp.');
@@ -79,17 +106,21 @@ export const disconnectWhatsApp = (businessId: string) =>
   invoke<WhatsAppConnection>('beauty-whatsapp-disconnect', { businessId, confirmed: true });
 
 export async function loadWhatsAppConversations(businessId: string) {
-  const { data, error } = await supabase.from('beauty_conversations').select('*')
-    .eq('business_id', businessId).eq('active', true)
-    .order('last_message_at', { ascending: false, nullsFirst: false });
+  const { data, error } = await authenticatedQuery(() =>
+    supabase.from('beauty_conversations').select('*')
+      .eq('business_id', businessId).eq('active', true)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+  );
   if (error) throw functionError(error, 'No hemos podido cargar las conversaciones.');
   return (data ?? []) as WhatsAppConversation[];
 }
 
 export async function loadWhatsAppMessages(conversationId: string, limit: number) {
-  const { data, error } = await supabase.from('beauty_messages')
-    .select('id,conversation_id,direction,sender_type,message_type,text_content,status,sent_at')
-    .eq('conversation_id', conversationId).order('sent_at', { ascending: false }).limit(limit);
+  const { data, error } = await authenticatedQuery(() =>
+    supabase.from('beauty_messages')
+      .select('id,conversation_id,direction,sender_type,message_type,text_content,status,sent_at')
+      .eq('conversation_id', conversationId).order('sent_at', { ascending: false }).limit(limit)
+  );
   if (error) throw functionError(error, 'No hemos podido cargar los mensajes.');
   return ((data ?? []) as WhatsAppMessage[]).reverse();
 }
