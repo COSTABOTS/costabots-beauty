@@ -24,3 +24,6 @@ verify_jwt = true
 
 [functions.evolution-beauty-webhook]
 verify_jwt = false
+
+[functions.beauty-ai-orchestrator]
+verify_jwt = true

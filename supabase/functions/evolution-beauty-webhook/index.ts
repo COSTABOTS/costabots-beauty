@@ -1,5 +1,10 @@
 import { json, normalizeConnectionState, serverClient } from '../_shared/beautyWhatsapp.ts';
+import { beautyAiEnabled, invokeBeautyAiRun } from '../_shared/beautyAi.ts';
 import { buildConversationMutation } from './conversationMutation.ts';
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -138,6 +143,13 @@ Deno.serve(async (request) => {
           : { data: null };
         const existingConversation = await client.from('beauty_conversations').select('*')
           .eq('whatsapp_connection_id', connection.data.id).eq('remote_jid', remoteJid).maybeSingle();
+        const providerId = providerMessageId(data) || `${providerEventId}:${itemIndex}`;
+        const knownOutbound = fromMe && existingConversation.data
+          ? await client.from('beauty_messages').select('id,sender_type')
+            .eq('conversation_id', existingConversation.data.id)
+            .eq('provider_message_id', providerId).maybeSingle()
+          : { data: null };
+        const isAiEcho = knownOutbound.data?.sender_type === 'ai';
         const conversationValues: Record<string, unknown> = {
           business_id: connection.data.business_id,
           whatsapp_connection_id: connection.data.id,
@@ -153,17 +165,18 @@ Deno.serve(async (request) => {
           existingConversation.data
             ? { id: existingConversation.data.id, mode: existingConversation.data.mode }
             : null,
-          fromMe,
+          fromMe && !isAiEcho,
           conversationValues,
         );
         const conversationResult = mutation.kind === 'insert'
           ? await client.from('beauty_conversations').insert(mutation.values).select('*').single()
           : await client.from('beauty_conversations').update(mutation.values).eq('id', mutation.id).select('*').single();
         if (!conversationResult.data) continue;
+        if (isAiEcho) continue;
         const inserted = await client.from('beauty_messages').insert({
           business_id: connection.data.business_id,
           conversation_id: conversationResult.data.id,
-          provider_message_id: providerMessageId(data) || `${providerEventId}:${itemIndex}`,
+          provider_message_id: providerId,
           direction: fromMe ? 'outbound' : 'inbound',
           sender_type: fromMe ? 'human' : 'customer',
           message_type: type,
@@ -171,9 +184,37 @@ Deno.serve(async (request) => {
           status: fromMe ? 'sent' : 'received',
           sent_at: sentAt.toISOString(),
           raw_event_reference: audit.data.id,
-        });
-        if (!fromMe && !inserted.error) {
+        }).select('id').single();
+        if (!fromMe && !inserted.error && inserted.data?.id) {
           await client.rpc('increment_beauty_conversation_unread', { p_conversation_id: conversationResult.data.id });
+          if (
+            beautyAiEnabled()
+            && conversationResult.data.mode === 'ai'
+            && conversationResult.data.assigned_user_id === null
+          ) {
+            const run = await client.from('beauty_ai_runs').insert({
+              business_id: connection.data.business_id,
+              conversation_id: conversationResult.data.id,
+              inbound_message_id: inserted.data.id,
+              operation_type: 'auto_reply',
+            }).select('id').single();
+            if (run.data) {
+              const runId = run.data.id;
+              EdgeRuntime.waitUntil(
+                invokeBeautyAiRun(runId).catch(async () => {
+                  await client.from('beauty_ai_runs').update({
+                    status: 'failed',
+                    error_code: 'ORCHESTRATOR_INVOCATION_FAILED',
+                    completed_at: new Date().toISOString(),
+                  }).eq('id', runId).eq('status', 'pending');
+                  await client.from('beauty_conversations').update({
+                    needs_attention: true,
+                    attention_reason: 'AI_ERROR_ORCHESTRATOR_INVOCATION_FAILED',
+                  }).eq('id', conversationResult.data.id).eq('mode', 'ai');
+                }),
+              );
+            }
+          }
         }
       }
     } else if (event === 'MESSAGES_UPDATE') {
