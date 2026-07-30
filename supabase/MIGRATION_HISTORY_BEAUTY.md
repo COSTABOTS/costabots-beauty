@@ -192,3 +192,24 @@ El registro público continúa oculto porque
 `VITE_BEAUTY_DATA_MODE=mock`. Antes de activar el alta deben completarse
 CAPTCHA, textos legales definitivos, controles de abuso y pruebas con un buzón
 de QA confirmado.
+
+## Plantillas rápidas de servicios
+
+El 30 de julio de 2026 se aplicó al proyecto Supabase Beauty
+`20260730180024_service_template_import.sql`. Añade la RPC autenticada
+`import_beauty_services`, que importa hasta 50 servicios revisados dentro de
+una única transacción.
+
+La RPC deriva la identidad de `auth.uid()`, exige una membresía activa
+`owner` o `admin`, valida el negocio y toma la moneda exclusivamente de
+`beauty_businesses`. Un advisory lock por negocio protege la detección de
+duplicados y la inserción concurrente. Los nombres se comparan sin distinguir
+mayúsculas, espacios ni tildes comunes.
+
+Cada duplicado debe omitirse, sustituirse expresamente o importarse con un
+nombre nuevo. Si existe exactamente un profesional activo, los servicios
+creados o sustituidos se asignan a esa persona; con cero o varias personas no
+se realiza ninguna asignación arbitraria.
+
+`public` y `anon` no tienen permiso de ejecución y `authenticated` conserva
+solo `EXECUTE`. El frontend y `.env.example` continúan en modo `mock`.

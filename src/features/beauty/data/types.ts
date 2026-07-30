@@ -16,6 +16,7 @@ export type RepositoryBusiness = {
   id: string;
   name: string;
   slug: string;
+  businessType: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
   timezone: string;
   currency: string;
   language: string;
@@ -211,6 +212,25 @@ export type CreateServiceCommand = ServiceInput;
 export type UpdateServiceCommand = ServiceInput & { serviceId: string; active: boolean };
 export type DeactivateServiceCommand = { serviceId: string };
 
+export type ImportServiceItem = {
+  clientId: string;
+  name: string;
+  durationMinutes: number;
+  price: number;
+  duplicateAction: 'omit' | 'replace' | 'new';
+};
+
+export type ImportServicesCommand = {
+  services: ImportServiceItem[];
+};
+
+export type ImportServicesResult = {
+  created: number;
+  omitted: number;
+  replaced: number;
+  assignedStaffId: string | null;
+};
+
 export type SetStaffServiceCommand = {
   staffId: string;
   serviceId: string;
@@ -225,6 +245,7 @@ export type BusinessRow = {
   id: string;
   name: string;
   slug: string;
+  business_type: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
   timezone: string;
   phone: string | null;
   email: string | null;

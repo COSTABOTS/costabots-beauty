@@ -119,6 +119,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   const [extraAppointmentServices, setExtraAppointmentServices] = useState<import('./data/types').AppointmentService[]>([]);
   const [setupStaffId, setSetupStaffId] = useState<string | undefined>();
   const [setupReturnRoute, setSetupReturnRoute] = useState<BeautyRoute>('more');
+  const [openServiceTemplate, setOpenServiceTemplate] = useState(false);
   const [toast, setToast] = useState('');
   const [activeForm, setActiveForm] = useState<'appointment' | 'edit-appointment' | 'block' | 'edit-block' | 'customer' | 'edit-customer' | null>(null);
   const canManageCustomers = membership.role === 'owner' || membership.role === 'admin';
@@ -171,8 +172,9 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function openSetup(routeName: 'staff' | 'services' | 'schedules', returnTo: BeautyRoute = 'more') {
+  function openSetup(routeName: 'staff' | 'services' | 'schedules', returnTo: BeautyRoute = 'more', useTemplate = false) {
     setSetupReturnRoute(returnTo);
+    if (routeName === 'services') setOpenServiceTemplate(useTemplate);
     navigate(routeName);
   }
 
@@ -217,10 +219,10 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
         {route === 'staff' && <StaffManagementPage appointments={appointments} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createStaff} onDeactivate={(staffId) => beautyData.deactivateStaff({ staffId })} onOpenSchedules={(staffId) => { setSetupStaffId(staffId); openSetup('schedules', setupReturnRoute); }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateStaff} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
-        {route === 'services' && <ServicesManagementPage businessCurrency={beautyData.data.business.currency} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createService} onDeactivate={(serviceId) => beautyData.deactivateService({ serviceId })} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateService} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
+        {route === 'services' && <ServicesManagementPage businessCurrency={beautyData.data.business.currency} businessType={beautyData.data.business.businessType} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createService} onDeactivate={(serviceId) => beautyData.deactivateService({ serviceId })} onImport={async (items) => { const result = await beautyData.importServices({ services: items }); if (setupReturnRoute === 'onboarding' && result.assignedStaffId && result.created + result.replaced > 0) { const assigned = staff.find((item) => item.id === result.assignedStaffId); showToast(assigned ? `Los servicios se han asignado a ${assigned.name}.` : 'Servicios importados y asignados.'); navigate('onboarding'); } return result; }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateService} openTemplateInitially={openServiceTemplate} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
         {route === 'schedules' && <SchedulesManagementPage initialStaffId={setupStaffId} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreateAbsence={(staffId) => { setSetupStaffId(staffId); setActiveForm('block'); }} onSave={(staffId, segments) => beautyData.replaceWeeklySchedule({ staffId, segments })} schedules={beautyData.data.schedules} staff={staff} />}
         {route === 'configuration' && <ConfigurationPage business={beautyData.data.business} canManage={canManageCustomers} mode={mode} onBack={() => navigate('more')} onOpenOnboarding={() => navigate('onboarding')} onSave={beautyData.updateBusinessProfile} onSignOut={() => void signOut()} progress={setupProgress} />}
-        {route === 'onboarding' && <OnboardingPage business={beautyData.data.business} canManage={canManageCustomers} mode={mode} onBack={() => navigate('today')} onOpenSchedules={() => openSetup('schedules', 'onboarding')} onOpenServices={() => openSetup('services', 'onboarding')} onOpenStaff={() => openSetup('staff', 'onboarding')} onSaveBusiness={beautyData.updateBusinessProfile} progress={setupProgress} />}
+        {route === 'onboarding' && <OnboardingPage business={beautyData.data.business} canManage={canManageCustomers} mode={mode} onBack={() => navigate('today')} onOpenSchedules={() => openSetup('schedules', 'onboarding')} onOpenServices={() => openSetup('services', 'onboarding')} onOpenServiceTemplates={() => openSetup('services', 'onboarding', true)} onOpenStaff={() => openSetup('staff', 'onboarding')} onSaveBusiness={beautyData.updateBusinessProfile} progress={setupProgress} />}
       </main>
 
       <BeautyNavigation active={['automations', 'staff', 'services', 'schedules', 'configuration', 'onboarding'].includes(route) ? 'more' : route} onNavigate={navigate} />

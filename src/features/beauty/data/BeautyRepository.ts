@@ -19,6 +19,8 @@ import type {
   DeactivateCustomerCommand,
   DeactivateServiceCommand,
   DeactivateStaffCommand,
+  ImportServicesCommand,
+  ImportServicesResult,
   ReplaceWeeklyScheduleCommand,
   SetStaffServiceCommand,
   UpdateAppointmentStatusCommand,
@@ -62,6 +64,7 @@ export interface BeautyRepository {
   updateStaff(businessId: string, command: UpdateStaffCommand): Promise<string>;
   deactivateStaff(businessId: string, command: DeactivateStaffCommand): Promise<string>;
   createService(businessId: string, command: CreateServiceCommand): Promise<string>;
+  importServices(businessId: string, command: ImportServicesCommand): Promise<ImportServicesResult>;
   updateService(businessId: string, command: UpdateServiceCommand): Promise<string>;
   deactivateService(businessId: string, command: DeactivateServiceCommand): Promise<string>;
   setStaffService(businessId: string, command: SetStaffServiceCommand): Promise<string>;

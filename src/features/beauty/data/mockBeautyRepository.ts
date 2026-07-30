@@ -42,6 +42,7 @@ let mockBusiness = {
   id: business.id,
   name: business.name,
   slug: 'luna-beauty-studio',
+  businessType: 'nail_salon' as const,
   timezone: 'Europe/Madrid',
   currency: 'EUR',
   language: 'es',
@@ -117,7 +118,7 @@ function restoreMockState() {
       storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
       return;
     }
-    mockBusiness = stored.business;
+    mockBusiness = { ...stored.business, businessType: stored.business.businessType ?? 'nail_salon' };
     mockAppointments = stored.appointments;
     mockTimeBlocks = stored.timeBlocks;
     mockStaff = stored.staff;
@@ -433,6 +434,45 @@ const mockBeautyRepositoryBase: BeautyRepository = {
     mockServices.push({ id, name: command.name.trim(), description: command.description, durationMinutes: command.durationMinutes, bufferBeforeMinutes: command.bufferBeforeMinutes, bufferAfterMinutes: command.bufferAfterMinutes, price: command.price, currency: command.currency, onlineBookingEnabled: command.onlineBookingEnabled, reactivationDays: command.reactivationDays, active: true, category: 'hair' });
     return id;
   },
+  async importServices(_businessId, command) {
+    if (!command.services.length || command.services.length > 50) {
+      throw new BeautyRepositoryError('Selecciona entre 1 y 50 servicios.', 'invalid');
+    }
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '');
+    const allowedDurations = new Set([15, 30, 45, 60, 75, 90, 120, 150, 180]);
+    const activeStaff = mockStaff.filter((item) => item.active !== false);
+    const assignedStaff = activeStaff.length === 1 ? activeStaff[0] : null;
+    let created = 0;
+    let omitted = 0;
+    let replaced = 0;
+    for (const service of command.services) {
+      const name = service.name.trim();
+      if (!name || name.length > 160) throw new BeautyRepositoryError('Revisa el nombre de los servicios.', 'invalid');
+      if (!allowedDurations.has(service.durationMinutes)) throw new BeautyRepositoryError('Selecciona una duración válida.', 'invalid');
+      if (!Number.isFinite(service.price) || service.price < 0 || service.price > 999999.99) throw new BeautyRepositoryError('Revisa los precios sugeridos.', 'invalid');
+      const existing = mockServices.find((item) => item.active !== false && normalize(item.name) === normalize(name));
+      if (existing && service.duplicateAction === 'omit') {
+        omitted += 1;
+        continue;
+      }
+      if (existing && service.duplicateAction === 'replace') {
+        Object.assign(existing, { durationMinutes: service.durationMinutes, price: service.price, currency: mockBusiness.currency });
+        replaced += 1;
+        if (assignedStaff) {
+          const assignment = mockStaffServices.find((item) => item.staffId === assignedStaff.id && item.serviceId === existing.id);
+          if (assignment) Object.assign(assignment, { durationMinutes: existing.durationMinutes, price: existing.price, active: true });
+          else mockStaffServices.push({ id: `mock-assignment-${Date.now()}-${replaced}`, staffId: assignedStaff.id, serviceId: existing.id, durationMinutes: existing.durationMinutes, price: existing.price, active: true });
+        }
+        continue;
+      }
+      if (existing) throw new BeautyRepositoryError('Edita el nombre antes de importarlo como nuevo.', 'conflict');
+      const id = `mock-service-${Date.now()}-${created}`;
+      mockServices.push({ id, name, description: '', durationMinutes: service.durationMinutes, bufferBeforeMinutes: 0, bufferAfterMinutes: 0, price: service.price, currency: mockBusiness.currency, onlineBookingEnabled: true, reactivationDays: null, active: true, category: 'nails' });
+      if (assignedStaff) mockStaffServices.push({ id: `mock-assignment-${Date.now()}-${created}`, staffId: assignedStaff.id, serviceId: id, durationMinutes: service.durationMinutes, price: service.price, active: true });
+      created += 1;
+    }
+    return { created, omitted, replaced, assignedStaffId: assignedStaff?.id ?? null };
+  },
   async updateService(_businessId, command) {
     const item = mockServices.find((service) => service.id === command.serviceId);
     if (!item) throw new BeautyRepositoryError('No se encuentra el servicio.', 'not_found');
@@ -483,6 +523,7 @@ const mockWriteMethods = new Set<PropertyKey>([
   'updateStaff',
   'deactivateStaff',
   'createService',
+  'importServices',
   'updateService',
   'deactivateService',
   'setStaffService',

@@ -168,6 +168,7 @@ export function OnboardingPage({
   onBack,
   onOpenSchedules,
   onOpenServices,
+  onOpenServiceTemplates,
   onOpenStaff,
   onSaveBusiness,
   progress,
@@ -178,6 +179,7 @@ export function OnboardingPage({
   onBack: () => void;
   onOpenSchedules: () => void;
   onOpenServices: () => void;
+  onOpenServiceTemplates: () => void;
   onOpenStaff: () => void;
   onSaveBusiness: (value: BusinessProfileInput) => Promise<string>;
   progress: SetupProgress;
@@ -201,7 +203,7 @@ export function OnboardingPage({
     </section>
     {step === 0 && <BusinessProfileForm business={business} canManage={canManage} onSave={onSaveBusiness} />}
     {step === 1 && <div className="onboarding-action"><p>{progress.staff ? 'Ya existe al menos un profesional activo.' : 'Crea el primer profesional con el formulario habitual.'}</p><button disabled={!canManage} onClick={onOpenStaff} type="button">{progress.staff ? 'Revisar profesionales' : 'Crear profesional'}</button></div>}
-    {step === 2 && <div className="onboarding-action"><p>{progress.services ? 'Ya existe un servicio activo.' : 'Crea un servicio reservable. Con uno es suficiente para empezar.'}</p><button disabled={!canManage} onClick={onOpenServices} type="button">{progress.services ? 'Revisar servicios' : 'Crear servicio'}</button><button className="secondary-action" disabled={!canManage} onClick={onOpenStaff} type="button">{progress.assignment ? 'Asignación completada' : 'Asignar a un profesional'}</button><button className="soon-action" disabled type="button">Importar catálogo con IA <FeatureStateBadge state="soon" /></button><small>Sube una foto o PDF de tu tarifa y revisa los servicios antes de importarlos.</small></div>}
+    {step === 2 && <div className="onboarding-action"><p>{progress.services && progress.assignment ? 'Ya tienes servicios activos y asignados.' : 'Empieza con una plantilla editable o crea un servicio manualmente.'}</p><button disabled={!canManage} onClick={onOpenServiceTemplates} type="button">{progress.services ? 'Usar otra plantilla' : 'Usar plantilla'}</button><button className="secondary-action" disabled={!canManage} onClick={onOpenServices} type="button">{progress.services ? 'Revisar servicios' : 'Crear servicio manualmente'}</button><button className="soon-action" disabled type="button">Importar catálogo con IA <FeatureStateBadge state="soon" /></button></div>}
     {step === 3 && <div className="onboarding-action"><p>{progress.schedule ? 'Ya existe un tramo horario activo.' : 'Configura cuándo puede recibir citas cada profesional.'}</p><button disabled={!canManage || !progress.staff} onClick={onOpenSchedules} type="button">{progress.schedule ? 'Revisar horario' : 'Configurar horario'}</button></div>}
     {step === 4 && <div className={`onboarding-finish ${progress.complete ? 'is-complete' : ''}`}><Sparkles /><h2>{progress.complete ? 'Todo preparado' : 'Aún faltan algunos pasos'}</h2><p>{progress.complete ? 'Ya puedes gestionar disponibilidad y citas.' : `Has completado ${progress.completedCount} de 5 requisitos. Vuelve al primer paso pendiente.`}</p></div>}
     <div className="onboarding-navigation">

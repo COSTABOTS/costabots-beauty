@@ -56,6 +56,7 @@ export function mapBusiness(row: BusinessRow): RepositoryBusiness {
     id: row.id,
     name: row.name,
     slug: row.slug,
+    businessType: row.business_type,
     timezone: row.timezone,
     currency: row.default_currency,
     language: row.default_language,

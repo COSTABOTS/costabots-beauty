@@ -31,6 +31,9 @@ import type {
 function mutationError(error: { code?: string; message?: string } | null) {
   const code = error?.code ?? '';
   const message = error?.message ?? '';
+  if (/DUPLICATE_SERVICE_RENAME_REQUIRED/i.test(message)) {
+    return new BeautyRepositoryError('Edita el nombre antes de importarlo como nuevo.', 'conflict');
+  }
   if (code === '23505' || /customer phone already exists|duplicate.*phone/i.test(message)) {
     return new BeautyRepositoryError('Ya existe un cliente con ese teléfono.', 'conflict');
   }
@@ -50,6 +53,10 @@ function mutationError(error: { code?: string; message?: string } | null) {
     return new BeautyRepositoryError('Ese hueco ya no está disponible o existe un bloqueo.', 'conflict');
   }
   if (code === '22023' || /invalid|must|may only|fit in one schedule/i.test(message)) {
+    if (/SERVICE_IMPORT_SIZE/i.test(message)) return new BeautyRepositoryError('Selecciona entre 1 y 50 servicios.', 'invalid');
+    if (/SERVICE_NAME/i.test(message)) return new BeautyRepositoryError('Revisa el nombre de los servicios.', 'invalid');
+    if (/SERVICE_DURATION/i.test(message)) return new BeautyRepositoryError('Selecciona una duración válida.', 'invalid');
+    if (/SERVICE_PRICE/i.test(message)) return new BeautyRepositoryError('Revisa los precios sugeridos.', 'invalid');
     if (/timezone/i.test(message)) return new BeautyRepositoryError('Selecciona una zona horaria válida.', 'invalid');
     if (/currency/i.test(message)) return new BeautyRepositoryError('La moneda debe usar un código ISO de tres letras.', 'invalid');
     if (/business name|name is required/i.test(message)) return new BeautyRepositoryError('El nombre comercial es obligatorio.', 'invalid');
@@ -97,7 +104,7 @@ export const supabaseBeautyRepository: BeautyRepository = {
   async getBusiness(businessId) {
     const result = await supabase
       .from('beauty_businesses')
-      .select('id,name,slug,timezone,phone,email,address,default_currency,default_language')
+      .select('id,name,slug,business_type,timezone,phone,email,address,default_currency,default_language')
       .eq('id', businessId)
       .eq('active', true)
       .single();
@@ -462,6 +469,33 @@ export const supabaseBeautyRepository: BeautyRepository = {
     const row = result.data as { id?: string } | null;
     if (!row?.id) throw new BeautyRepositoryError('No hemos podido crear el servicio.');
     return row.id;
+  },
+
+  async importServices(businessId, command) {
+    const result = await supabase.rpc('import_beauty_services', {
+      p_business_id: businessId,
+      p_services: command.services.map((service) => ({
+        client_id: service.clientId,
+        name: service.name,
+        duration_minutes: service.durationMinutes,
+        price: service.price,
+        duplicate_action: service.duplicateAction,
+      })),
+    });
+    if (result.error) throw mutationError(result.error);
+    const row = result.data as {
+      created?: number;
+      omitted?: number;
+      replaced?: number;
+      assigned_staff_id?: string | null;
+    } | null;
+    if (!row) throw new BeautyRepositoryError('No hemos podido confirmar la importación.');
+    return {
+      created: Number(row.created ?? 0),
+      omitted: Number(row.omitted ?? 0),
+      replaced: Number(row.replaced ?? 0),
+      assignedStaffId: row.assigned_staff_id ?? null,
+    };
   },
 
   async updateService(businessId, command) {

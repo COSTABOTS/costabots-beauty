@@ -501,6 +501,42 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .onboarding-navigation button:disabled, .onboarding-action button:disabled { cursor: not-allowed; opacity: .5; }
 .empty-state > button { min-height: 42px; padding: 0 13px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid #e4c3bc; border-radius: 12px; background: var(--beauty-primary-soft); }
 .empty-state > small { max-width: 420px; color: var(--beauty-muted); font-size: .66rem; line-height: 1.45; }
+.service-add-options { display: grid; gap: 10px; padding: 16px; border: 1px solid #e6c4bd; border-radius: 18px; background: linear-gradient(135deg, #fff8f5, #fffdfb); }
+.service-add-options h2 { margin: 0; font-size: 1rem; }
+.service-add-options > div { display: grid; grid-template-columns: 1.2fr .8fr .9fr; gap: 8px; }
+.service-add-options button { min-height: 48px; padding: 9px 12px; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 13px; background: var(--beauty-card); }
+.service-add-options .template-primary-action { display: grid; gap: 2px; color: #fff; border-color: var(--beauty-primary); background: var(--beauty-primary); }
+.service-add-options .template-primary-action small { font-size: .6rem; font-weight: 650; opacity: .82; }
+.template-importer { position: fixed; z-index: 80; inset: 12px; display: flex; max-width: 780px; max-height: calc(100dvh - 24px); flex-direction: column; gap: 12px; margin: auto; padding: 16px; overflow: hidden; border: 1px solid #e3c5bd; border-radius: 24px; background: #fffdfb; box-shadow: 0 22px 70px rgba(70, 44, 36, .2); }
+.template-importer::before { position: fixed; z-index: -1; inset: 0; content: ''; background: rgba(48, 38, 34, .35); backdrop-filter: blur(3px); }
+.template-importer > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.template-importer > header span { display: grid; gap: 2px; }
+.template-importer > header small { color: var(--beauty-primary-dark); font-size: .64rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
+.template-importer h2, .template-importer p { margin: 0; }
+.template-importer > header button { display: grid; width: 40px; height: 40px; place-items: center; border: 0; border-radius: 12px; background: var(--beauty-bg); }
+.template-intro, .template-other-note { color: var(--beauty-muted); font-size: .7rem; line-height: 1.45; }
+.template-other-note { padding: 10px 12px; border-radius: 12px; background: var(--beauty-sand-soft); }
+.template-picker { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.template-picker button { display: grid; gap: 2px; min-height: 48px; padding: 8px; color: var(--beauty-muted); font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 12px; background: var(--beauty-card); }
+.template-picker button.is-active { color: var(--beauty-primary-dark); border-color: var(--beauty-primary); background: var(--beauty-primary-soft); }
+.template-picker small { font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; }
+.template-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.template-summary strong { font-size: .74rem; }
+.template-summary span { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.template-summary button, .template-add-row { display: inline-flex; min-height: 34px; align-items: center; gap: 4px; padding: 0 8px; color: var(--beauty-primary-dark); font-size: .62rem; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 9px; background: var(--beauty-bg); }
+.template-rows { display: grid; min-height: 0; gap: 8px; overflow-y: auto; padding-right: 3px; }
+.template-rows article { display: grid; grid-template-columns: auto minmax(150px,1.4fr) minmax(220px,1fr); align-items: end; gap: 8px; padding: 10px; border: 1px solid var(--beauty-line); border-radius: 14px; background: var(--beauty-card); }
+.template-rows article.is-unselected { opacity: .55; }
+.template-rows label { display: grid; min-width: 0; gap: 4px; color: var(--beauty-muted); font-size: .62rem; font-weight: 750; }
+.template-rows input, .template-rows select { width: 100%; min-width: 0; height: 40px; padding: 0 9px; border: 1px solid var(--beauty-line); border-radius: 10px; background: #fff; }
+.template-select { align-self: center; justify-items: center; }
+.template-select input { width: 19px; height: 19px; }
+.template-values { display: grid; grid-template-columns: .75fr 1.25fr; gap: 7px; }
+.duplicate-choice { grid-column: 2 / -1; padding: 8px; border-radius: 10px; background: #fff3dc; }
+.template-assignment-note { display: flex; align-items: center; gap: 7px; padding: 9px 11px; color: #526a58; font-size: .68rem; border-radius: 11px; background: var(--beauty-sage-soft); }
+.template-importer > footer { display: grid; grid-template-columns: .45fr 1fr; gap: 8px; padding-top: 10px; padding-bottom: max(0px, env(safe-area-inset-bottom)); border-top: 1px solid var(--beauty-line); background: #fffdfb; }
+.template-importer > footer button { min-height: 46px; font-weight: 850; border: 1px solid var(--beauty-line); border-radius: 13px; background: var(--beauty-bg); }
+.template-importer > footer button:last-child { color: #fff; border-color: var(--beauty-primary); background: var(--beauty-primary); }
 
 @media (max-width: 390px) {
   .setup-toolbar { grid-template-columns: 1fr; }
@@ -509,6 +545,18 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
   .assignment-list article > button { grid-column: 1 / -1; }
   .setup-status-card { grid-template-columns: 1fr; }
   .form-columns { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+  .service-add-options > div, .template-picker { grid-template-columns: 1fr; }
+  .template-importer { inset: 0; max-height: 100dvh; padding: 14px; border-radius: 0; }
+  .template-picker { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .template-picker button { min-height: 44px; font-size: .68rem; }
+  .template-summary { align-items: flex-start; flex-direction: column; }
+  .template-summary span { justify-content: flex-start; }
+  .template-rows article { grid-template-columns: auto minmax(0,1fr); align-items: start; }
+  .template-name, .template-values, .duplicate-choice { grid-column: 2; }
+  .template-values { grid-template-columns: 1fr 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
