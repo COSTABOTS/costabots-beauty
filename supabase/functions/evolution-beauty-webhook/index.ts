@@ -1,4 +1,5 @@
 import { json, normalizeConnectionState, serverClient } from '../_shared/beautyWhatsapp.ts';
+import { buildConversationMutation } from './conversationMutation.ts';
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -148,16 +149,16 @@ Deno.serve(async (request) => {
           last_message_preview: text.slice(0, 240),
           active: true,
         };
-        if (!existingConversation.data || fromMe) {
-          conversationValues.mode = fromMe ? 'manual' : 'ai';
-          conversationValues.needs_attention = fromMe;
-          conversationValues.attention_reason = fromMe ? 'Atención manual detectada' : null;
-          conversationValues.assigned_user_id = null;
-        }
-        const conversationResult = await client.from('beauty_conversations').upsert(
+        const mutation = buildConversationMutation(
+          existingConversation.data
+            ? { id: existingConversation.data.id, mode: existingConversation.data.mode }
+            : null,
+          fromMe,
           conversationValues,
-          { onConflict: 'whatsapp_connection_id,remote_jid' },
-        ).select('*').single();
+        );
+        const conversationResult = mutation.kind === 'insert'
+          ? await client.from('beauty_conversations').insert(mutation.values).select('*').single()
+          : await client.from('beauty_conversations').update(mutation.values).eq('id', mutation.id).select('*').single();
         if (!conversationResult.data) continue;
         const inserted = await client.from('beauty_messages').insert({
           business_id: connection.data.business_id,
