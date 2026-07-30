@@ -231,7 +231,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .isolation-note > span { display: grid; gap: 2px; }
 .isolation-note strong { font-size: .78rem; }
 .isolation-note small { font-size: .66rem; }
-.beauty-signout { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; width: 100%; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 15px; background: var(--beauty-danger-soft); cursor: pointer; }
+.beauty-signout { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; width: fit-content; padding: 0 16px; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 13px; background: var(--beauty-danger-soft); cursor: pointer; }
 
 .automation-hero { display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid #e6c9c3; border-radius: 20px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .automation-hero > svg { width: 28px; height: 28px; color: var(--beauty-primary-dark); }
@@ -475,6 +475,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .configuration-section { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
 .configuration-section h2 { margin: 0; font-size: 1rem; }
 .configuration-section > p { margin: 0 0 10px; color: var(--beauty-muted); font-size: .7rem; }
+.configuration-section--account { margin-top: 8px; }
 .business-profile-form select { width: 100%; min-height: 47px; padding: 10px 12px; border: 1px solid var(--beauty-line); border-radius: 13px; background: var(--beauty-card); }
 .form-help { margin: 0; color: var(--beauty-muted); font-size: .7rem; line-height: 1.45; }
 .form-success { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 12px; color: #47604e; font-size: .72rem; font-weight: 800; border-radius: 12px; background: var(--beauty-sage-soft); }
