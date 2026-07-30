@@ -6,3 +6,21 @@ verify_jwt = false
 
 [functions.public-api]
 verify_jwt = false
+
+[functions.beauty-whatsapp-provision]
+verify_jwt = false
+
+[functions.beauty-whatsapp-status]
+verify_jwt = false
+
+[functions.beauty-whatsapp-qr]
+verify_jwt = false
+
+[functions.beauty-whatsapp-send-message]
+verify_jwt = false
+
+[functions.beauty-whatsapp-disconnect]
+verify_jwt = false
+
+[functions.evolution-beauty-webhook]
+verify_jwt = false

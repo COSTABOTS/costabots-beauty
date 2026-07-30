@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { resetMockBeautyDemo } from '../data/mockBeautyRepository';
 import type { BusinessProfileInput, RepositoryBusiness } from '../data/types';
 import { FeatureStateBadge, PageHeader } from './ui';
+import { WhatsAppSettings } from './WhatsAppIntegration';
 
 export type SetupProgress = {
   business: boolean;
@@ -110,6 +111,7 @@ export function BusinessProfileForm({
 }
 
 export function ConfigurationPage({
+  businessId,
   business,
   canManage,
   mode,
@@ -118,7 +120,9 @@ export function ConfigurationPage({
   onSave,
   onSignOut,
   progress,
+  whatsappEnabled,
 }: {
+  businessId: string;
   business: RepositoryBusiness;
   canManage: boolean;
   mode: 'mock' | 'supabase';
@@ -127,6 +131,7 @@ export function ConfigurationPage({
   onSave: (value: BusinessProfileInput) => Promise<string>;
   onSignOut: () => void;
   progress: SetupProgress;
+  whatsappEnabled: boolean;
 }) {
   return <div className="beauty-page configuration-page">
     <PageHeader eyebrow="Preferencias esenciales" title="Configuración" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack} type="button"><ArrowLeft /></button></div>} />
@@ -135,6 +140,7 @@ export function ConfigurationPage({
       <button onClick={onOpenOnboarding} type="button">{progress.complete ? 'Revisar onboarding' : 'Continuar onboarding'}</button>
     </section>
     <section className="configuration-section"><h2>Datos del negocio</h2><p>Información visible y valores usados por la agenda.</p><BusinessProfileForm business={business} canManage={canManage} onSave={onSave} /></section>
+    {mode === 'supabase' && <WhatsAppSettings businessId={businessId} canManage={canManage} enabled={whatsappEnabled} />}
     {mode === 'mock' && <section className="configuration-section configuration-section--reset"><h2>Demostración</h2><p>Restaura los datos ficticios iniciales y elimina únicamente los cambios guardados en este navegador.</p><button className="danger-inline" onClick={() => { if (window.confirm('¿Reiniciar la demostración y descartar los cambios guardados en este navegador?')) resetMockBeautyDemo(); }} type="button">Reiniciar demostración</button></section>}
     <section className="configuration-section configuration-section--account">
       <h2>Cuenta</h2>

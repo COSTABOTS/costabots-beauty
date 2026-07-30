@@ -213,3 +213,25 @@ se realiza ninguna asignación arbitraria.
 
 `public` y `anon` no tienen permiso de ejecución y `authenticated` conserva
 solo `EXECUTE`. El frontend y `.env.example` continúan en modo `mock`.
+
+## Base de WhatsApp con Evolution
+
+El 30 de julio de 2026 se aplicó al proyecto Supabase Beauty la migración
+`20260730210025_whatsapp_evolution_foundation.sql`. Prepara cuatro
+tablas multitenant, índices, RLS forzada y las RPC de toma, devolución y
+lectura de conversaciones. No contiene credenciales, no conecta números y no
+modifica ninguna instancia de Evolution.
+
+Las tablas no tienen políticas de escritura para el frontend. Los miembros
+activos solo pueden leer las filas de su negocio; el registro técnico de
+webhooks permanece exclusivamente en servidor. `anon` no tiene acceso a las
+tablas ni a las RPC.
+
+La aplicación permanece en `VITE_BEAUTY_DATA_MODE=mock` y
+`VITE_BEAUTY_WHATSAPP_ENABLED=false`. No se desplegaron Edge Functions, no se
+configuraron secretos y no se contactó con Evolution API.
+
+También se aplicó la migración de seguimiento
+`20260730211026_whatsapp_send_idempotency.sql`. Añade un identificador único
+de petición del Manager para que un reintento de envío no pueda duplicar el
+mensaje aunque Evolution devuelva un provider message ID diferente.
