@@ -75,11 +75,11 @@ function Kicker({ children }: { children: string }) {
   return <p className="section-kicker">{children}</p>;
 }
 
-export function BeautyApp() {
-  return <BeautyDataProvider><BeautyDataGate /></BeautyDataProvider>;
+export function BeautyApp({ initialRoute = 'today' }: { initialRoute?: BeautyRoute }) {
+  return <BeautyDataProvider><BeautyDataGate initialRoute={initialRoute} /></BeautyDataProvider>;
 }
 
-function BeautyDataGate() {
+function BeautyDataGate({ initialRoute }: { initialRoute: BeautyRoute }) {
   const beautyData = useBeautyData();
   if (beautyData.status === 'loading') {
     return <div className="beauty-data-state" role="status"><BeautyBrandMark size="lg" /><span className="beauty-data-spinner" /><h1>Cargando tu negocio…</h1><p>Estamos preparando agenda, clientes y equipo.</p></div>;
@@ -87,10 +87,10 @@ function BeautyDataGate() {
   if (beautyData.status === 'error') {
     return <div className="beauty-data-state" role="alert"><ShieldCheck size={32} /><h1>No podemos cargar los datos</h1><p>{beautyData.message}</p><button onClick={beautyData.retry} type="button">Volver a intentar</button></div>;
   }
-  return <BeautyManager />;
+  return <BeautyManager initialRoute={initialRoute} />;
 }
 
-function BeautyManager() {
+function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   void beautyEnvironment.productId;
   const auth = useAuth();
   const membership = useBeautyBusiness();
@@ -102,9 +102,10 @@ function BeautyManager() {
   const operationalToday = dateInTimeZone(beautyData.data.business.timezone);
   const ownerDisplayName = auth.user?.user_metadata?.full_name
     ?? auth.user?.user_metadata?.name
+    ?? auth.user?.user_metadata?.owner_display_name
     ?? auth.user?.email?.split('@')[0]
     ?? business.ownerName;
-  const [route, setRoute] = useState<BeautyRoute>('today');
+  const [route, setRoute] = useState<BeautyRoute>(initialRoute);
   const [appointments, setAppointments] = useState(loadedAppointments);
   const [conversations, setConversations] = useState(initialConversations);
   const [automationRules, setAutomationRules] = useState(initialAutomationRules);

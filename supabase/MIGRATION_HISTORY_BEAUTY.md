@@ -168,3 +168,27 @@ solo concede `EXECUTE` a `authenticated`.
 El progreso del onboarding no depende de un booleano: el Manager lo calcula
 desde el perfil válido, profesionales, servicios, asignaciones y tramos
 horarios activos. El frontend de producción continúa en modo `mock`.
+
+## Alta autoservicio
+
+El 30 de julio de 2026 se aplicó al proyecto Supabase Beauty
+`20260730140023_self_service_signup.sql`. Añade el campo restringido
+`beauty_businesses.business_type` y la RPC autenticada
+`complete_beauty_signup`.
+
+La RPC obtiene la identidad exclusivamente con `auth.uid()`, exige email
+confirmado y utiliza un advisory lock transaccional por usuario. Si ya existe
+una membresía activa, devuelve el mismo negocio sin crear filas. En un alta
+nueva inserta negocio, membresía owner y primer profesional vinculado en una
+sola transacción.
+
+`public` y `anon` no tienen permiso de ejecución; solo `authenticated` puede
+llamarla. No se modificaron ni abrieron políticas RLS. La prueba anónima remota
+fue rechazada con `42501`, el lint remoto no encontró errores y el historial
+local/remoto quedó sincronizado hasta la migración 23.
+
+El registro público continúa oculto porque
+`VITE_BEAUTY_PUBLIC_SIGNUP_ENABLED=false` y producción permanece en
+`VITE_BEAUTY_DATA_MODE=mock`. Antes de activar el alta deben completarse
+CAPTCHA, textos legales definitivos, controles de abuso y pruebas con un buzón
+de QA confirmado.

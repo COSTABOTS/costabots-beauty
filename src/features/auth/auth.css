@@ -33,12 +33,22 @@
 .auth-input input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; }
 .auth-input button { display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .auth-input button svg { width: 19px; }
-.auth-primary-button, .auth-link-button { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; font-weight: 800; border-radius: 15px; cursor: pointer; }
+.auth-select { width: 100%; min-height: 52px; padding: 0 13px; color: #514b46; border: 1px solid #dfd5cc; border-radius: 15px; outline: 0; background: #fff; }
+.auth-select:focus { border-color: #c96f63; box-shadow: 0 0 0 3px rgba(201,111,99,.12); }
+.auth-field-help { color: #8a8179; font-size: .68rem; font-weight: 500; line-height: 1.4; }
+.auth-check { display: flex !important; align-items: flex-start; gap: 10px !important; font-weight: 600 !important; line-height: 1.45; cursor: pointer; }
+.auth-check input { width: 18px; height: 18px; flex: 0 0 auto; margin: 1px 0 0; accent-color: #c96f63; }
+.auth-primary-button, .auth-secondary-button, .auth-link-button { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; font-weight: 800; border-radius: 15px; cursor: pointer; }
 .auth-primary-button { color: #fff; border: 1px solid #b95d55; background: #c96f63; box-shadow: 0 9px 22px rgba(169,81,72,.18); }
 .auth-primary-button:disabled { cursor: wait; opacity: .65; }
+.auth-secondary-button { width: 100%; color: #a95148; border: 1px solid #d9aaa3; background: #fff7f5; }
 .auth-link-button { color: #a95148; border: 0; background: transparent; }
+.auth-link-button:disabled { cursor: not-allowed; opacity: .55; }
+.auth-separator { display: grid; gap: 9px; margin-top: 3px; padding-top: 17px; text-align: center; border-top: 1px solid #eee6df; }
+.auth-separator > span { color: #8a8179; font-size: .7rem; }
 .auth-message { margin: -5px 0 0; padding: 11px 12px; font-size: .76rem; line-height: 1.45; border-radius: 12px; }
 .auth-message--error { color: #8f433e; background: #f7e4e2; }
+.auth-message--success { color: #526d58; background: #e3ede5; }
 .auth-footer { margin-top: 24px; padding-top: 18px; color: #8a8179; font-size: .69rem; text-align: center; border-top: 1px solid #eee6df; }
 .auth-loading { display: grid; place-items: center; gap: 9px; text-align: center; }
 .auth-loading .beauty-brand-mark { margin-bottom: 10px; }
@@ -49,6 +59,8 @@
 .auth-success > svg { color: #78927d; }
 .auth-success p { margin: 0 0 8px; color: #746d67; font-size: .84rem; line-height: 1.5; }
 .auth-success .auth-primary-button { width: 100%; }
+.auth-confirmation .auth-link-button { width: 100%; }
+.auth-form--signup { gap: 15px; }
 .auth-notice-action { display: grid; gap: 8px; }
 .business-selector { display: grid; gap: 9px; }
 .business-selector button { display: grid; min-height: 64px; align-content: center; gap: 4px; padding: 11px 14px; text-align: left; border: 1px solid #dfd5cc; border-radius: 15px; background: #fff; cursor: pointer; }

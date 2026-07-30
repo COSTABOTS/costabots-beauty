@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { signInWithPassword } from '../services/authService';
 import { AuthShell } from '../components/AuthShell';
 
-export function LoginPage({ onForgotPassword }: { onForgotPassword: () => void }) {
+export function LoginPage({ onForgotPassword, onSignUp }: { onForgotPassword: () => void; onSignUp?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +41,7 @@ export function LoginPage({ onForgotPassword }: { onForgotPassword: () => void }
         {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
         <button className="auth-primary-button" disabled={loading} type="submit">{loading ? 'Iniciando sesión…' : 'Iniciar sesión'}</button>
         <button className="auth-link-button" onClick={onForgotPassword} type="button">¿Has olvidado tu contraseña?</button>
+        {onSignUp && <div className="auth-separator"><span>¿Primera vez en COSTABOTS Beauty?</span><button className="auth-secondary-button" onClick={onSignUp} type="button">Crear cuenta</button></div>}
       </form>
     </AuthShell>
   );

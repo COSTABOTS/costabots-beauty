@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import { BeautyApp } from '../../beauty/BeautyApp';
 import { BeautyBusinessProvider } from '../../beauty/context/BeautyBusinessProvider';
+import { beautyEnvironment } from '../../../config/environment';
 import { useAuth } from '../hooks/AuthProvider';
-import { loadActiveMemberships, signOut } from '../services/authService';
+import { completeBeautySignup, hasSelfServiceSignupMetadata, loadActiveMemberships, signOut } from '../services/authService';
 import type { BeautyMembership } from '../types';
 import { AuthLoading, AuthNotice } from './AuthShell';
+import { ConfirmEmailPage } from '../pages/ConfirmEmailPage';
 
 type MembershipState =
   | { status: 'loading'; memberships: []; selected: null; message: null }
-  | { status: 'ready'; memberships: BeautyMembership[]; selected: BeautyMembership | null; message: null }
+  | { status: 'ready'; memberships: BeautyMembership[]; selected: BeautyMembership | null; message: null; provisioned: boolean }
   | { status: 'error'; memberships: []; selected: null; message: string };
 
 export function MembershipGate() {
   const auth = useAuth();
   const [attempt, setAttempt] = useState(0);
+  const [preparing, setPreparing] = useState(false);
   const [state, setState] = useState<MembershipState>({
     status: 'loading',
     memberships: [],
@@ -23,21 +26,38 @@ export function MembershipGate() {
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return;
+    if (!auth.user.email_confirmed_at) return;
     let active = true;
+    setPreparing(false);
     setState({ status: 'loading', memberships: [], selected: null, message: null });
 
     void loadActiveMemberships(auth.user.id)
-      .then((memberships) => {
+      .then(async (initialMemberships) => {
+        let memberships = initialMemberships;
+        let provisioned = false;
+        if (
+          memberships.length === 0
+          && beautyEnvironment.publicSignupEnabled
+          && hasSelfServiceSignupMetadata(auth.user)
+        ) {
+          if (active) setPreparing(true);
+          await completeBeautySignup(auth.user);
+          memberships = await loadActiveMemberships(auth.user.id);
+          provisioned = true;
+        }
         if (!active) return;
+        setPreparing(false);
         setState({
           status: 'ready',
           memberships,
           selected: memberships.length === 1 ? memberships[0] : null,
           message: null,
+          provisioned,
         });
       })
       .catch((error: unknown) => {
         if (!active) return;
+        setPreparing(false);
         setState({
           status: 'error',
           memberships: [],
@@ -49,9 +69,13 @@ export function MembershipGate() {
     return () => {
       active = false;
     };
-  }, [attempt, auth.status, auth.status === 'authenticated' ? auth.user.id : null]);
+  }, [attempt, auth.status, auth.status === 'authenticated' ? auth.user.id : null, auth.status === 'authenticated' ? auth.user.email_confirmed_at : null]);
 
-  if (state.status === 'loading') return <AuthLoading label="Comprobando tu negocio…" />;
+  if (auth.status === 'authenticated' && !auth.user.email_confirmed_at) {
+    return <ConfirmEmailPage email={auth.user.email ?? ''} onBack={() => void signOut()} />;
+  }
+
+  if (state.status === 'loading') return <AuthLoading label={preparing ? 'Estamos preparando tu espacio…' : 'Comprobando tu negocio…'} />;
 
   if (state.status === 'error') {
     return (
@@ -90,7 +114,7 @@ export function MembershipGate() {
 
   return (
     <BeautyBusinessProvider membership={state.selected}>
-      <BeautyApp />
+      <BeautyApp initialRoute={state.provisioned ? 'onboarding' : 'today'} />
     </BeautyBusinessProvider>
   );
 }

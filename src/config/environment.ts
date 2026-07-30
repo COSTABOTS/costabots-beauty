@@ -72,6 +72,8 @@ function validateEnvironment() {
     productId,
     executionEnvironment,
     dataMode: dataMode as 'mock' | 'supabase',
+    publicSignupEnabled: dataMode === 'supabase'
+      && toBoolean(import.meta.env.VITE_BEAUTY_PUBLIC_SIGNUP_ENABLED),
     supabaseUrl: supabaseUrl.toString().replace(/\/$/, ''),
     supabasePublishableKey,
     supabaseProjectRef: actualProjectRef,
