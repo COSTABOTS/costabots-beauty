@@ -8,19 +8,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.beauty-whatsapp-provision]
-verify_jwt = false
+verify_jwt = true
 
 [functions.beauty-whatsapp-status]
-verify_jwt = false
+verify_jwt = true
 
 [functions.beauty-whatsapp-qr]
-verify_jwt = false
+verify_jwt = true
 
 [functions.beauty-whatsapp-send-message]
-verify_jwt = false
+verify_jwt = true
 
 [functions.beauty-whatsapp-disconnect]
-verify_jwt = false
+verify_jwt = true
 
 [functions.evolution-beauty-webhook]
 verify_jwt = false
