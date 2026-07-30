@@ -11,6 +11,7 @@ import { BeautyRepositoryError } from './BeautyRepository';
 import { localDateTimeToIso } from './mappers';
 import type { BeautyOperationalData, DateRange, WritableAppointmentStatus } from './types';
 import type { BeautyService } from '../types';
+import { beautyEnvironment } from '../../../config/environment';
 
 let mockAppointments = appointments.map((appointment) => ({ ...appointment }));
 let mockTimeBlocks = timeBlocks.map((block) => ({ ...block }));
@@ -20,7 +21,14 @@ let mockStaffServices = mockStaff.flatMap((member) => mockServices.map((service)
   id: `${member.id}-${service.id}`, staffId: member.id, serviceId: service.id,
   durationMinutes: service.durationMinutes, price: service.price, active: true,
 })));
-let mockSchedules: import('./types').StaffSchedule[] = [];
+let mockSchedules: import('./types').StaffSchedule[] = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+  id: `mock-schedule-initial-${dayOfWeek}`,
+  staffId: mockStaff[0].id,
+  dayOfWeek,
+  start: '09:00',
+  end: '18:00',
+  active: true,
+}));
 let mockCustomers = seededCustomers.map((customer) => ({
   ...customer,
   firstName: customer.name.split(' ')[0] ?? customer.name,
@@ -42,11 +50,105 @@ let mockBusiness = {
   address: 'Calle de ejemplo, 12',
 };
 
+export const MOCK_BEAUTY_STORAGE_KEY = 'costabots-beauty:mock-state:v1';
+const MOCK_BEAUTY_STORAGE_VERSION = 1;
+let mockPersistenceEnabled = true;
+
+type StoredMockState = {
+  version: typeof MOCK_BEAUTY_STORAGE_VERSION;
+  business: typeof mockBusiness;
+  appointments: typeof mockAppointments;
+  timeBlocks: typeof mockTimeBlocks;
+  staff: typeof mockStaff;
+  services: typeof mockServices;
+  staffServices: typeof mockStaffServices;
+  schedules: typeof mockSchedules;
+  customers: typeof mockCustomers;
+};
+
+function getMockStorage() {
+  if (beautyEnvironment.dataMode !== 'mock' || typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function persistMockState() {
+  const storage = getMockStorage();
+  if (!mockPersistenceEnabled || !storage) return;
+  const state: StoredMockState = {
+    version: MOCK_BEAUTY_STORAGE_VERSION,
+    business: mockBusiness,
+    appointments: mockAppointments,
+    timeBlocks: mockTimeBlocks,
+    staff: mockStaff,
+    services: mockServices,
+    staffServices: mockStaffServices,
+    schedules: mockSchedules,
+    customers: mockCustomers,
+  };
+  try {
+    storage.setItem(MOCK_BEAUTY_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // The demo remains usable in memory if storage is unavailable or full.
+  }
+}
+
+function restoreMockState() {
+  const storage = getMockStorage();
+  if (!storage) return;
+  try {
+    const raw = storage.getItem(MOCK_BEAUTY_STORAGE_KEY);
+    if (!raw) return;
+    const stored = JSON.parse(raw) as Partial<StoredMockState>;
+    if (
+      stored.version !== MOCK_BEAUTY_STORAGE_VERSION
+      || !stored.business
+      || !Array.isArray(stored.appointments)
+      || !Array.isArray(stored.timeBlocks)
+      || !Array.isArray(stored.staff)
+      || !Array.isArray(stored.services)
+      || !Array.isArray(stored.staffServices)
+      || !Array.isArray(stored.schedules)
+      || !Array.isArray(stored.customers)
+    ) {
+      storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
+      return;
+    }
+    mockBusiness = stored.business;
+    mockAppointments = stored.appointments;
+    mockTimeBlocks = stored.timeBlocks;
+    mockStaff = stored.staff;
+    mockServices = stored.services;
+    mockStaffServices = stored.staffServices;
+    mockSchedules = stored.schedules;
+    mockCustomers = stored.customers;
+  } catch {
+    try {
+      storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
+    } catch {
+      // Ignore unavailable or blocked browser storage.
+    }
+  }
+}
+
+export function resetMockBeautyDemo() {
+  const storage = getMockStorage();
+  if (!storage) return;
+  mockPersistenceEnabled = false;
+  storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
+  window.location.reload();
+}
+
+restoreMockState();
+
 function inRange(date: string, range: DateRange) {
   return date >= range.from && date < range.to;
 }
 
-export const mockBeautyRepository: BeautyRepository = {
+const mockBeautyRepositoryBase: BeautyRepository = {
   async getBusiness() {
     return { ...mockBusiness };
   },
@@ -364,3 +466,37 @@ export const mockBeautyRepository: BeautyRepository = {
     ];
   },
 };
+
+const mockWriteMethods = new Set<PropertyKey>([
+  'updateBusinessProfile',
+  'updateAppointmentStatus',
+  'createTimeBlock',
+  'createAppointment',
+  'updateAppointment',
+  'cancelAppointment',
+  'updateTimeBlock',
+  'deactivateTimeBlock',
+  'createCustomer',
+  'updateCustomer',
+  'deactivateCustomer',
+  'createStaff',
+  'updateStaff',
+  'deactivateStaff',
+  'createService',
+  'updateService',
+  'deactivateService',
+  'setStaffService',
+  'replaceWeeklySchedule',
+]);
+
+export const mockBeautyRepository = new Proxy(mockBeautyRepositoryBase, {
+  get(target, property, receiver) {
+    const value = Reflect.get(target, property, receiver);
+    if (!mockWriteMethods.has(property) || typeof value !== 'function') return value;
+    return async (...args: unknown[]) => {
+      const result = await (value as (...methodArgs: unknown[]) => Promise<unknown>).apply(target, args);
+      persistMockState();
+      return result;
+    };
+  },
+}) as BeautyRepository;

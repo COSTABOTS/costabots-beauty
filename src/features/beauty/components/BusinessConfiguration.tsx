@@ -11,6 +11,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { resetMockBeautyDemo } from '../data/mockBeautyRepository';
 import type { BusinessProfileInput, RepositoryBusiness } from '../data/types';
 import { FeatureStateBadge, PageHeader } from './ui';
 
@@ -134,6 +135,7 @@ export function ConfigurationPage({
       <button onClick={onOpenOnboarding} type="button">{progress.complete ? 'Revisar onboarding' : 'Continuar onboarding'}</button>
     </section>
     <section className="configuration-section"><h2>Datos del negocio</h2><p>Información visible y valores usados por la agenda.</p><BusinessProfileForm business={business} canManage={canManage} onSave={onSave} /></section>
+    {mode === 'mock' && <section className="configuration-section configuration-section--reset"><h2>Demostración</h2><p>Restaura los datos ficticios iniciales y elimina únicamente los cambios guardados en este navegador.</p><button className="danger-inline" onClick={() => { if (window.confirm('¿Reiniciar la demostración y descartar los cambios guardados en este navegador?')) resetMockBeautyDemo(); }} type="button">Reiniciar demostración</button></section>}
     <button className="beauty-signout" onClick={onSignOut} type="button"><LogOut size={19} />Cerrar sesión</button>
   </div>;
 }
