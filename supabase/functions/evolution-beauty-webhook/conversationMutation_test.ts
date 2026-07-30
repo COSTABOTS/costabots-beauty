@@ -2,6 +2,7 @@ import {
   buildConversationMutation,
   type ConversationMode,
   type ConversationMutation,
+  validInboundContactName,
 } from './conversationMutation.ts';
 
 type State = {
@@ -86,4 +87,38 @@ Deno.test('conversation mode changes only through the allowed domain transitions
   );
   assert(state.mode === 'ai', 'normal event after release must preserve ai mode');
   assert(state.last_message_preview === 'after release', 'normal metadata must still update');
+});
+
+Deno.test('valid inbound pushName establishes the contact name', () => {
+  assert(
+    validInboundContactName(false, 'Francisco Maraver', ['Luna Beauty Studio']) === 'Francisco Maraver',
+    'valid inbound contact name was rejected',
+  );
+});
+
+Deno.test('outbound Voce preserves the previous contact name', () => {
+  const previous = { contact_name: 'Francisco Maraver' };
+  const candidate = validInboundContactName(true, 'Voce', ['Luna Beauty Studio']);
+  const next = candidate ? { ...previous, contact_name: candidate } : previous;
+  assert(next.contact_name === 'Francisco Maraver', 'outbound pushName overwrote the customer name');
+});
+
+Deno.test('status events preserve the contact name', () => {
+  const previous = { contact_name: 'Francisco Maraver' };
+  const next = { ...previous };
+  assert(next.contact_name === previous.contact_name, 'status event changed the contact name');
+});
+
+Deno.test('a later valid inbound name may update the contact name', () => {
+  const candidate = validInboundContactName(false, 'Francisco M. Maraver', ['Luna Beauty Studio']);
+  assert(candidate === 'Francisco M. Maraver', 'later valid inbound name was not accepted');
+});
+
+Deno.test('empty, generic and business names cannot overwrite a valid contact name', () => {
+  for (const candidate of ['', 'Voce', 'Você', 'You', 'Luna Beauty Studio']) {
+    assert(
+      validInboundContactName(false, candidate, ['Luna Beauty Studio']) === null,
+      `invalid contact name was accepted: ${candidate}`,
+    );
+  }
 });

@@ -1,6 +1,6 @@
 import { json, normalizeConnectionState, serverClient } from '../_shared/beautyWhatsapp.ts';
 import { beautyAiEnabled, invokeBeautyAiRun } from '../_shared/beautyAi.ts';
-import { buildConversationMutation } from './conversationMutation.ts';
+import { buildConversationMutation, validInboundContactName } from './conversationMutation.ts';
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -150,17 +150,26 @@ Deno.serve(async (request) => {
             .eq('provider_message_id', providerId).maybeSingle()
           : { data: null };
         const isAiEcho = knownOutbound.data?.sender_type === 'ai';
+        const business = !fromMe && data.pushName
+          ? await client.from('beauty_businesses').select('name')
+            .eq('id', connection.data.business_id).maybeSingle()
+          : { data: null };
+        const contactName = validInboundContactName(
+          fromMe,
+          data.pushName,
+          [business.data?.name, connection.data.display_name],
+        );
         const conversationValues: Record<string, unknown> = {
           business_id: connection.data.business_id,
           whatsapp_connection_id: connection.data.id,
           customer_id: customer.data?.id ?? null,
           remote_jid: remoteJid,
           remote_phone_normalized: phone || null,
-          contact_name: String(data.pushName ?? '') || null,
           last_message_at: sentAt.toISOString(),
           last_message_preview: text.slice(0, 240),
           active: true,
         };
+        if (contactName) conversationValues.contact_name = contactName;
         const mutation = buildConversationMutation(
           existingConversation.data
             ? { id: existingConversation.data.id, mode: existingConversation.data.mode }

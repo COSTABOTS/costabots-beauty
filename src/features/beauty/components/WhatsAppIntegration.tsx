@@ -33,6 +33,14 @@ const emptyConnection: WhatsAppConnection = {
   status: 'not_provisioned', phoneNumber: null, displayName: null, connectedAt: null, error: null,
 };
 
+function conversationDisplayName(conversation: WhatsAppConversation, customerName?: string | null) {
+  if (customerName?.trim()) return customerName.trim();
+  if (conversation.contact_name?.trim()) return conversation.contact_name.trim();
+  const phone = conversation.remote_phone_normalized?.replace(/\D/g, '') ?? '';
+  if (phone) return `••• ${phone.slice(-4)}`;
+  return 'Contacto de WhatsApp';
+}
+
 export function WhatsAppSettings({
   businessId,
   canManage,
@@ -178,7 +186,7 @@ export function SupabaseWhatsAppInbox({
 
   if (!enabled) return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" action={<FeatureStateBadge state="soon" />} /><div className="empty-state"><ShieldCheck /><h2>WhatsApp todavía no está activo</h2><p>La integración segura debe habilitarse expresamente en un entorno Supabase.</p></div></div>;
   if (selected) return <div className="beauty-page whatsapp-conversation-page">
-    <PageHeader eyebrow={selected.mode === 'manual' ? 'Atención manual' : 'Automatización preparada'} title={customer?.name || selected.contact_name || `+${selected.remote_phone_normalized ?? ''}`} action={<button className="icon-button-soft" onClick={() => setSelected(null)} type="button"><ArrowLeft /></button>} />
+    <PageHeader eyebrow={selected.mode === 'manual' ? 'Atención manual' : 'Automatización preparada'} title={conversationDisplayName(selected, customer?.name)} action={<button className="icon-button-soft" onClick={() => setSelected(null)} type="button"><ArrowLeft /></button>} />
     {connection.status !== 'connected' && <div className="whatsapp-disconnected"><Unplug /><span><strong>WhatsApp desconectado</strong><small>El historial sigue disponible, pero no puedes enviar mensajes.</small></span></div>}
     {error && <p className="form-error">{error}</p>}
     <div className="whatsapp-handoff">
@@ -211,6 +219,11 @@ export function SupabaseWhatsAppInbox({
     {loading && <p className="inline-data-message">Cargando conversaciones…</p>}
     {error && <div className="empty-state"><ShieldCheck /><h2>No se ha podido cargar</h2><p>{error}</p><button onClick={() => void reload()} type="button">Reintentar</button></div>}
     {!loading && !error && !visible.length && <div className="empty-state"><Smartphone /><h2>Aún no hay conversaciones</h2><p>Cuando llegue un mensaje por WhatsApp aparecerá aquí.</p></div>}
-    <div className="conversation-list">{visible.map((conversation) => <button key={conversation.id} onClick={() => { setMessageLimit(50); setSelected(conversation); }} type="button"><span className="conversation-avatar"><MessageCircle /></span><span><strong>{conversation.contact_name || `+${conversation.remote_phone_normalized ?? ''}`}</strong><small>{conversation.last_message_preview || 'Sin vista previa'}</small></span><span className="conversation-meta"><small>{conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</small>{conversation.unread_count > 0 && <b>{conversation.unread_count}</b>}<em>{conversation.needs_attention ? 'Necesita atención' : conversation.mode === 'manual' ? 'Atención manual' : 'IA atendiendo'}</em></span></button>)}</div>
+    <div className="conversation-list">{visible.map((conversation) => {
+      const linkedCustomer = conversation.customer_id
+        ? customers.find((item) => item.id === conversation.customer_id)
+        : null;
+      return <button key={conversation.id} onClick={() => { setMessageLimit(50); setSelected(conversation); }} type="button"><span className="conversation-avatar"><MessageCircle /></span><span><strong>{conversationDisplayName(conversation, linkedCustomer?.name)}</strong><small>{conversation.last_message_preview || 'Sin vista previa'}</small></span><span className="conversation-meta"><small>{conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</small>{conversation.unread_count > 0 && <b>{conversation.unread_count}</b>}<em>{conversation.needs_attention ? 'Necesita atención' : conversation.mode === 'manual' ? 'Atención manual' : 'IA atendiendo'}</em></span></button>;
+    })}</div>
   </div>;
 }

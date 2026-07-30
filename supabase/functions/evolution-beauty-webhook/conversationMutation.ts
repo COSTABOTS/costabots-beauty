@@ -11,8 +11,26 @@ export type ConversationMutation =
   | { kind: 'insert'; values: ConversationSharedValues & { mode: ConversationMode } }
   | { kind: 'update'; id: string; values: ConversationSharedValues };
 
+function normalizedName(value: string) {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
+}
+
+export function validInboundContactName(
+  fromMe: boolean,
+  candidate: unknown,
+  forbiddenNames: Array<string | null | undefined> = [],
+) {
+  if (fromMe) return null;
+  const value = String(candidate ?? '').trim().replace(/\s+/g, ' ').slice(0, 160);
+  if (!value) return null;
+  const normalized = normalizedName(value);
+  if (['voce', 'you'].includes(normalized)) return null;
+  if (forbiddenNames.some((name) => name && normalizedName(name) === normalized)) return null;
+  return value;
+}
+
 /**
- * Webhook messages own contact and last-message metadata, but not handoff state.
+ * Inbound webhook messages own contact and last-message metadata, but not handoff state.
  * Only a message emitted by the connected WhatsApp account may reinforce manual
  * mode. An inbound message on an existing conversation must never release it.
  */
