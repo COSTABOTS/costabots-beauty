@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { internalBusinessId, safeHandoffReason } from './policy.ts';
+import { internalBusinessId } from './policy.ts';
+import { BeautyToolError } from './types.ts';
 import type { AiConversationContext, ToolCall, ToolExecutionResult } from './types.ts';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -29,7 +30,7 @@ function optionalUuid(value: unknown) {
 function validDate(value: unknown) {
   const normalized = String(value ?? '');
   if (!DATE_PATTERN.test(normalized) || Number.isNaN(Date.parse(`${normalized}T00:00:00Z`))) {
-    throw new Error('AI_TOOL_INVALID');
+    throw new BeautyToolError('invalid_date', 'get_availability');
   }
   return normalized;
 }
@@ -48,7 +49,7 @@ function localDateTime(value: string, timezone: string) {
   return `${read('year')}-${read('month')}-${read('day')} ${read('hour')}:${read('minute')}`;
 }
 
-async function getBusinessInfo(client: SupabaseClient, businessId: string) {
+export async function getBusinessInfo(client: SupabaseClient, businessId: string) {
   const business = await client.from('beauty_businesses')
     .select('name,address,phone,timezone,default_language')
     .eq('id', businessId).eq('active', true).single();
@@ -76,7 +77,7 @@ async function getBusinessInfo(client: SupabaseClient, businessId: string) {
   };
 }
 
-async function listServices(client: SupabaseClient, businessId: string) {
+export async function listServices(client: SupabaseClient, businessId: string) {
   const services = await client.from('beauty_services')
     .select('id,name,description,duration_minutes,price,currency')
     .eq('business_id', businessId)
@@ -97,7 +98,7 @@ async function listServices(client: SupabaseClient, businessId: string) {
   };
 }
 
-async function getAvailability(
+export async function getAvailability(
   client: SupabaseClient,
   businessId: string,
   args: Record<string, unknown>,
@@ -112,12 +113,14 @@ async function getAvailability(
     .select('id').eq('id', serviceId).eq('business_id', businessId)
     .eq('active', true).eq('online_booking_enabled', true).maybeSingle();
   if (business.error || !business.data || service.error || !service.data) {
-    return { available: false, reason: 'SERVICE_NOT_AVAILABLE', slots: [] };
+    throw new BeautyToolError('service_not_resolved', 'get_availability', date);
   }
   if (staffId) {
     const staff = await client.from('staff_members').select('id')
       .eq('id', staffId).eq('business_id', businessId).eq('active', true).maybeSingle();
-    if (staff.error || !staff.data) return { available: false, reason: 'PROFESSIONAL_NOT_AVAILABLE', slots: [] };
+    if (staff.error || !staff.data) {
+      throw new BeautyToolError('service_not_resolved', 'get_availability', date);
+    }
   }
 
   const result = await client.rpc('get_beauty_ai_availability', {
@@ -127,7 +130,10 @@ async function getAvailability(
     p_staff_member_id: staffId,
     p_slot_interval_minutes: 15,
   });
-  if (result.error) throw new Error('AI_TOOL_FAILED');
+  if (result.error) {
+    const category = result.error.code === '22023' ? 'date_out_of_range' : 'tool_internal_error';
+    throw new BeautyToolError(category, 'get_availability', date);
+  }
 
   const rows = (result.data ?? []) as Array<{
     staff_member_id: string;
@@ -136,35 +142,17 @@ async function getAvailability(
     ends_at: string;
     available: boolean;
   }>;
-  const slots = rows.filter((row) => row.available).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).slice(0, 5)
+  const slots = rows.filter((row) => row.available).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .map((row) => ({
-      startsAt: localDateTime(row.starts_at, business.data.timezone),
+      startsAt: row.starts_at,
       endsAt: localDateTime(row.ends_at, business.data.timezone),
+      label: localDateTime(row.starts_at, business.data.timezone).slice(-5),
       timezone: business.data.timezone,
       staffId: row.staff_member_id,
       professional: row.staff_display_name,
     }));
-  return { available: slots.length > 0, slots };
-}
-
-async function requestHumanHandoff(
-  client: SupabaseClient,
-  context: AiConversationContext,
-  args: Record<string, unknown>,
-) {
-  const reason = safeHandoffReason(args.reason);
-  const result = await client.from('beauty_conversations').update({
-    mode: 'manual',
-    assigned_user_id: null,
-    needs_attention: true,
-    attention_reason: `AI_HANDOFF_${reason.toUpperCase()}`,
-  }).eq('id', context.conversationId).eq('business_id', context.businessId)
-    .eq('mode', 'ai').select('id').maybeSingle();
-  if (result.error) throw new Error('AI_TOOL_FAILED');
-  return {
-    value: { handedOff: Boolean(result.data), reason },
-    handoffRequested: Boolean(result.data),
-  };
+  if (!slots.length) throw new BeautyToolError('no_availability', 'get_availability', date);
+  return { available: true, slots };
 }
 
 export async function executeTool(
@@ -175,7 +163,5 @@ export async function executeTool(
   const businessId = internalBusinessId(context.businessId, call.args);
   if (call.name === 'get_business_info') return { value: await getBusinessInfo(client, businessId) };
   if (call.name === 'list_services') return { value: await listServices(client, businessId) };
-  if (call.name === 'get_availability') return { value: await getAvailability(client, businessId, call.args) };
-  if (call.name === 'request_human_handoff') return requestHumanHandoff(client, context, call.args);
   throw new Error('AI_TOOL_INVALID');
 }

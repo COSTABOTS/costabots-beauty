@@ -18,6 +18,14 @@ export function responseStillAllowed(mode: 'ai' | 'manual', assignedUserId: stri
   return mode === 'ai' && assignedUserId === null;
 }
 
+export function runMatchesLatestInbound(runInboundMessageId: string, latestInboundMessageId: string | null) {
+  return Boolean(latestInboundMessageId) && runInboundMessageId === latestInboundMessageId;
+}
+
+export function canClaimAiRun(status: string, attemptCount: number) {
+  return status === 'pending' && attemptCount >= 0 && attemptCount < 3;
+}
+
 export function internalBusinessId(runBusinessId: string, _toolArguments: Record<string, unknown>) {
   return runBusinessId;
 }
