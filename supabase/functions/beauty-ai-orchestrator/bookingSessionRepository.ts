@@ -51,6 +51,12 @@ export async function confirmBookingSession(client: SupabaseClient, input: {
     p_expected_version: input.expectedVersion,
   });
   if (result.error || !Array.isArray(result.data) || !result.data[0]) {
+    console.error(JSON.stringify({
+      phase: 'confirm_booking_rpc',
+      sqlstate: result.error?.code ?? null,
+      code: result.error ? 'BOOKING_CONFIRMATION_RPC_FAILED' : 'BOOKING_CONFIRMATION_RESULT_INVALID',
+      operation: 'confirm_beauty_booking_session',
+    }));
     throw new Error('BOOKING_CONFIRMATION_FAILED');
   }
   return result.data[0] as BookingConfirmationResult;
