@@ -140,6 +140,38 @@ export async function processBookingFlow(input: {
     const sent = await input.sendReply(bookingReplies.greeting);
     return { handled: true as const, sent, handoff: false };
   }
+
+  const serviceExplicit = Boolean(interpretation.service_reference?.trim());
+  const requestedServiceId = resolveServiceReference(interpretation.service_reference, services);
+
+  // Selecting a service is a complete turn. Do not reuse the same text as a
+  // date expression or availability request, even when model confidence is low.
+  if (session?.status === 'choosing_service' && serviceExplicit && requestedServiceId) {
+    const serviceName = services.find(({ id }) => id === requestedServiceId)?.name ?? null;
+    const reply = askDateForService(serviceName, false);
+    const next = {
+      ...session,
+      status: 'choosing_date' as const,
+      service_id: requestedServiceId,
+      staff_id: null,
+      selected_date: null,
+      offered_times: [],
+      selected_starts_at: null,
+      last_interpretation_intent: 'choose_service' as const,
+      last_error_code: null,
+    };
+    session = await saveBookingDecision(client, session, {
+      next,
+      operation: 'none',
+      reply,
+      createSession: false,
+      handoff: false,
+      errorCode: null,
+    }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+  }
+
   if (interpretation.confidence < MIN_INTERPRETATION_CONFIDENCE) {
     const reply = session
       ? session.status === 'choosing_date' ? bookingReplies.clarifyDate : bookingReplies.lowConfidence
@@ -163,8 +195,6 @@ export async function processBookingFlow(input: {
     return { handled: true as const, sent, handoff: false };
   }
 
-  const serviceExplicit = Boolean(interpretation.service_reference?.trim());
-  const requestedServiceId = resolveServiceReference(interpretation.service_reference, services);
   const serviceId = serviceExplicit ? requestedServiceId : session?.service_id ?? null;
   const dateResolution = deterministicDate?.resolution
     ?? resolveRequestedDate(input.text, interpretation, temporal);

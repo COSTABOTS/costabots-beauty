@@ -29,9 +29,9 @@ export function unavailableTimeReply(options: OfferedTime[]) {
   return `Esa hora no está entre las opciones disponibles. Puedes elegir: ${options.map((option) => option.label).join(', ')}.`;
 }
 
-export function askDateForService(serviceName: string | null) {
+export function askDateForService(serviceName: string | null, greeting = true) {
   return serviceName
-    ? `Hola. ¿Qué día te vendría bien para el ${serviceName}?`
+    ? `${greeting ? 'Hola. ' : ''}¿Qué día te vendría bien para el ${serviceName.toLocaleLowerCase('es')}?`
     : bookingReplies.askDate;
 }
 

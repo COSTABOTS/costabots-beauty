@@ -108,6 +108,7 @@ Deno.test('greeting while choosing date preserves service and has a contextual p
   assertEquals(result.next?.service_id, choosingDate.service_id);
   assertEquals(result.next?.status, 'choosing_date');
   assertEquals(askDateForService('corte'), 'Hola. ¿Qué día te vendría bien para el corte?');
+  assertEquals(askDateForService('Corte', false), '¿Qué día te vendría bien para el corte?');
 });
 
 Deno.test('repeating the selected service does not restart or replace the active session', () => {
