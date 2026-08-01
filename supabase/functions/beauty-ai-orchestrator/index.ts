@@ -13,6 +13,7 @@ import {
 } from './gemini.ts';
 import { processBookingFlow } from './bookingFlow.ts';
 import { completeHandoff, loadActiveBookingSession } from './bookingSessionRepository.ts';
+import { canAwaitHumanConfirmation } from './bookingSessionDomain.ts';
 import { buildTemporalContext } from './dateResolution.ts';
 import {
   aiMessageReservation,
@@ -41,6 +42,10 @@ async function completeTechnicalHandoff(
 ) {
   const session = await loadActiveBookingSession(client, context.businessId, context.conversationId);
   if (session) {
+    if (!canAwaitHumanConfirmation(session)) {
+      await markAttention(client, context, reason);
+      return;
+    }
     try {
       await completeHandoff(client, session, responseMessageId, 'unsupported');
       return;

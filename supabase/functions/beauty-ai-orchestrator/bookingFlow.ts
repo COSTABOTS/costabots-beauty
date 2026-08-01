@@ -172,6 +172,27 @@ export async function processBookingFlow(input: {
     return { handled: true as const, sent, handoff: false, session, handoffReason: null };
   }
 
+  if (session && interpretation.intent === 'unknown') {
+    const reply = session.status === 'choosing_date'
+      ? await contextualDatePrompt(client, context.businessId, session)
+      : bookingReplies.clarify;
+    const next = {
+      ...session,
+      last_interpretation_intent: 'unknown' as const,
+      last_error_code: null,
+    };
+    session = await saveBookingDecision(client, session, {
+      next,
+      operation: 'none',
+      reply,
+      createSession: false,
+      handoff: false,
+      errorCode: null,
+    }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+  }
+
   if (interpretation.confidence < MIN_INTERPRETATION_CONFIDENCE) {
     const reply = session
       ? session.status === 'choosing_date' ? bookingReplies.clarifyDate : bookingReplies.lowConfidence

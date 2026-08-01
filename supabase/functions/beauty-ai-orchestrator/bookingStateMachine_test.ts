@@ -265,6 +265,41 @@ Deno.test('date and service changes clear stale structured offers', () => {
   assertEquals(service.next?.offered_times, []);
 });
 
+Deno.test('choosing service advances only to choosing date without handoff', () => {
+  const result = reduceBookingState({
+    session: { ...session, status: 'choosing_service', service_id: null, selected_date: null, offered_times: [] },
+    interpretation: { ...interpretation, intent: 'choose_service', service_reference: 'Corte' },
+    rawText: 'Corte',
+    resolved: {
+      serviceId: session.service_id,
+      selectedDate: null,
+      selectedOption: null,
+      serviceExplicit: true,
+      expired: false,
+    },
+    dateLabel: 'ese día',
+    nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.next?.status, 'choosing_date');
+  assertEquals(result.next?.service_id, session.service_id);
+  assertEquals(result.operation, 'none');
+  assertEquals(result.handoff, false);
+});
+
+Deno.test('unsupported input preserves choosing date and never hands off', () => {
+  const result = reduceBookingState({
+    session: { ...session, status: 'choosing_date', selected_date: null, offered_times: [] },
+    interpretation: { ...interpretation, intent: 'unknown' },
+    rawText: 'no lo sé',
+    resolved: { serviceId: session.service_id, selectedDate: null, selectedOption: null, expired: false },
+    dateLabel: 'ese día',
+    nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.next?.status, 'choosing_date');
+  assertEquals(result.handoff, false);
+  assertEquals(result.operation, 'none');
+});
+
 Deno.test('choosing time distinguishes clarification from a valid unavailable time', () => {
   for (const rawText of ['No veo nada', 'Hola']) {
     const result = reduceBookingState({

@@ -6,6 +6,7 @@ import type {
   BookingStatus,
   HandoffReason,
 } from './bookingTypes.ts';
+import { buildHandoffSessionUpdate } from './bookingSessionDomain.ts';
 
 const ACTIVE_STATUSES: BookingStatus[] = [
   'idle',
@@ -116,12 +117,12 @@ export async function completeHandoff(
   responseMessageId: string,
   reason: HandoffReason,
 ) {
-  const sessionResult = await client.from('beauty_booking_sessions').update({
-    status: 'awaiting_human_confirmation',
-    last_response_message_id: responseMessageId,
-    handoff_reason: reason,
-    version: session.version + 1,
-  }).eq('id', session.id).eq('version', session.version).select('id').maybeSingle();
+  const update = buildHandoffSessionUpdate(session, responseMessageId, reason);
+  const sessionResult = await client.from('beauty_booking_sessions').update(update)
+    .eq('id', session.id)
+    .eq('version', session.version)
+    .eq('last_processed_inbound_message_id', session.last_processed_inbound_message_id)
+    .select('id').maybeSingle();
   if (!sessionResult.data) throw new BookingSessionConflict();
 
   const conversationResult = await client.from('beauty_conversations').update({
