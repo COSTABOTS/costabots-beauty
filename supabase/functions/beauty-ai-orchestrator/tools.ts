@@ -2,9 +2,9 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { internalBusinessId } from './policy.ts';
 import { BeautyToolError } from './types.ts';
 import type { AiConversationContext, ToolCall, ToolExecutionResult } from './types.ts';
+import { availabilityRowsToSlots, buildAvailabilityRpcArgs, normalizeAvailabilityDate } from './availabilityContract.ts';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const dayNames: Record<number, string> = {
   1: 'lunes',
@@ -28,25 +28,11 @@ function optionalUuid(value: unknown) {
 }
 
 function validDate(value: unknown) {
-  const normalized = String(value ?? '');
-  if (!DATE_PATTERN.test(normalized) || Number.isNaN(Date.parse(`${normalized}T00:00:00Z`))) {
+  try {
+    return normalizeAvailabilityDate(value);
+  } catch {
     throw new BeautyToolError('invalid_date', 'get_availability');
   }
-  return normalized;
-}
-
-function localDateTime(value: string, timezone: string) {
-  const parts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(new Date(value));
-  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${read('year')}-${read('month')}-${read('day')} ${read('hour')}:${read('minute')}`;
 }
 
 export async function getBusinessInfo(client: SupabaseClient, businessId: string) {
@@ -123,13 +109,13 @@ export async function getAvailability(
     }
   }
 
-  const result = await client.rpc('get_beauty_ai_availability', {
-    p_business_id: businessId,
-    p_service_id: serviceId,
-    p_date: date,
-    p_staff_member_id: staffId,
-    p_slot_interval_minutes: 15,
-  });
+  const result = await client.rpc('get_beauty_ai_availability', buildAvailabilityRpcArgs({
+    businessId,
+    serviceId,
+    date,
+    staffId,
+    slotIntervalMinutes: 15,
+  }));
   if (result.error) {
     const category = result.error.code === '22023' ? 'date_out_of_range' : 'tool_internal_error';
     throw new BeautyToolError(category, 'get_availability', date);
@@ -142,15 +128,7 @@ export async function getAvailability(
     ends_at: string;
     available: boolean;
   }>;
-  const slots = rows.filter((row) => row.available).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-    .map((row) => ({
-      startsAt: row.starts_at,
-      endsAt: localDateTime(row.ends_at, business.data.timezone),
-      label: localDateTime(row.starts_at, business.data.timezone).slice(-5),
-      timezone: business.data.timezone,
-      staffId: row.staff_member_id,
-      professional: row.staff_display_name,
-    }));
+  const slots = availabilityRowsToSlots(rows, business.data.timezone);
   // An empty result is a valid business outcome, not an infrastructure error.
   return { available: slots.length > 0, slots };
 }
