@@ -129,6 +129,7 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
       const appointments = [...visible.appointments, ...(todayData?.appointments ?? [])];
       const appointmentServices = [...visible.appointmentServices, ...(todayData?.appointmentServices ?? [])];
       const timeBlocks = [...visible.timeBlocks, ...(todayData?.timeBlocks ?? [])];
+      const customers = [...visible.customers, ...(todayData?.customers ?? [])];
       setState((latest) => latest.status === 'ready' ? {
         ...latest,
         data: {
@@ -136,6 +137,7 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
           appointments: [...new Map(appointments.map((item) => [item.id, item])).values()],
           appointmentServices: [...new Map(appointmentServices.map((item) => [item.id, item])).values()],
           timeBlocks: [...new Map(timeBlocks.map((item) => [item.id, item])).values()],
+          customers: [...new Map([...latest.data.customers, ...customers].map((item) => [item.id, item])).values()],
         },
       } : latest);
       setAgendaStatus('ready');
@@ -206,6 +208,7 @@ export function BeautyDataProvider({ children }: PropsWithChildren) {
       data.appointments = [...new Map([...data.appointments, ...todayData.appointments].map((item) => [item.id, item])).values()];
       data.appointmentServices = [...new Map([...data.appointmentServices, ...todayData.appointmentServices].map((item) => [item.id, item])).values()];
       data.timeBlocks = [...new Map([...data.timeBlocks, ...todayData.timeBlocks].map((item) => [item.id, item])).values()];
+      data.customers = [...new Map([...data.customers, ...todayData.customers].map((item) => [item.id, item])).values()];
     }
     setState({ status: 'ready', data, message: null });
   }, [agendaRange, membership.business.id, state]);

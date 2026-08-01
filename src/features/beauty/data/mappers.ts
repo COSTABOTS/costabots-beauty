@@ -164,10 +164,15 @@ export function mapCustomers(rows: CustomerRow[], appointments: Appointment[], s
     const completed = related.filter((appointment) => appointment.status === 'completed');
     const upcoming = related.find((appointment) => !['completed', 'cancelled', 'no_show'].includes(appointment.status));
     const serviceNames = [...new Set(related.map((appointment) => serviceMap.get(appointment.serviceId)?.name).filter((name): name is string => Boolean(name)))];
-    const phone = row.phone ?? '';
+    const phone = row.phone ?? row.phone_normalized ?? '';
+    const storedName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+    const genericWhatsappName = /^cliente\s+(?:de\s+)?whatsapp$/i.test(storedName);
+    const displayName = genericWhatsappName || !storedName
+      ? (phone ? maskPhone(phone) : 'Cliente de WhatsApp')
+      : storedName;
     return {
       id: row.id,
-      name: [row.first_name, row.last_name].filter(Boolean).join(' '),
+      name: displayName,
       firstName: row.first_name,
       lastName: row.last_name ?? '',
       phone,

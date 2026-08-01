@@ -76,7 +76,7 @@ export type BeautyOperationalData = {
 
 export type BeautyAgendaRangeData = Pick<
   BeautyOperationalData,
-  'appointments' | 'appointmentServices' | 'timeBlocks'
+  'appointments' | 'appointmentServices' | 'timeBlocks' | 'customers'
 >;
 
 export type OperationalCounts = {

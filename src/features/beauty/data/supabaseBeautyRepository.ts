@@ -265,10 +265,23 @@ export const supabaseBeautyRepository: BeautyRepository = {
       this.getTimeBlocks(businessId, range, timezone),
     ]);
     const appointmentServices = await this.getAppointmentServices(businessId, rows.map((row) => row.id));
+    const customerIds = [...new Set(rows.map((row) => row.customer_id))];
+    const customerResult = customerIds.length
+      ? await supabase.from('customers')
+        .select('id,first_name,last_name,phone,phone_normalized,email,preferred_staff_member_id,notes,marketing_consent,reminder_consent,consent_updated_at,active')
+        .eq('business_id', businessId)
+        .in('id', customerIds)
+      : { data: [] as CustomerRow[], error: null };
+    const customers = mapCustomers(
+      ensureData(customerResult.data as CustomerRow[] | null, customerResult.error, 'No hemos podido cargar los clientes de la agenda.'),
+      mapAppointments(rows, appointmentServices, timezone),
+      [],
+    );
     return {
       appointments: mapAppointments(rows, appointmentServices, timezone),
       appointmentServices,
       timeBlocks,
+      customers,
     };
   },
 

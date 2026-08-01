@@ -235,6 +235,7 @@ const mockBeautyRepositoryBase: BeautyRepository = {
       appointments,
       appointmentServices: await this.getAppointmentServices(businessId, appointments.map((appointment) => appointment.id)),
       timeBlocks: await this.getTimeBlocks(businessId, range, 'Europe/Madrid'),
+      customers: mockCustomers.map((customer) => ({ ...customer })),
     };
   },
   async updateAppointmentStatus(_businessId, command) {

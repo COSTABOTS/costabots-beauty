@@ -58,7 +58,7 @@ function dateLabel(date: string, timezone = 'Europe/Madrid') {
   return formatBusinessDate(date, timezone);
 }
 
-const incompleteCustomer: Customer = { id: 'incomplete', name: 'Cliente no disponible', phone: '', maskedPhone: 'Sin teléfono', lastVisit: 'Sin datos', recommendedService: 'Sin datos', recurrent: false, notes: '', messagingConsent: false, nextReactivation: 'Sin datos', usualServices: ['Sin datos'] };
+const incompleteCustomer: Customer = { id: 'incomplete', name: 'Cliente de WhatsApp', phone: '', maskedPhone: 'Sin teléfono', lastVisit: 'Sin datos', recommendedService: 'Sin datos', recurrent: false, notes: '', messagingConsent: false, nextReactivation: 'Sin datos', usualServices: ['Sin datos'] };
 const incompleteService: import('./types').BeautyService = { id: 'incomplete', name: 'Servicio no disponible', durationMinutes: 0, price: 0, category: 'hair' };
 const incompleteStaff: import('./types').StaffMember = { id: 'incomplete', name: 'Profesional no disponible', role: 'Sin datos', initials: '—', accent: 'sand' };
 
