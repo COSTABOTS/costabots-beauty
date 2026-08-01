@@ -68,6 +68,9 @@ Deno.test('choosing date deterministically recognizes relative dates and bare we
     assertEquals(result?.interpretation.intent, 'choose_date');
     assertEquals(result?.interpretation.confidence, 1);
   }
+  assertEquals(deterministicDateOverride('choosing_date', 'Nañana', temporal)?.resolution.isoDate, '2026-08-01');
+  assertEquals(deterministicDateOverride('choosing_date', 'El día 1', temporal)?.resolution.isoDate, '2026-08-01');
+  assertEquals(deterministicDateOverride('choosing_date', '5 de agosto', temporal)?.resolution.isoDate, '2026-08-05');
 });
 
 Deno.test('raw deterministic date wins over empty, unknown or low-confidence Gemini output', () => {

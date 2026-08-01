@@ -29,6 +29,11 @@ import type {
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
+function isGreeting(text: string) {
+  const normalized = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  return /^(hola|buenas|buenos dias|buenas tardes|buenas noches)\b/.test(normalized);
+}
+
 type FlowContext = {
   runId: string;
   businessId: string;
@@ -115,7 +120,7 @@ export async function processBookingFlow(input: {
   } catch (error) {
     if (error instanceof Error && error.message === 'INTERPRETATION_INVALID') {
       const reply = session
-        ? await contextualDatePrompt(client, context.businessId, session)
+        ? session.status === 'choosing_date' ? bookingReplies.clarifyDate : bookingReplies.clarify
         : bookingReplies.clarify;
       if (session) {
         const next = { ...session, last_error_code: 'INTERPRETATION_INVALID' as const };
@@ -141,7 +146,7 @@ export async function processBookingFlow(input: {
   }
   if (interpretation.confidence < MIN_INTERPRETATION_CONFIDENCE) {
     const reply = session
-      ? await contextualDatePrompt(client, context.businessId, session)
+      ? session.status === 'choosing_date' ? bookingReplies.clarifyDate : bookingReplies.lowConfidence
       : bookingReplies.lowConfidence;
     if (session) {
       const next = {
@@ -245,7 +250,9 @@ export async function processBookingFlow(input: {
   if (decision.next?.status === 'choosing_date' && decision.reply === bookingReplies.askDate) {
     decision = {
       ...decision,
-      reply: await contextualDatePrompt(client, context.businessId, decision.next),
+      reply: isGreeting(input.text)
+        ? await contextualDatePrompt(client, context.businessId, decision.next)
+        : bookingReplies.clarifyDate,
     };
   }
 

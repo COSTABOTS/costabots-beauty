@@ -4,6 +4,7 @@ export const bookingReplies = {
   greeting: 'Hola. ¿En qué puedo ayudarte?',
   askService: '¿Qué servicio te gustaría reservar?',
   askDate: '¿Qué día te vendría bien?',
+  clarifyDate: 'No he podido reconocer el día. Puedes decirme lunes, mañana o una fecha como 5 de agosto.',
   clarify: 'No lo he entendido del todo. ¿Puedes decírmelo de otra forma?',
   lowConfidence: 'Quiero asegurarme de entenderte bien. ¿Qué servicio, día u hora prefieres?',
   expired: 'Los horarios que te mostré ya han caducado. Dime qué día prefieres y los consulto de nuevo.',

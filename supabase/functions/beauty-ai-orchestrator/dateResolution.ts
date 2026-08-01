@@ -26,6 +26,11 @@ const WEEKDAY_INDEX: Record<string, number> = {
   sabado: 6,
 };
 
+const MONTH_INDEX: Record<string, number> = {
+  enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+  julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+};
+
 function plain(value: string) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 }
@@ -99,7 +104,8 @@ export function resolveDateExpression(text: string, context: TemporalContext): D
   if (/\bpasado\s+manana\b/.test(normalized)) {
     return checked(addDays(context.localDate, 2), 'pasado mañana', context);
   }
-  if (/\bmanana\b/.test(normalized)) return checked(context.tomorrow, 'mañana', context);
+  // Accept the frequent mobile typo "nañana" in addition to "mañana".
+  if (/\b(?:m|n)anana\b/.test(normalized)) return checked(context.tomorrow, 'mañana', context);
   if (/\bhoy\b/.test(normalized)) return checked(context.localDate, 'hoy', context);
 
   const isoMatch = normalized.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
@@ -125,6 +131,36 @@ export function resolveDateExpression(text: string, context: TemporalContext): D
     if (!validCalendarDate(year, month, day)) return { status: 'not_understood', isoDate: null };
     const candidate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return checked(candidate, `${day}/${month}${slashMatch[3] ? `/${year}` : ''}`, context);
+  }
+
+  const namedMonthMatch = normalized.match(
+    /\b(?:el\s+)?(?:dia\s+)?(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de\s+(\d{4}))?\b/,
+  );
+  if (namedMonthMatch) {
+    const day = Number(namedMonthMatch[1]);
+    const month = MONTH_INDEX[namedMonthMatch[2]];
+    let year = namedMonthMatch[3]
+      ? Number(namedMonthMatch[3])
+      : Number(context.localDate.slice(0, 4));
+    const monthDay = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!namedMonthMatch[3] && monthDay < context.localDate.slice(5)) year += 1;
+    if (!validCalendarDate(year, month, day)) return { status: 'not_understood', isoDate: null };
+    return checked(`${year}-${monthDay}`, `${day} de ${namedMonthMatch[2]}`, context);
+  }
+
+  const dayOnlyMatch = normalized.match(/\b(?:el\s+)?dia\s+(\d{1,2})\b/);
+  if (dayOnlyMatch) {
+    const day = Number(dayOnlyMatch[1]);
+    let year = Number(context.localDate.slice(0, 4));
+    let month = Number(context.localDate.slice(5, 7));
+    let candidate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!validCalendarDate(year, month, day) || candidate < context.localDate) {
+      month += 1;
+      if (month === 13) { month = 1; year += 1; }
+      if (!validCalendarDate(year, month, day)) return { status: 'not_understood', isoDate: null };
+      candidate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return checked(candidate, `el día ${day}`, context);
   }
 
   const weekdayMatch = normalized.match(

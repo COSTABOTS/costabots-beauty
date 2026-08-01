@@ -12,7 +12,7 @@ import {
   validateMinimalGenerateContent,
 } from './gemini.ts';
 import { processBookingFlow } from './bookingFlow.ts';
-import { completeHandoff } from './bookingSessionRepository.ts';
+import { completeHandoff, loadActiveBookingSession } from './bookingSessionRepository.ts';
 import { buildTemporalContext } from './dateResolution.ts';
 import {
   aiMessageReservation,
@@ -28,6 +28,29 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 async function markAttention(client: ReturnType<typeof serverClient>, context: AiConversationContext, reason: string) {
   await client.from('beauty_conversations').update({
+    needs_attention: true,
+    attention_reason: reason,
+  }).eq('id', context.conversationId).eq('business_id', context.businessId).eq('mode', 'ai');
+}
+
+async function completeTechnicalHandoff(
+  client: ReturnType<typeof serverClient>,
+  context: AiConversationContext,
+  responseMessageId: string,
+  reason: string,
+) {
+  const session = await loadActiveBookingSession(client, context.businessId, context.conversationId);
+  if (session) {
+    try {
+      await completeHandoff(client, session, responseMessageId, 'unsupported');
+      return;
+    } catch {
+      // A concurrent session update must not leave the conversation in an AI loop.
+    }
+  }
+  await client.from('beauty_conversations').update({
+    mode: 'manual',
+    assigned_user_id: null,
     needs_attention: true,
     attention_reason: reason,
   }).eq('id', context.conversationId).eq('business_id', context.businessId).eq('mode', 'ai');
@@ -368,7 +391,12 @@ Deno.serve(async (request) => {
           response_message_id: fallback.messageId,
           response_disposition: 'sent',
         });
-        await markAttention(client, context, `AI_ERROR_${failure.error_code}`);
+        await completeTechnicalHandoff(
+          client,
+          context,
+          fallback.messageId,
+          `AI_ERROR_${failure.error_code}`,
+        );
         return json(200, { accepted: true, completed: false, fallback: true });
       }
       if (fallback.discarded) {

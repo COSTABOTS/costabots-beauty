@@ -353,6 +353,10 @@ Deno.test('relative dates resolve deterministically in Europe/Madrid', () => {
   assert(resolveDateExpression('pasado mañana', temporal).isoDate === '2026-08-01', 'day after tomorrow is incorrect');
   assert(resolveDateExpression('próximo lunes', temporal).isoDate === '2026-08-03', 'next Monday is incorrect');
   assert(resolveDateExpression('el lunes', temporal).isoDate === '2026-08-03', 'el lunes is incorrect');
+  assert(resolveDateExpression('martes', temporal).isoDate === '2026-08-04', 'bare Tuesday is incorrect');
+  assert(resolveDateExpression('Nañana', temporal).isoDate === '2026-07-31', 'common tomorrow typo is incorrect');
+  assert(resolveDateExpression('el día 1', temporal).isoDate === '2026-08-01', 'day number is incorrect');
+  assert(resolveDateExpression('5 de agosto', temporal).isoDate === '2026-08-05', 'named month is incorrect');
 });
 
 Deno.test('absolute dates validate past, range and DD/MM formats', () => {
