@@ -49,6 +49,7 @@ import { CustomerForm } from './components/CustomerForm';
 import { SchedulesManagementPage, ServicesManagementPage, StaffManagementPage } from './components/BusinessSetup';
 import { ConfigurationPage, OnboardingPage, type SetupProgress } from './components/BusinessConfiguration';
 import { SupabaseWhatsAppInbox } from './components/WhatsAppIntegration';
+import { useWhatsAppConversations } from './data/whatsappRealtime';
 import { localDateTimeToIso } from './data/mappers';
 import { addCalendarDays, dateInTimeZone, formatBusinessDate, formatWeekLabel, weekRange } from './data/dateRange';
 import './beauty.css';
@@ -101,6 +102,10 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   const { appointments: loadedAppointments, customers, services, staff, timeBlocks } = beautyData.data;
   const businessName = beautyData.data.business.name;
   const mode = beautyData.mode;
+  const whatsappRealtime = useWhatsAppConversations(
+    membership.business.id,
+    mode === 'supabase' && beautyEnvironment.whatsappEnabled,
+  );
   const operationalToday = dateInTimeZone(beautyData.data.business.timezone);
   const ownerDisplayName = auth.user?.user_metadata?.full_name
     ?? auth.user?.user_metadata?.name
@@ -228,7 +233,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'agenda' && <AgendaPage agendaMessage={beautyData.agendaMessage} agendaRange={beautyData.agendaRange ?? weekRange(selectedDate)} agendaStatus={beautyData.agendaStatus} appointments={appointments} customers={customers} date={selectedDate} mode={mode} onCreateAppointment={openNewAppointment} onCreateBlock={() => setActiveForm('block')} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onOpenBlock={(id) => { setSelectedBlockId(id); setActiveForm('edit-block'); }} onRetry={beautyData.retryAgenda} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
         {route === 'customers' && <CustomersPage canManage={canManageCustomers} customers={customers} mode={mode} onCreateCustomer={() => setActiveForm('customer')} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && (mode === 'supabase'
-          ? <SupabaseWhatsAppInbox businessId={membership.business.id} customers={customers} enabled={beautyEnvironment.whatsappEnabled} />
+          ? <SupabaseWhatsAppInbox businessId={membership.business.id} conversations={whatsappRealtime.conversations} conversationsError={whatsappRealtime.error} conversationsLoading={whatsappRealtime.loading} customers={customers} enabled={beautyEnvironment.whatsappEnabled} reloadConversations={whatsappRealtime.reload} />
           : <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />)}
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void handleSignOut()} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
@@ -239,7 +244,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'onboarding' && <OnboardingPage business={beautyData.data.business} canManage={canManageCustomers} mode={mode} onBack={() => navigate('today')} onOpenSchedules={() => openSetup('schedules', 'onboarding')} onOpenServices={() => openSetup('services', 'onboarding')} onOpenServiceTemplates={() => openSetup('services', 'onboarding', true)} onOpenStaff={() => openSetup('staff', 'onboarding')} onSaveBusiness={beautyData.updateBusinessProfile} progress={setupProgress} />}
       </main>
 
-      <BeautyNavigation active={['automations', 'staff', 'services', 'schedules', 'configuration', 'onboarding'].includes(route) ? 'more' : route} onNavigate={navigate} />
+      <BeautyNavigation active={['automations', 'staff', 'services', 'schedules', 'configuration', 'onboarding'].includes(route) ? 'more' : route} messageUnreadCount={mode === 'supabase' ? whatsappRealtime.unreadCount : conversations.reduce((total, item) => total + item.unread, 0)} onNavigate={navigate} />
 
       {selectedAppointment && (
         <AppointmentDetail

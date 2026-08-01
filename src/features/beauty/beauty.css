@@ -260,6 +260,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .beauty-navigation button { position: relative; display: grid; min-width: 0; min-height: 54px; place-items: center; align-content: center; gap: 3px; padding: 4px 2px; color: #817a74; font-size: .59rem; border: 0; border-radius: 16px; background: transparent; cursor: pointer; }
 .beauty-navigation button.is-active { color: var(--beauty-primary-dark); background: var(--beauty-primary-soft); }
 .beauty-navigation span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.beauty-navigation .navigation-unread { position:absolute; top:4px; right:10px; display:grid; min-width:18px; height:18px; padding:0 5px; place-items:center; border-radius:999px; background:#d95851; color:#fff; font-size:.62rem; line-height:1; box-shadow:0 2px 7px rgba(150,55,49,.28); }
 
 .beauty-sheet-backdrop { position: fixed; z-index: 40; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-top: 20px; background: rgba(38,32,28,.48); backdrop-filter: blur(4px); }
 .beauty-sheet { display: flex; width: 100%; max-width: 620px; max-height: calc(100dvh - 20px); min-height: 0; flex-direction: column; overflow: hidden; border-radius: 26px 26px 0 0; background: var(--beauty-bg); box-shadow: 0 -20px 60px rgba(24,19,16,.2); animation: sheet-in .24s ease-out; }
@@ -397,6 +398,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
   .mode-notice { margin-right: 34px; margin-left: 34px; }
   .beauty-navigation { top: 106px; right: auto; bottom: auto; left: 14px; grid-template-columns: 1fr; width: 162px; min-height: 0; gap: 4px; padding: 7px; border: 0; border-radius: 18px; background: transparent; box-shadow: none; backdrop-filter: none; }
   .beauty-navigation button { grid-template-columns: 28px 1fr; min-height: 48px; place-items: center start; padding: 7px 12px; font-size: .73rem; }
+  .beauty-navigation .navigation-unread { top:15px; right:10px; }
   .desktop-signout { display: inline-flex; width: 150px; margin-top: auto; }
   .more-signout { display: none; }
   .metrics-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }

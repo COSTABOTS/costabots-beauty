@@ -26,10 +26,12 @@ export type WhatsAppConversation = {
   unread_count: number;
   last_message_at: string | null;
   last_message_preview: string | null;
+  active: boolean;
 };
 
 export type WhatsAppMessage = {
   id: string;
+  business_id: string;
   conversation_id: string;
   direction: 'inbound' | 'outbound';
   sender_type: 'customer' | 'human' | 'ai' | 'system';
@@ -118,7 +120,7 @@ export async function loadWhatsAppConversations(businessId: string) {
 export async function loadWhatsAppMessages(conversationId: string, limit: number) {
   const { data, error } = await authenticatedQuery(() =>
     supabase.from('beauty_messages')
-      .select('id,conversation_id,direction,sender_type,message_type,text_content,status,sent_at')
+      .select('id,business_id,conversation_id,direction,sender_type,message_type,text_content,status,sent_at')
       .eq('conversation_id', conversationId).order('sent_at', { ascending: false }).limit(limit)
   );
   if (error) throw functionError(error, 'No hemos podido cargar los mensajes.');

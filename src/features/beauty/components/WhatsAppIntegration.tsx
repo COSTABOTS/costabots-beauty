@@ -1,10 +1,10 @@
 import { ArrowLeft, CheckCircle2, MessageCircle, RefreshCw, Send, ShieldCheck, Smartphone, Unplug } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
 import type { Customer } from '../types';
 import {
   disconnectWhatsApp,
   loadWhatsAppConnection,
-  loadWhatsAppConversations,
   loadWhatsAppMessages,
   markConversationRead,
   provisionWhatsApp,
@@ -121,58 +121,107 @@ export function WhatsAppSettings({
 
 export function SupabaseWhatsAppInbox({
   businessId,
+  conversations,
+  conversationsError,
+  conversationsLoading,
   customers,
   enabled,
   onBack,
+  reloadConversations,
 }: {
   businessId: string;
+  conversations: WhatsAppConversation[];
+  conversationsError: string;
+  conversationsLoading: boolean;
   customers: Customer[];
   enabled: boolean;
   onBack?: () => void;
+  reloadConversations: (showLoading?: boolean) => Promise<void>;
 }) {
   const [connection, setConnection] = useState(emptyConnection);
-  const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
   const [selected, setSelected] = useState<WhatsAppConversation | null>(null);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [filter, setFilter] = useState<'all' | 'attention'>('all');
-  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState('');
   const [messageLimit, setMessageLimit] = useState(50);
   const [draft, setDraft] = useState('');
   const [working, setWorking] = useState(false);
-  const reloadRequestId = useRef(0);
-  useEffect(() => () => {
-    reloadRequestId.current += 1;
-  }, []);
+  const messageRequestId = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
+  useEffect(() => { selectedIdRef.current = selected?.id ?? null; }, [selected?.id]);
 
   const reload = useCallback(async () => {
     if (!enabled) return;
-    const requestId = ++reloadRequestId.current;
-    setLoading(true); setError('');
+    setError('');
     try {
-      const [nextConnection, nextConversations] = await Promise.all([
+      const [nextConnection] = await Promise.all([
         loadWhatsAppConnection(businessId),
-        loadWhatsAppConversations(businessId),
+        reloadConversations(true),
       ]);
-      if (requestId !== reloadRequestId.current) return;
       setConnection(nextConnection);
-      setConversations(nextConversations);
-      setSelected((current) => current ? nextConversations.find((item) => item.id === current.id) ?? null : null);
     } catch (cause) {
-      if (requestId === reloadRequestId.current) {
-        setError(cause instanceof Error ? cause.message : 'No hemos podido cargar Mensajes.');
-      }
-    } finally {
-      if (requestId === reloadRequestId.current) setLoading(false);
+      setError(cause instanceof Error ? cause.message : 'No hemos podido cargar Mensajes.');
     }
-  }, [businessId, enabled]);
+  }, [businessId, enabled, reloadConversations]);
   useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    setSelected((current) => current
+      ? conversations.find((item) => item.id === current.id) ?? null
+      : null);
+  }, [conversations]);
+
+  const reloadMessages = useCallback(async (conversationId: string, limit: number) => {
+    const requestId = ++messageRequestId.current;
+    const items = await loadWhatsAppMessages(conversationId, limit);
+    if (requestId === messageRequestId.current && selectedIdRef.current === conversationId) setMessages(items);
+  }, []);
+
   useEffect(() => {
     if (!selected) { setMessages([]); return; }
-    void Promise.all([loadWhatsAppMessages(selected.id, messageLimit), markConversationRead(selected.id)])
-      .then(([items]) => setMessages(items))
+    const canMarkRead = document.visibilityState === 'visible';
+    void Promise.all([
+      reloadMessages(selected.id, messageLimit),
+      canMarkRead ? markConversationRead(selected.id).then(() => reloadConversations()) : Promise.resolve(),
+    ])
       .catch((cause) => setError(cause instanceof Error ? cause.message : 'No hemos podido abrir la conversación.'));
-  }, [messageLimit, selected?.id]);
+  }, [messageLimit, reloadConversations, reloadMessages, selected?.id]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const channel = supabase.channel(`beauty-messages:${businessId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'beauty_messages', filter: `business_id=eq.${businessId}`,
+      }, (payload) => {
+        const row = (payload.new ?? payload.old) as Partial<WhatsAppMessage>;
+        const openConversationId = selectedIdRef.current;
+        if (!openConversationId || row.conversation_id !== openConversationId) return;
+        void reloadMessages(openConversationId, messageLimit).catch(() => undefined);
+        if (payload.eventType === 'INSERT' && row.direction === 'inbound' && document.visibilityState === 'visible') {
+          void markConversationRead(openConversationId).then(() => reloadConversations()).catch(() => undefined);
+        }
+      })
+      .subscribe((status) => {
+        if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && selectedIdRef.current) {
+          void reloadMessages(selectedIdRef.current, messageLimit).catch(() => undefined);
+        }
+      });
+    const onVisibility = () => {
+      const openConversationId = selectedIdRef.current;
+      if (document.visibilityState === 'visible' && openConversationId) {
+        void Promise.all([
+          reloadMessages(openConversationId, messageLimit),
+          markConversationRead(openConversationId).then(() => reloadConversations()),
+        ]).catch(() => undefined);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      messageRequestId.current += 1;
+      document.removeEventListener('visibilitychange', onVisibility);
+      void supabase.removeChannel(channel);
+    };
+  }, [businessId, enabled, messageLimit, reloadConversations, reloadMessages]);
 
   const visible = useMemo(() => conversations.filter((item) => filter === 'all' || item.needs_attention), [conversations, filter]);
   const customer = selected?.customer_id ? customers.find((item) => item.id === selected.customer_id) : null;
@@ -206,7 +255,7 @@ export function SupabaseWhatsAppInbox({
       event.preventDefault();
       const text = draft.trim();
       if (!text) return;
-      void mutate(() => sendWhatsAppMessage(businessId, selected.id, text)).then(() => { setDraft(''); return loadWhatsAppMessages(selected.id, messageLimit).then(setMessages); });
+      void mutate(() => sendWhatsAppMessage(businessId, selected.id, text)).then(() => { setDraft(''); return reloadMessages(selected.id, messageLimit); });
     }}>
       <textarea disabled={selected.mode !== 'manual' || connection.status !== 'connected' || working} maxLength={2000} onChange={(event) => setDraft(event.target.value)} placeholder={selected.mode === 'manual' ? 'Escribe un mensaje…' : 'Toma la conversación para responder'} value={draft} />
       <button aria-label="Enviar mensaje" disabled={!draft.trim() || selected.mode !== 'manual' || connection.status !== 'connected' || working} type="submit"><Send /></button>
@@ -216,9 +265,9 @@ export function SupabaseWhatsAppInbox({
   return <div className="beauty-page whatsapp-inbox-page">
     <PageHeader eyebrow="WhatsApp" title="Mensajes" action={<div className="heading-actions"><button aria-label="Actualizar" className="icon-button-soft" onClick={() => void reload()} type="button"><RefreshCw /></button>{onBack && <button aria-label="Volver" className="icon-button-soft" onClick={onBack} type="button"><ArrowLeft /></button>}</div>} />
     <div className="conversation-tabs"><button className={filter === 'all' ? 'is-active' : ''} onClick={() => setFilter('all')} type="button">Todas</button><button className={filter === 'attention' ? 'is-active' : ''} onClick={() => setFilter('attention')} type="button">Necesitan atención</button></div>
-    {loading && <p className="inline-data-message">Cargando conversaciones…</p>}
-    {error && <div className="empty-state"><ShieldCheck /><h2>No se ha podido cargar</h2><p>{error}</p><button onClick={() => void reload()} type="button">Reintentar</button></div>}
-    {!loading && !error && !visible.length && <div className="empty-state"><Smartphone /><h2>Aún no hay conversaciones</h2><p>Cuando llegue un mensaje por WhatsApp aparecerá aquí.</p></div>}
+    {conversationsLoading && <p className="inline-data-message">Cargando conversaciones…</p>}
+    {(error || conversationsError) && <div className="empty-state"><ShieldCheck /><h2>No se ha podido cargar</h2><p>{error || conversationsError}</p><button onClick={() => void reload()} type="button">Reintentar</button></div>}
+    {!conversationsLoading && !error && !conversationsError && !visible.length && <div className="empty-state"><Smartphone /><h2>Aún no hay conversaciones</h2><p>Cuando llegue un mensaje por WhatsApp aparecerá aquí.</p></div>}
     <div className="conversation-list">{visible.map((conversation) => {
       const linkedCustomer = conversation.customer_id
         ? customers.find((item) => item.id === conversation.customer_id)

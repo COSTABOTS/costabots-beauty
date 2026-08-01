@@ -119,13 +119,14 @@ const navItems: Array<{ route: BeautyRoute; label: string; icon: typeof Calendar
   { route: 'more', label: 'Más', icon: MoreHorizontal },
 ];
 
-export function BeautyNavigation({ active, onNavigate }: { active: BeautyRoute; onNavigate: (route: BeautyRoute) => void }) {
+export function BeautyNavigation({ active, messageUnreadCount = 0, onNavigate }: { active: BeautyRoute; messageUnreadCount?: number; onNavigate: (route: BeautyRoute) => void }) {
   return (
     <nav className="beauty-navigation" aria-label="Navegación principal">
       {navItems.map(({ route, label, icon: Icon }) => (
         <button aria-current={active === route ? 'page' : undefined} className={active === route ? 'is-active' : ''} key={route} onClick={() => onNavigate(route)} type="button">
           <Icon aria-hidden="true" size={21} strokeWidth={active === route ? 2.3 : 1.8} />
           <span>{label}</span>
+          {route === 'messages' && messageUnreadCount > 0 && <b className="navigation-unread" aria-label={`${messageUnreadCount} mensajes sin leer`}>{messageUnreadCount > 99 ? '99+' : messageUnreadCount}</b>}
         </button>
       ))}
     </nav>
