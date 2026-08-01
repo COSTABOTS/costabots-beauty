@@ -15,7 +15,6 @@ export function buildAvailabilityRpcArgs(input: {
   serviceId: string;
   date: unknown;
   staffId?: string | null;
-  slotIntervalMinutes?: number;
 }) {
   if (!UUID_PATTERN.test(input.businessId) || !UUID_PATTERN.test(input.serviceId)) {
     throw new Error('INVALID_AVAILABILITY_ID');
@@ -24,7 +23,6 @@ export function buildAvailabilityRpcArgs(input: {
     p_business_id: input.businessId,
     p_service_id: input.serviceId,
     p_date: normalizeAvailabilityDate(input.date),
-    p_slot_interval_minutes: input.slotIntervalMinutes ?? 15,
   };
   if (input.staffId) {
     if (!UUID_PATTERN.test(input.staffId)) throw new Error('INVALID_AVAILABILITY_ID');

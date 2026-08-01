@@ -29,7 +29,15 @@ Deno.test('valid empty data is no availability and real rows become structured s
 Deno.test('availability RPC omits absent staff and includes existing staff', () => {
   const withoutStaff = buildAvailabilityRpcArgs({ businessId, serviceId, date: '2026-08-03', staffId: null });
   assertEquals('p_staff_member_id' in withoutStaff, false);
+  assertEquals('p_staff_id' in withoutStaff, false);
   const withStaff = buildAvailabilityRpcArgs({ businessId, serviceId, date: '2026-08-03', staffId });
+  assertEquals(Object.keys(withStaff).sort(), [
+    'p_business_id',
+    'p_date',
+    'p_service_id',
+    'p_staff_member_id',
+  ]);
   assertEquals(withStaff.p_staff_member_id, staffId);
+  assertEquals('p_staff_id' in withStaff, false);
   assertEquals(withStaff.p_date, '2026-08-03');
 });

@@ -114,7 +114,6 @@ export async function getAvailability(
     serviceId,
     date,
     staffId,
-    slotIntervalMinutes: 15,
   }));
   if (result.error) {
     const category = result.error.code === '22023' ? 'date_out_of_range' : 'tool_internal_error';
