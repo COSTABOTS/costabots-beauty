@@ -78,16 +78,12 @@ async function availability(
   session: BookingSession,
 ) {
   if (!session.service_id || !session.selected_date) return [];
-  try {
-    const result = await getAvailability(client, context.businessId, {
-      service_id: session.service_id,
-      date: session.selected_date,
-      staff_id: session.staff_id,
-    });
-    return offeredOptions(result);
-  } catch {
-    return [];
-  }
+  const result = await getAvailability(client, context.businessId, {
+    service_id: session.service_id,
+    date: session.selected_date,
+    staff_id: session.staff_id,
+  });
+  return offeredOptions(result);
 }
 
 function initialStatus(serviceId: string | null, date: string | null) {
@@ -206,7 +202,10 @@ export async function processBookingFlow(input: {
       offered_times: options,
       selected_starts_at: selected?.starts_at ?? null,
       staff_id: selected?.staff_id ?? null,
-      status: selected ? 'awaiting_confirmation' as const : 'choosing_time' as const,
+      selected_date: options.length ? selectedDate : null,
+      status: selected
+        ? 'awaiting_confirmation' as const
+        : options.length ? 'choosing_time' as const : 'choosing_date' as const,
       availability_checked_at: nowIso,
       last_interpretation_intent: interpretation.intent,
     };

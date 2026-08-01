@@ -151,8 +151,8 @@ export async function getAvailability(
       staffId: row.staff_member_id,
       professional: row.staff_display_name,
     }));
-  if (!slots.length) throw new BeautyToolError('no_availability', 'get_availability', date);
-  return { available: true, slots };
+  // An empty result is a valid business outcome, not an infrastructure error.
+  return { available: slots.length > 0, slots };
 }
 
 export async function executeTool(

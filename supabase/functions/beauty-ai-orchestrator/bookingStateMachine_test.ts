@@ -177,6 +177,10 @@ Deno.test('valid date requests availability and zero slots always returns a resp
   });
   assert(second.reply.length > 0);
   assert(second.reply.includes('No encuentro huecos'));
+  assertEquals(second.next?.status, 'choosing_date');
+  assertEquals(second.next?.service_id, choosingDate.service_id);
+  assertEquals(second.next?.selected_date, null);
+  assertEquals(second.handoff, false);
 });
 
 Deno.test('A las 10 and normalized variants select only a persisted offer', () => {

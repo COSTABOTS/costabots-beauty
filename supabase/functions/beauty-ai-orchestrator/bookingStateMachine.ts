@@ -129,6 +129,15 @@ export function reduceBookingState(input: {
     if (resolved.availabilityOptions !== undefined) {
       session.offered_times = resolved.availabilityOptions;
       session.availability_checked_at = input.nowIso;
+      if (!resolved.availabilityOptions.length) {
+        session.status = 'choosing_date';
+        session.selected_date = null;
+        session.staff_id = null;
+        session.selected_starts_at = null;
+        return decision(session, bookingReplies.noAvailability, 'none', {
+          errorCode: 'AVAILABILITY_UNAVAILABLE',
+        });
+      }
       if (resolved.requestedTime) {
         const option = resolved.availabilityOptions.find(({ label }) => label === resolved.requestedTime);
         if (option) {
@@ -164,6 +173,14 @@ export function reduceBookingState(input: {
       session.offered_times = resolved.availabilityOptions;
       session.selected_starts_at = null;
       session.availability_checked_at = input.nowIso;
+      if (!resolved.availabilityOptions.length) {
+        session.status = 'choosing_date';
+        session.selected_date = null;
+        session.staff_id = null;
+        return decision(session, bookingReplies.noAvailability, 'none', {
+          errorCode: 'AVAILABILITY_UNAVAILABLE',
+        });
+      }
       return decision(
         session,
         resolved.availabilityOptions.length
