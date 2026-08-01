@@ -28,3 +28,6 @@ tokens.*
 *.cer
 *.jks
 *.keystore
+
+.vercel
+.env*
