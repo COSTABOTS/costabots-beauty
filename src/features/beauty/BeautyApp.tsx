@@ -9,6 +9,7 @@ import {
   Clock3,
   Image,
   LockKeyhole,
+  LogOut,
   MessageCircle,
   Phone,
   Search,
@@ -205,10 +206,20 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
     showToast(status === 'human_handled' ? 'Ahora atiendes esta conversación' : 'La conversación vuelve a la IA');
   }
 
+  async function handleSignOut() {
+    if (!window.confirm('¿Quieres cerrar sesión?')) return;
+    await signOut();
+    window.history.replaceState({}, '', '/');
+  }
+
   return (
     <div className="beauty-app">
       <aside className="desktop-brand">
         <BeautyBrandLockup />
+        <button className="desktop-signout" onClick={() => void handleSignOut()} type="button">
+          <LogOut size={18} />
+          Cerrar sesión
+        </button>
       </aside>
 
       <main className="beauty-main">
@@ -219,12 +230,12 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'messages' && (mode === 'supabase'
           ? <SupabaseWhatsAppInbox businessId={membership.business.id} customers={customers} enabled={beautyEnvironment.whatsappEnabled} />
           : <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />)}
-        {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
+        {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void handleSignOut()} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
         {route === 'staff' && <StaffManagementPage appointments={appointments} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createStaff} onDeactivate={(staffId) => beautyData.deactivateStaff({ staffId })} onOpenSchedules={(staffId) => { setSetupStaffId(staffId); openSetup('schedules', setupReturnRoute); }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateStaff} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
         {route === 'services' && <ServicesManagementPage businessCurrency={beautyData.data.business.currency} businessType={beautyData.data.business.businessType} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createService} onDeactivate={(serviceId) => beautyData.deactivateService({ serviceId })} onImport={async (items) => { const result = await beautyData.importServices({ services: items }); if (setupReturnRoute === 'onboarding' && result.assignedStaffId && result.created + result.replaced > 0) { const assigned = staff.find((item) => item.id === result.assignedStaffId); showToast(assigned ? `Los servicios se han asignado a ${assigned.name}.` : 'Servicios importados y asignados.'); navigate('onboarding'); } return result; }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateService} openTemplateInitially={openServiceTemplate} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
         {route === 'schedules' && <SchedulesManagementPage initialStaffId={setupStaffId} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreateAbsence={(staffId) => { setSetupStaffId(staffId); setActiveForm('block'); }} onSave={(staffId, segments) => beautyData.replaceWeeklySchedule({ staffId, segments })} schedules={beautyData.data.schedules} staff={staff} />}
-        {route === 'configuration' && <ConfigurationPage business={beautyData.data.business} businessId={membership.business.id} canManage={canManageCustomers} mode={mode} onBack={() => navigate('more')} onOpenOnboarding={() => navigate('onboarding')} onSave={beautyData.updateBusinessProfile} onSignOut={() => void signOut()} progress={setupProgress} whatsappEnabled={beautyEnvironment.whatsappEnabled} />}
+        {route === 'configuration' && <ConfigurationPage business={beautyData.data.business} businessId={membership.business.id} canManage={canManageCustomers} mode={mode} onBack={() => navigate('more')} onOpenOnboarding={() => navigate('onboarding')} onSave={beautyData.updateBusinessProfile} progress={setupProgress} whatsappEnabled={beautyEnvironment.whatsappEnabled} />}
         {route === 'onboarding' && <OnboardingPage business={beautyData.data.business} canManage={canManageCustomers} mode={mode} onBack={() => navigate('today')} onOpenSchedules={() => openSetup('schedules', 'onboarding')} onOpenServices={() => openSetup('services', 'onboarding')} onOpenServiceTemplates={() => openSetup('services', 'onboarding', true)} onOpenStaff={() => openSetup('staff', 'onboarding')} onSaveBusiness={beautyData.updateBusinessProfile} progress={setupProgress} />}
       </main>
 
@@ -594,7 +605,7 @@ function MessagesPage({ conversations, mode, onOpenConversation }: { conversatio
   );
 }
 
-function MorePage({ businessName, mode, navigate, progress, serviceCount, staffCount }: { businessName: string; mode: 'mock' | 'supabase'; navigate: (route: BeautyRoute) => void; progress: SetupProgress; serviceCount: number; staffCount: number }) {
+function MorePage({ businessName, mode, navigate, onSignOut, progress, serviceCount, staffCount }: { businessName: string; mode: 'mock' | 'supabase'; navigate: (route: BeautyRoute) => void; onSignOut: () => void; progress: SetupProgress; serviceCount: number; staffCount: number }) {
   const items = [
     { icon: UsersRound, label: 'Equipo', detail: `${staffCount} profesionales`, route: 'staff' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
     { icon: Sparkles, label: 'Servicios', detail: `${serviceCount} servicios`, route: 'services' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
@@ -608,6 +619,7 @@ function MorePage({ businessName, mode, navigate, progress, serviceCount, staffC
       <div className="more-list">
         {items.map(({ icon: Icon, label, detail, route, state }) => <button disabled={!route} key={label} onClick={() => route && navigate(route)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span>{state && <FeatureStateBadge state={state} />}{!route && <FeatureStateBadge state="soon" />}</button>)}
       </div>
+      <button className="more-signout" onClick={onSignOut} type="button"><LogOut size={18} />Cerrar sesión</button>
       <div className="isolation-note"><ShieldCheck size={20} /><span><strong>{mode === 'mock' ? 'Modo demostración' : 'Conexión segura'}</strong><small>{mode === 'mock' ? 'Datos y acciones locales identificados como demo' : 'Solo están activas las operaciones conectadas y validadas'}</small></span></div>
     </div>
   );

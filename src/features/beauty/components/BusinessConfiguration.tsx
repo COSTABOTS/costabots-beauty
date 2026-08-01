@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  LogOut,
   Scissors,
   Sparkles,
   UserRound,
@@ -118,7 +117,6 @@ export function ConfigurationPage({
   onBack,
   onOpenOnboarding,
   onSave,
-  onSignOut,
   progress,
   whatsappEnabled,
 }: {
@@ -129,7 +127,6 @@ export function ConfigurationPage({
   onBack: () => void;
   onOpenOnboarding: () => void;
   onSave: (value: BusinessProfileInput) => Promise<string>;
-  onSignOut: () => void;
   progress: SetupProgress;
   whatsappEnabled: boolean;
 }) {
@@ -142,20 +139,6 @@ export function ConfigurationPage({
     <section className="configuration-section"><h2>Datos del negocio</h2><p>Información visible y valores usados por la agenda.</p><BusinessProfileForm business={business} canManage={canManage} onSave={onSave} /></section>
     {mode === 'supabase' && <WhatsAppSettings businessId={businessId} canManage={canManage} enabled={whatsappEnabled} />}
     {mode === 'mock' && <section className="configuration-section configuration-section--reset"><h2>Demostración</h2><p>Restaura los datos ficticios iniciales y elimina únicamente los cambios guardados en este navegador.</p><button className="danger-inline" onClick={() => { if (window.confirm('¿Reiniciar la demostración y descartar los cambios guardados en este navegador?')) resetMockBeautyDemo(); }} type="button">Reiniciar demostración</button></section>}
-    <section className="configuration-section configuration-section--account">
-      <h2>Cuenta</h2>
-      <p>Cierra el acceso en este dispositivo sin modificar los datos del negocio.</p>
-      <button
-        className="beauty-signout"
-        onClick={() => {
-          if (window.confirm('¿Quieres cerrar sesión?')) onSignOut();
-        }}
-        type="button"
-      >
-        <LogOut size={19} />
-        Cerrar sesión
-      </button>
-    </section>
   </div>;
 }
 
