@@ -61,12 +61,13 @@ function offeredOptions(value: Record<string, unknown>): OfferedTime[] {
   const seen = new Set<string>();
   return rows.flatMap((row) => {
     const option = {
-      starts_at: String(row.startsAt ?? ''),
-      staff_id: String(row.staffId ?? ''),
+      starts_at: String(row.starts_at ?? ''),
+      staff_id: String(row.staff_id ?? ''),
+      staff_display_name: String(row.staff_display_name ?? ''),
       label: String(row.label ?? ''),
     };
     const key = `${option.starts_at}|${option.staff_id}`;
-    if (!option.starts_at || !option.staff_id || !/^\d{2}:\d{2}$/.test(option.label) || seen.has(key)) return [];
+    if (!option.starts_at || !option.staff_id || !option.staff_display_name || !/^\d{2}:\d{2}$/.test(option.label) || seen.has(key)) return [];
     seen.add(key);
     return [option];
   }).slice(0, 5);

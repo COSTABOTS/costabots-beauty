@@ -15,15 +15,17 @@ Deno.test('availability date is always YYYY-MM-DD', () => {
 Deno.test('valid empty data is no availability and real rows become structured slots', () => {
   assertEquals(availabilityRowsToSlots([], 'Europe/Madrid'), []);
   const slots = availabilityRowsToSlots([{
-    staff_member_id: staffId,
-    staff_display_name: 'Profesional',
-    starts_at: '2026-08-03T07:00:00.000Z',
-    ends_at: '2026-08-03T07:30:00.000Z',
+    staff_member_id: '45a83885-6d2b-418d-bb3c-63d630956b5a',
+    staff_display_name: 'FRAN',
+    starts_at: '2026-08-03T07:00:00+00:00',
+    ends_at: '2026-08-03T08:00:00+00:00',
+    service_duration_minutes: 60,
     available: true,
   }], 'Europe/Madrid');
   assertEquals(slots[0].label, '09:00');
-  assertEquals(slots[0].staffId, staffId);
-  assertEquals(slots[0].startsAt, '2026-08-03T07:00:00.000Z');
+  assertEquals(slots[0].staff_id, '45a83885-6d2b-418d-bb3c-63d630956b5a');
+  assertEquals(slots[0].staff_display_name, 'FRAN');
+  assertEquals(slots[0].starts_at, '2026-08-03T07:00:00+00:00');
 });
 
 Deno.test('availability RPC omits absent staff and includes existing staff', () => {

@@ -40,6 +40,7 @@ export type BookingInterpretation = {
 export type OfferedTime = {
   starts_at: string;
   staff_id: string;
+  staff_display_name?: string;
   label: string;
 };
 

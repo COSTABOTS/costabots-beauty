@@ -37,6 +37,7 @@ type AvailabilityRow = {
   staff_display_name: string;
   starts_at: string;
   ends_at: string;
+  service_duration_minutes?: number;
   available: boolean;
 };
 
@@ -51,14 +52,15 @@ function localDateTime(value: string, timezone: string) {
 }
 
 export function availabilityRowsToSlots(rows: AvailabilityRow[], timezone: string) {
-  return rows.filter((row) => row.available)
+  return rows.filter((row) => row.available === true)
     .sort((left, right) => left.starts_at.localeCompare(right.starts_at))
-    .map((row) => ({
-      startsAt: row.starts_at,
-      endsAt: localDateTime(row.ends_at, timezone),
+    .flatMap((row) => {
+      if (!UUID_PATTERN.test(row.staff_member_id) || Number.isNaN(Date.parse(row.starts_at))) return [];
+      return [{
+      starts_at: row.starts_at,
+      staff_id: row.staff_member_id,
+      staff_display_name: row.staff_display_name,
       label: localDateTime(row.starts_at, timezone).slice(-5),
-      timezone,
-      staffId: row.staff_member_id,
-      professional: row.staff_display_name,
-    }));
+      }];
+    });
 }
