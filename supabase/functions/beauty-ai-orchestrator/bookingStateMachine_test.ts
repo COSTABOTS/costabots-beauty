@@ -486,9 +486,9 @@ Deno.test('available confirmation produces controlled reply-before-handoff decis
     dateLabel: 'el lunes',
     nowIso: '2026-08-02T10:02:00Z',
   });
-  assertEquals(result.operation, 'send_handoff');
-  assertEquals(result.handoff, true);
-  assert(result.reply.includes('todavía no está confirmada'));
+  assertEquals(result.operation, 'confirm_booking');
+  assertEquals(result.handoff, false);
+  assertEquals(result.reply, '');
   assertEquals(result.next?.status, 'awaiting_confirmation');
 });
 

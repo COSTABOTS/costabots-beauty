@@ -23,6 +23,53 @@ export class BookingSessionConflict extends Error {
     this.name = 'BookingSessionConflict';
   }
 }
+
+export type BookingConfirmationResult = {
+  outcome: 'confirmed' | 'unavailable';
+  appointment_id: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  service_name: string | null;
+  staff_display_name: string | null;
+  customer_id: string | null;
+  offered_times: import('./bookingTypes.ts').OfferedTime[];
+  session_version: number;
+};
+
+export async function confirmBookingSession(client: SupabaseClient, input: {
+  businessId: string;
+  conversationId: string;
+  sessionId: string;
+  inboundMessageId: string;
+  expectedVersion: number;
+}): Promise<BookingConfirmationResult> {
+  const result = await client.rpc('confirm_beauty_booking_session', {
+    p_business_id: input.businessId,
+    p_conversation_id: input.conversationId,
+    p_booking_session_id: input.sessionId,
+    p_inbound_message_id: input.inboundMessageId,
+    p_expected_version: input.expectedVersion,
+  });
+  if (result.error || !Array.isArray(result.data) || !result.data[0]) {
+    throw new Error('BOOKING_CONFIRMATION_FAILED');
+  }
+  return result.data[0] as BookingConfirmationResult;
+}
+
+export async function recordBookingConfirmationResponse(client: SupabaseClient, input: {
+  businessId: string;
+  sessionId: string;
+  inboundMessageId: string;
+  responseMessageId: string;
+}) {
+  const result = await client.rpc('record_beauty_booking_confirmation_response', {
+    p_business_id: input.businessId,
+    p_booking_session_id: input.sessionId,
+    p_inbound_message_id: input.inboundMessageId,
+    p_response_message_id: input.responseMessageId,
+  });
+  if (result.error) throw new Error('BOOKING_CONFIRMATION_RESPONSE_FAILED');
+}
 export async function loadActiveBookingSession(
   client: SupabaseClient,
   businessId: string,

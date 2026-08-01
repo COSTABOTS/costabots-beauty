@@ -235,8 +235,8 @@ export function reduceBookingState(input: {
         },
       );
     }
-    session.handoff_reason = 'booking_confirmation';
-    return decision(session, bookingReplies.handoff, 'send_handoff', { handoff: true });
+    session.handoff_reason = null;
+    return decision(session, '', 'confirm_booking');
   }
 
   if (session.status === 'awaiting_human_confirmation') {

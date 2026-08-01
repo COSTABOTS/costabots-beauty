@@ -209,5 +209,6 @@ export function optionStillOffered(selected: OfferedTime, options: OfferedTime[]
 
 export function isAffirmative(rawText: string, interpretation: BookingInterpretation) {
   if (interpretation.confirmation === true) return true;
-  return /^(si|sí|vale|de acuerdo|confirmo|reserva(?:la)?|reservala)(?:[\s,]+(esa|ese))?$/i.test(rawText.trim());
+  const text = rawText.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+  return /^(si|vale|perfecto|adelante|de acuerdo|confirmo|confirma(?:la)?|reserva(?:la)?|quiero esa)(?:[\s,]+(cita|esa|ese))?$/i.test(text);
 }

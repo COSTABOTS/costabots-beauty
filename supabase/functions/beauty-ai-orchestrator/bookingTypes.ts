@@ -85,6 +85,8 @@ export type BookingSession = {
   handoff_reason: HandoffReason | null;
   version: number;
   availability_checked_at: string | null;
+  appointment_id: string | null;
+  confirmed_at: string | null;
   expires_at: string;
 };
 
@@ -105,6 +107,7 @@ export type BookingOperation =
   | 'list_services'
   | 'query_availability'
   | 'revalidate_selected'
+  | 'confirm_booking'
   | 'send_handoff';
 
 export type BookingDecision = {

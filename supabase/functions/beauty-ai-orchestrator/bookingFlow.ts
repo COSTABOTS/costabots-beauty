@@ -2,9 +2,11 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { askDateForService, bookingReplies, availabilityReply } from './bookingReplies.ts';
 import { interpretBookingMessage } from './bookingInterpreter.ts';
 import {
+  confirmBookingSession,
   createBookingSession,
   initialSessionValues,
   loadActiveBookingSession,
+  recordBookingConfirmationResponse,
   saveBookingDecision,
 } from './bookingSessionRepository.ts';
 import {
@@ -28,6 +30,23 @@ import type {
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
+
+function confirmationReply(result: {
+  starts_at: string | null;
+  service_name: string | null;
+  staff_display_name: string | null;
+}, timezone: string) {
+  if (!result.starts_at || !result.staff_display_name) throw new Error('BOOKING_CONFIRMATION_RESULT_INVALID');
+  const instant = new Date(result.starts_at);
+  const date = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone,
+  }).format(instant);
+  const time = new Intl.DateTimeFormat('es-ES', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone,
+  }).format(instant);
+  const service = result.service_name ? ` de ${result.service_name.toLocaleLowerCase('es-ES')}` : '';
+  return `Tu cita${service} ha quedado confirmada para el ${date} a las ${time} con ${result.staff_display_name}.`;
+}
 
 function isGreeting(text: string) {
   const normalized = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -336,6 +355,46 @@ export async function processBookingFlow(input: {
       dateLabel: selectedDate ?? 'ese día',
       nowIso,
     });
+  }
+
+  if (decision.operation === 'confirm_booking') {
+    try {
+      const confirmed = await confirmBookingSession(client, {
+        businessId: context.businessId,
+        conversationId: context.conversationId,
+        sessionId: session.id,
+        inboundMessageId: context.inboundMessageId,
+        expectedVersion: session.version,
+      });
+      if (confirmed.outcome === 'unavailable') {
+        const options = confirmed.offered_times ?? [];
+        const reply = options.length
+          ? `${bookingReplies.unavailable} ${availabilityReply(session.selected_date ?? 'ese día', options)}`
+          : bookingReplies.noAvailability;
+        const sent = await input.sendReply(reply);
+        return { handled: true as const, sent, handoff: false };
+      }
+      const reply = confirmationReply(confirmed, temporal.timezone);
+      const sent = await input.sendReply(reply);
+      if (sent.messageId) {
+        await recordBookingConfirmationResponse(client, {
+          businessId: context.businessId,
+          sessionId: session.id,
+          inboundMessageId: context.inboundMessageId,
+          responseMessageId: sent.messageId,
+        });
+      }
+      return { handled: true as const, sent, handoff: false };
+    } catch {
+      await client.from('beauty_conversations').update({
+        needs_attention: true,
+        attention_reason: 'BOOKING_CONFIRMATION_FAILED',
+      }).eq('id', context.conversationId).eq('business_id', context.businessId);
+      const sent = await input.sendReply(
+        'No he podido confirmar la cita ahora mismo. Una persona del negocio la revisará contigo.',
+      );
+      return { handled: true as const, sent, handoff: false };
+    }
   }
 
   const saved = decision.next
