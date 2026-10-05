@@ -3,15 +3,12 @@ import { useState } from 'react';
 import { AuthShell } from '../components/AuthShell';
 import {
   signUpBeautyAccount,
-  type BeautyBusinessType,
 } from '../services/authService';
-
-const businessTypes: Array<{ value: BeautyBusinessType; label: string }> = [
-  { value: 'nail_salon', label: 'Salón de uñas' },
-  { value: 'hair_salon', label: 'Peluquería' },
-  { value: 'beauty_center', label: 'Centro de estética' },
-  { value: 'other', label: 'Otro' },
-];
+import {
+  beautyBusinessTypeLabels,
+  beautyBusinessTypes,
+  type BeautyBusinessType,
+} from '../../beauty/data/businessProfile';
 
 export function SignUpPage({
   onBack,
@@ -93,7 +90,7 @@ export function SignUpPage({
       <form className="auth-form auth-form--signup" onSubmit={handleSubmit}>
         <label><span>Tu nombre</span><span className="auth-input"><UserRound size={19} /><input autoComplete="name" maxLength={160} onChange={(event) => setOwnerDisplayName(event.target.value)} required value={ownerDisplayName} /></span></label>
         <label><span>Nombre del negocio</span><span className="auth-input"><Building2 size={19} /><input maxLength={160} onChange={(event) => setBusinessName(event.target.value)} required value={businessName} /></span></label>
-        <label><span>Tipo de negocio</span><select className="auth-select" onChange={(event) => setBusinessType(event.target.value as BeautyBusinessType)} value={businessType}>{businessTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+        <label><span>Tipo de negocio</span><select className="auth-select" onChange={(event) => setBusinessType(event.target.value as BeautyBusinessType)} value={businessType}>{beautyBusinessTypes.map((type) => <option key={type} value={type}>{beautyBusinessTypeLabels[type]}</option>)}</select></label>
         <label><span>Correo electrónico</span><span className="auth-input"><Mail size={19} /><input autoComplete="email" inputMode="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></span></label>
         <label><span>Teléfono del negocio</span><span className="auth-input"><Phone size={19} /><input autoComplete="tel" inputMode="tel" onChange={(event) => setBusinessPhone(event.target.value)} placeholder="+34 600 000 000" required type="tel" value={businessPhone} /></span></label>
         <label><span>Contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((visible) => !visible)} type="button">{showPassword ? <EyeOff /> : <Eye />}</button></span><small className="auth-field-help">Mínimo 10 caracteres, con letras y números.</small></label>

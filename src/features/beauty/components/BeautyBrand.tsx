@@ -15,9 +15,9 @@ export function BeautyBrandMark({ className = '', size = 'md' }: BeautyBrandMark
 
 export function BeautyBrandLockup() {
   return (
-    <div className="beauty-brand-lockup" aria-label="COSTABOTS Beauty">
+    <div className="beauty-brand-lockup" aria-label="COSTABOTS">
       <BeautyBrandMark />
-      <span><strong>COSTABOTS</strong><small>BEAUTY</small></span>
+      <span><strong>COSTABOTS</strong></span>
     </div>
   );
 }

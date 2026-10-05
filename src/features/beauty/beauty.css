@@ -30,6 +30,41 @@ button { color: inherit; }
 button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99, .28); outline-offset: 2px; }
 
 .beauty-app { min-height: 100vh; background: var(--beauty-bg); }
+.beauty-app[data-theme="nails"] {
+  --beauty-primary: #c96f63;
+  --beauty-primary-dark: #a95148;
+  --beauty-primary-soft: #f6e3df;
+}
+.beauty-app[data-theme="hair"] {
+  --beauty-primary: #a67c52;
+  --beauty-primary-dark: #75563a;
+  --beauty-primary-soft: #f1e6d8;
+  --beauty-bg: #f7f3ed;
+  --beauty-line: #e6ddd2;
+}
+.beauty-app[data-theme="barber"] {
+  --beauty-primary: #4e5a5b;
+  --beauty-primary-dark: #2f393a;
+  --beauty-primary-soft: #e4e8e6;
+  --beauty-bg: #f5f1e8;
+  --beauty-card: #fffdf7;
+  --beauty-ink: #252a29;
+  --beauty-muted: #6e716d;
+  --beauty-line: #ded8ca;
+}
+.beauty-app[data-theme="beauty"] {
+  --beauty-primary: #78927d;
+  --beauty-primary-dark: #526b58;
+  --beauty-primary-soft: #e3ede5;
+  --beauty-bg: #f5f3ea;
+}
+.beauty-app[data-theme="neutral"] {
+  --beauty-primary: #526f91;
+  --beauty-primary-dark: #38526f;
+  --beauty-primary-soft: #e5edf5;
+  --beauty-bg: #f3f5f7;
+  --beauty-line: #dfe4e8;
+}
 .beauty-main { width: 100%; max-width: 760px; min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
 .beauty-page { display: grid; gap: 24px; padding: 22px 16px 32px; }
 .desktop-brand { display: none; }

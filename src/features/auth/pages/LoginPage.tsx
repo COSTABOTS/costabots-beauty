@@ -25,7 +25,7 @@ export function LoginPage({ onForgotPassword, onSignUp }: { onForgotPassword: ()
 
   return (
     <AuthShell
-      footer={<>Acceso exclusivo para equipos de negocios COSTABOTS Beauty.</>}
+      footer={<>Acceso exclusivo para equipos de negocios COSTABOTS.</>}
       subtitle="Tu agenda, clientes y recepcionista inteligente en un solo lugar."
       title="Bienvenida de nuevo"
     >
@@ -41,7 +41,7 @@ export function LoginPage({ onForgotPassword, onSignUp }: { onForgotPassword: ()
         {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
         <button className="auth-primary-button" disabled={loading} type="submit">{loading ? 'Iniciando sesión…' : 'Iniciar sesión'}</button>
         <button className="auth-link-button" onClick={onForgotPassword} type="button">¿Has olvidado tu contraseña?</button>
-        {onSignUp && <div className="auth-separator"><span>¿Primera vez en COSTABOTS Beauty?</span><button className="auth-secondary-button" onClick={onSignUp} type="button">Crear cuenta</button></div>}
+        {onSignUp && <div className="auth-separator"><span>¿Primera vez en COSTABOTS?</span><button className="auth-secondary-button" onClick={onSignUp} type="button">Crear cuenta</button></div>}
       </form>
     </AuthShell>
   );

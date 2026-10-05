@@ -1,4 +1,5 @@
 import type { Session, User } from '@supabase/supabase-js';
+import type { BeautyBusinessType } from '../../beauty/data/businessProfile';
 
 export type AuthState =
   | { status: 'loading'; session: null; user: null; message: null }
@@ -10,6 +11,7 @@ export type BeautyBusiness = {
   id: string;
   name: string;
   slug: string;
+  businessType: BeautyBusinessType;
   timezone: string;
   defaultCurrency: string;
   defaultLanguage: string;

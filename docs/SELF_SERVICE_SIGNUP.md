@@ -1,4 +1,4 @@
-# Alta autoservicio de COSTABOTS Beauty
+# Alta autoservicio de COSTABOTS
 
 ## Estado y alcance
 
@@ -42,7 +42,7 @@ fase.
 La migración `20260730140023_self_service_signup.sql` añade:
 
 - `beauty_businesses.business_type`, limitado a `nail_salon`, `hair_salon`,
-  `beauty_center` u `other`;
+  `barber_shop`, `beauty_center` u `other`;
 - la RPC autenticada `complete_beauty_signup`.
 
 La RPC no acepta `user_id`, `owner_id`, `role`, `business_id`, estado de
@@ -57,6 +57,12 @@ error revierte la operación completa.
 
 El slug se normaliza en servidor y recibe un sufijo derivado de un UUID nuevo.
 El nombre visible nunca se usa directamente como identificador técnico.
+
+La migración incremental
+`20261006120035_productize_appointments_business_types.sql` amplía el
+constraint y la validación de `complete_beauty_signup` para que Barbería sea un
+tipo de negocio de primera clase. Las migraciones históricas aplicadas no se
+modifican.
 
 ## Tablas y RLS
 

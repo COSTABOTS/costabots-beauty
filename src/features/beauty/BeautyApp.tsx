@@ -50,6 +50,7 @@ import { SchedulesManagementPage, ServicesManagementPage, StaffManagementPage } 
 import { ConfigurationPage, OnboardingPage, type SetupProgress } from './components/BusinessConfiguration';
 import { SupabaseWhatsAppInbox } from './components/WhatsAppIntegration';
 import { useWhatsAppConversations } from './data/whatsappRealtime';
+import { resolveBusinessTheme } from './data/businessTheme';
 import { localDateTimeToIso } from './data/mappers';
 import { addCalendarDays, dateInTimeZone, formatBusinessDate, formatWeekLabel, weekRange } from './data/dateRange';
 import './beauty.css';
@@ -101,6 +102,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   if (beautyData.status !== 'ready') return null;
   const { appointments: loadedAppointments, customers, services, staff, timeBlocks } = beautyData.data;
   const businessName = beautyData.data.business.name;
+  const businessTheme = resolveBusinessTheme(beautyData.data.business.businessType);
   const mode = beautyData.mode;
   const whatsappRealtime = useWhatsAppConversations(
     membership.business.id,
@@ -218,7 +220,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   }
 
   return (
-    <div className="beauty-app">
+    <div className="beauty-app" data-theme={businessTheme}>
       <aside className="desktop-brand">
         <BeautyBrandLockup />
         <button className="desktop-signout" onClick={() => void handleSignOut()} type="button">
@@ -620,7 +622,7 @@ function MorePage({ businessName, mode, navigate, onSignOut, progress, serviceCo
   return (
     <div className="beauty-page">
       <PageHeader eyebrow="Tu espacio de trabajo" title="Más" />
-      <section className="business-card"><BeautyBrandMark size="lg" /><span><strong>{businessName}</strong><small>COSTABOTS Beauty · Sesión protegida</small></span><ShieldCheck size={20} /></section>
+      <section className="business-card"><BeautyBrandMark size="lg" /><span><strong>{businessName}</strong><small>COSTABOTS · Sesión protegida</small></span><ShieldCheck size={20} /></section>
       <div className="more-list">
         {items.map(({ icon: Icon, label, detail, route, state }) => <button disabled={!route} key={label} onClick={() => route && navigate(route)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span>{state && <FeatureStateBadge state={state} />}{!route && <FeatureStateBadge state="soon" />}</button>)}
       </div>

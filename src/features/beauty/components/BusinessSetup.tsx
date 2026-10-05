@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarOff, Clock3, Copy, Plus, Search, Trash2 } from 'luci
 import { useMemo, useState } from 'react';
 import type { Appointment, BeautyService, StaffMember } from '../types';
 import type { ImportServiceItem, ImportServicesResult, ServiceInput, StaffInput, StaffSchedule, StaffServiceAssignment, WeeklyScheduleSegmentInput } from '../data/types';
+import type { BeautyBusinessType } from '../data/businessProfile';
 import { Avatar, FeatureStateBadge, PageHeader } from './ui';
 import { ServiceTemplateImporter } from './ServiceTemplateImporter';
 
@@ -86,7 +87,7 @@ function AssignmentEditor({ assignment, onSave, service }: { assignment?: StaffS
 }
 
 export function ServicesManagementPage({ businessCurrency, businessType, canManage, mode, onBack, onCreate, onDeactivate, onImport, onSetAssignment, onUpdate, openTemplateInitially = false, services, staff, staffServices }: {
-  businessCurrency: string; businessType: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other'; canManage: boolean; mode: 'mock' | 'supabase'; onBack: () => void; services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[];
+  businessCurrency: string; businessType: BeautyBusinessType; canManage: boolean; mode: 'mock' | 'supabase'; onBack: () => void; services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[];
   onCreate: (value: ServiceInput) => Promise<string>; onUpdate: (value: ServiceInput & { serviceId: string; active: boolean }) => Promise<string>; onDeactivate: (id: string) => Promise<string>;
   onImport: (services: ImportServiceItem[]) => Promise<ImportServicesResult>;
   onSetAssignment: (value: { staffId: string; serviceId: string; durationMinutes: number | null; price: number | null; active: boolean }) => Promise<string>;
@@ -94,7 +95,7 @@ export function ServicesManagementPage({ businessCurrency, businessType, canMana
 }) {
   const [editing, setEditing] = useState<BeautyService | 'new' | null>(null); const [query, setQuery] = useState(''); const [showInactive, setShowInactive] = useState(false); const [error, setError] = useState(''); const [showTemplate, setShowTemplate] = useState(openTemplateInitially);
   const visible = services.filter((item) => (showInactive || item.active !== false) && item.name.toLowerCase().includes(query.toLowerCase()));
-  return <div className="beauty-page setup-page"><PageHeader eyebrow="Catálogo del salón" title="Servicios" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button></div>} />
+  return <div className="beauty-page setup-page"><PageHeader eyebrow="Catálogo del negocio" title="Servicios" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button></div>} />
     <section className="service-add-options"><h2>¿Cómo quieres añadir tus servicios?</h2><div><button className="template-primary-action" disabled={!canManage} onClick={() => setShowTemplate(true)} type="button">Usar una plantilla<small>Revisa sugerencias de tu tipo de negocio</small></button><button disabled={!canManage} onClick={() => setEditing('new')} type="button">Nuevo servicio</button><button className="soon-action" disabled type="button">Importar catálogo con IA · Próximamente</button></div></section>
     <div className="setup-toolbar"><label className="beauty-search"><Search size={18} /><input placeholder="Buscar servicio" value={query} onChange={(e) => setQuery(e.target.value)} /></label></div>
     <div className="catalog-tools"><label className="inactive-filter"><input checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} type="checkbox" />Mostrar inactivos</label></div>

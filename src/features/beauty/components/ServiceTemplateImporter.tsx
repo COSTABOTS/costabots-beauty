@@ -2,6 +2,7 @@ import { Check, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { BeautyService, StaffMember } from '../types';
 import type { ImportServiceItem, ImportServicesResult } from '../data/types';
+import type { BeautyBusinessType } from '../data/businessProfile';
 import {
   normalizeServiceName,
   recommendedTemplate,
@@ -32,7 +33,7 @@ export function ServiceTemplateImporter({
   onImport,
   staff,
 }: {
-  businessType: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
+  businessType: BeautyBusinessType;
   currency: string;
   existingServices: BeautyService[];
   onClose: () => void;
@@ -40,8 +41,8 @@ export function ServiceTemplateImporter({
   staff: StaffMember[];
 }) {
   const recommended = recommendedTemplate(businessType);
-  const [template, setTemplate] = useState<ServiceTemplateKey | null>(businessType === 'other' ? null : recommended);
-  const [rows, setRows] = useState<EditableSuggestion[]>(() => businessType === 'other' ? [] : suggestionsFor(recommended));
+  const [template, setTemplate] = useState<ServiceTemplateKey | null>(recommended);
+  const [rows, setRows] = useState<EditableSuggestion[]>(() => recommended ? suggestionsFor(recommended) : []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ImportServicesResult | null>(null);
@@ -70,7 +71,7 @@ export function ServiceTemplateImporter({
     <header><span><small>Servicios iniciales</small><h2>Usar una plantilla</h2></span><button aria-label="Cerrar plantillas" onClick={onClose} type="button"><X /></button></header>
     <p className="template-intro">Los precios y duraciones son sugerencias editables. Revisa todo antes de importar.</p>
     {businessType === 'other' && <p className="template-other-note">Tu tipo de negocio no carga servicios automáticamente. Elige una plantilla como punto de partida o vuelve para crear uno manualmente.</p>}
-    <div className="template-picker">{(Object.keys(serviceTemplates) as ServiceTemplateKey[]).map((key) => <button className={template === key ? 'is-active' : ''} key={key} onClick={() => loadTemplate(key)} type="button"><span>{serviceTemplateLabels[key]}</span>{key === recommended && businessType !== 'other' && <small>Recomendada</small>}</button>)}</div>
+    <div className="template-picker">{(Object.keys(serviceTemplates) as ServiceTemplateKey[]).map((key) => <button className={template === key ? 'is-active' : ''} key={key} onClick={() => loadTemplate(key)} type="button"><span>{serviceTemplateLabels[key]}</span>{key === recommended && <small>Recomendada</small>}</button>)}</div>
     <div className="template-summary"><strong>{selected.length} de {rows.length} seleccionados</strong><span><button disabled={!rows.length} onClick={() => setRows((current) => current.map((row) => ({ ...row, selected: true })))} type="button">Seleccionar todos</button><button disabled={!rows.length} onClick={() => setRows((current) => current.map((row) => ({ ...row, selected: false })))} type="button">Desmarcar todos</button><button disabled={!template} onClick={() => { if (template) loadTemplate(template); }} type="button"><RotateCcw size={14} />Restaurar</button></span></div>
     {rows.length === 0 && <div className="empty-state empty-state--compact"><Sparkles /><h2>Elige una plantilla para empezar</h2><p>También puedes volver y crear el primer servicio manualmente.</p></div>}
     <div className="template-rows">{rows.map((row) => {

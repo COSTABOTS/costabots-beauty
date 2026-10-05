@@ -1,4 +1,6 @@
-export type ServiceTemplateKey = 'nail_salon' | 'hair_salon' | 'beauty_center';
+import type { BeautyBusinessType } from './businessProfile';
+
+export type ServiceTemplateKey = 'nail_salon' | 'hair_salon' | 'barber_shop' | 'beauty_center';
 
 export type ServiceTemplateSuggestion = {
   id: string;
@@ -11,6 +13,7 @@ export type ServiceTemplateSuggestion = {
 export const serviceTemplateLabels: Record<ServiceTemplateKey, string> = {
   nail_salon: 'Salón de uñas',
   hair_salon: 'Peluquería',
+  barber_shop: 'Barbería',
   beauty_center: 'Centro de estética',
 };
 
@@ -40,6 +43,14 @@ export const serviceTemplates: Record<ServiceTemplateKey, ServiceTemplateSuggest
     { id: 'hair-treatment', name: 'Tratamiento capilar', durationMinutes: 45, price: 30, category: 'hair' },
     { id: 'hair-updo', name: 'Recogido', durationMinutes: 60, price: 45, category: 'hair' },
   ],
+  barber_shop: [
+    { id: 'barber-cut', name: 'Corte', durationMinutes: 30, price: 15, category: 'barber' },
+    { id: 'barber-beard', name: 'Barba', durationMinutes: 30, price: 10, category: 'barber' },
+    { id: 'barber-cut-beard', name: 'Corte + barba', durationMinutes: 45, price: 22, category: 'barber' },
+    { id: 'barber-child-cut', name: 'Corte infantil', durationMinutes: 30, price: 12, category: 'barber' },
+    { id: 'barber-premium-beard', name: 'Arreglo de barba premium', durationMinutes: 30, price: 15, category: 'barber' },
+    { id: 'barber-classic-shave', name: 'Afeitado clásico', durationMinutes: 30, price: 15, category: 'barber' },
+  ],
   beauty_center: [
     { id: 'beauty-clean', name: 'Limpieza facial', durationMinutes: 60, price: 45, category: 'facial' },
     { id: 'beauty-facial', name: 'Tratamiento facial', durationMinutes: 75, price: 60, category: 'facial' },
@@ -57,9 +68,9 @@ export const serviceTemplates: Record<ServiceTemplateKey, ServiceTemplateSuggest
 export const serviceDurationOptions = [15, 30, 45, 60, 75, 90, 120, 150, 180];
 
 export function recommendedTemplate(
-  businessType: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other',
-): ServiceTemplateKey {
-  return businessType === 'other' ? 'nail_salon' : businessType;
+  businessType: BeautyBusinessType,
+): ServiceTemplateKey | null {
+  return businessType === 'other' ? null : businessType;
 }
 
 export function normalizeServiceName(value: string) {

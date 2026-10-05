@@ -9,9 +9,10 @@ import {
 import type { BeautyRepository } from './BeautyRepository';
 import { BeautyRepositoryError } from './BeautyRepository';
 import { localDateTimeToIso } from './mappers';
-import type { BeautyOperationalData, DateRange, WritableAppointmentStatus } from './types';
+import type { BeautyOperationalData, DateRange, RepositoryBusiness, WritableAppointmentStatus } from './types';
 import type { BeautyService } from '../types';
 import { beautyEnvironment } from '../../../config/environment';
+import { isBeautyBusinessType } from './businessProfile';
 
 let mockAppointments = appointments.map((appointment) => ({ ...appointment }));
 let mockTimeBlocks = timeBlocks.map((block) => ({ ...block }));
@@ -38,11 +39,11 @@ let mockCustomers = seededCustomers.map((customer) => ({
   reminderConsent: customer.messagingConsent,
   active: true,
 }));
-let mockBusiness = {
+let mockBusiness: RepositoryBusiness = {
   id: business.id,
   name: business.name,
   slug: 'luna-beauty-studio',
-  businessType: 'nail_salon' as const,
+  businessType: 'nail_salon',
   timezone: 'Europe/Madrid',
   currency: 'EUR',
   language: 'es',
@@ -118,7 +119,12 @@ function restoreMockState() {
       storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
       return;
     }
-    mockBusiness = { ...stored.business, businessType: stored.business.businessType ?? 'nail_salon' };
+    mockBusiness = {
+      ...stored.business,
+      businessType: isBeautyBusinessType(stored.business.businessType)
+        ? stored.business.businessType
+        : 'nail_salon',
+    };
     mockAppointments = stored.appointments;
     mockTimeBlocks = stored.timeBlocks;
     mockStaff = stored.staff;
