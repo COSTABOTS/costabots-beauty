@@ -31,7 +31,7 @@ import {
   business,
   conversations as initialConversations,
   customers as mockCustomers,
-} from './mock/data';
+} from './mock/barberDemo';
 import type { Appointment, AppointmentStatus, BeautyRoute, Conversation, ConversationStatus, Customer } from './types';
 import {
   AppointmentCard,

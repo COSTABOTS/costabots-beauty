@@ -5,7 +5,7 @@ import {
   services,
   staff,
   timeBlocks,
-} from '../mock/data';
+} from '../mock/barberDemo';
 import type { BeautyRepository } from './BeautyRepository';
 import { BeautyRepositoryError } from './BeautyRepository';
 import { localDateTimeToIso } from './mappers';
@@ -22,14 +22,16 @@ let mockStaffServices = mockStaff.flatMap((member) => mockServices.map((service)
   id: `${member.id}-${service.id}`, staffId: member.id, serviceId: service.id,
   durationMinutes: service.durationMinutes, price: service.price, active: true,
 })));
-let mockSchedules: import('./types').StaffSchedule[] = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
-  id: `mock-schedule-initial-${dayOfWeek}`,
-  staffId: mockStaff[0].id,
-  dayOfWeek,
-  start: '09:00',
-  end: '18:00',
-  active: true,
-}));
+let mockSchedules: import('./types').StaffSchedule[] = mockStaff.flatMap((member) => (
+  [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+    id: `mock-schedule-${member.id}-${dayOfWeek}`,
+    staffId: member.id,
+    dayOfWeek,
+    start: '09:00',
+    end: '20:00',
+    active: true,
+  }))
+));
 let mockCustomers = seededCustomers.map((customer) => ({
   ...customer,
   firstName: customer.name.split(' ')[0] ?? customer.name,
@@ -42,18 +44,18 @@ let mockCustomers = seededCustomers.map((customer) => ({
 let mockBusiness: RepositoryBusiness = {
   id: business.id,
   name: business.name,
-  slug: 'luna-beauty-studio',
-  businessType: 'nail_salon',
+  slug: 'nor-barber-club',
+  businessType: business.businessType,
   timezone: 'Europe/Madrid',
   currency: 'EUR',
   language: 'es',
   phone: '+34 600 000 000',
-  email: 'hola@lunabeauty.example',
-  address: 'Calle de ejemplo, 12',
+  email: 'hola@norbarber.example',
+  address: 'Calle de la Barbería, 12',
 };
 
 export const MOCK_BEAUTY_STORAGE_KEY = 'costabots-beauty:mock-state:v1';
-const MOCK_BEAUTY_STORAGE_VERSION = 1;
+const MOCK_BEAUTY_STORAGE_VERSION = 2;
 let mockPersistenceEnabled = true;
 
 type StoredMockState = {

@@ -1,3 +1,5 @@
+import type { BeautyBusinessType } from '../data/businessProfile';
+
 export type BeautyRoute = 'today' | 'agenda' | 'customers' | 'messages' | 'more' | 'automations' | 'staff' | 'services' | 'schedules' | 'configuration' | 'onboarding';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'arrived' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
 export type ConversationStatus = 'ai_handled' | 'waiting_customer' | 'needs_human' | 'human_handled' | 'closed';
@@ -7,6 +9,7 @@ export interface BeautyBusiness {
   name: string;
   ownerName: string;
   assistantActive: boolean;
+  businessType: BeautyBusinessType;
 }
 
 export interface StaffMember {

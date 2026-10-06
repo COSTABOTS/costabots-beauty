@@ -138,7 +138,7 @@ export function ConfigurationPage({
     </section>
     <section className="configuration-section"><h2>Datos del negocio</h2><p>Información visible y valores usados por la agenda.</p><BusinessProfileForm business={business} canManage={canManage} onSave={onSave} /></section>
     {mode === 'supabase' && <WhatsAppSettings businessId={businessId} canManage={canManage} enabled={whatsappEnabled} />}
-    {mode === 'mock' && <section className="configuration-section configuration-section--reset"><h2>Demostración</h2><p>Restaura los datos ficticios iniciales y elimina únicamente los cambios guardados en este navegador.</p><button className="danger-inline" onClick={() => { if (window.confirm('¿Reiniciar la demostración y descartar los cambios guardados en este navegador?')) resetMockBeautyDemo(); }} type="button">Reiniciar demostración</button></section>}
+    {mode === 'mock' && <section className="configuration-section configuration-section--reset"><h2>Demostración</h2><p>Restaura NØR Barber Club y elimina únicamente los cambios guardados en este navegador.</p><button className="danger-inline" onClick={() => { if (window.confirm('¿Restablecer la demo y descartar los cambios guardados en este navegador?')) resetMockBeautyDemo(); }} type="button">Restablecer demo</button></section>}
   </div>;
 }
 
