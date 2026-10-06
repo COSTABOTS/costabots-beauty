@@ -18,11 +18,6 @@
 .beauty-brand-lockup > span:last-child { display: grid; }
 .beauty-brand-lockup strong { font-size: .88rem; letter-spacing: .045em; }
 .beauty-brand-lockup small { color: #a95148; font-size: .68rem; font-weight: 900; letter-spacing: .13em; }
-.beauty-brand-mark { display: inline-grid; flex: 0 0 auto; overflow: visible; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; }
-.beauty-brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.beauty-brand-mark--sm { width: 36px; height: 36px; }
-.beauty-brand-mark--md { width: 44px; height: 44px; }
-.beauty-brand-mark--lg { width: 58px; height: 58px; }
 .auth-heading { margin: 34px 0 24px; }
 .auth-heading h1 { margin: 0; font-size: clamp(1.8rem,8vw,2.35rem); line-height: 1.05; letter-spacing: -.045em; }
 .auth-heading p { margin: 11px 0 0; color: #746d67; font-size: .9rem; line-height: 1.55; }

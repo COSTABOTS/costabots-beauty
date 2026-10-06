@@ -1,3 +1,5 @@
+import './BeautyBrand.css';
+
 type BeautyBrandMarkProps = {
   className?: string;
   size?: 'sm' | 'md' | 'lg';

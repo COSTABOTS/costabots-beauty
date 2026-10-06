@@ -36,6 +36,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-primary: #c96f63;
   --beauty-primary-dark: #a95148;
   --beauty-primary-soft: #f6e3df;
+  --beauty-brand-mark-color: #c96f63;
 }
 .beauty-app[data-theme="hair"] {
   --beauty-primary: #a67c52;
@@ -45,6 +46,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-line: #e6ddd2;
   --beauty-primary-border: #d9c6b2;
   --beauty-focus-ring: rgba(166, 124, 82, .28);
+  --beauty-brand-mark-color: #a67c52;
 }
 .beauty-app[data-theme="barber"] {
   --beauty-primary: #303a39;
@@ -61,6 +63,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-accent-dark: #81532d;
   --beauty-accent-soft: #f1e3d2;
   --beauty-barber-sage: #66736d;
+  --beauty-brand-mark-color: var(--beauty-accent);
   --shadow-soft: 0 14px 34px rgba(32, 38, 37, .09);
 }
 
@@ -202,6 +205,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-bg: #f5f3ea;
   --beauty-primary-border: #c8d7ca;
   --beauty-focus-ring: rgba(120, 146, 125, .28);
+  --beauty-brand-mark-color: #78927d;
 }
 .beauty-app[data-theme="neutral"] {
   --beauty-primary: #526f91;
@@ -211,6 +215,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-line: #dfe4e8;
   --beauty-primary-border: #c6d3df;
   --beauty-focus-ring: rgba(82, 111, 145, .28);
+  --beauty-brand-mark-color: #526f91;
 }
 .beauty-main { width: 100%; max-width: 760px; min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
 .beauty-page { display: grid; gap: 24px; padding: 22px 16px 32px; }
@@ -233,7 +238,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .today-date { display: block; margin-top: 7px; color: var(--beauty-muted); font-size: .88rem; }
 .profile-button, .icon-button-soft, .primary-circle-button, .round-arrow { display: inline-grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: var(--beauty-card); box-shadow: var(--shadow-soft); cursor: pointer; }
 .profile-button--brand { width: 42px; height: 42px; padding: 2px; background: transparent; box-shadow: none; }
-.profile-button--brand .beauty-brand-mark { background: transparent; box-shadow: none; }
+.profile-button--brand .beauty-brand-mark { box-shadow: none; }
 .primary-circle-button { color: #fff; background: var(--beauty-primary); }
 .primary-icon-button { min-height: 42px; padding: 0 16px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 999px; background: var(--beauty-primary-soft); cursor: pointer; }
 
