@@ -2,6 +2,7 @@ import { Eye, EyeOff, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 import { AuthShell } from '../components/AuthShell';
 import { updatePassword } from '../services/authService';
+import { isValidPassword, PASSWORD_REQUIREMENTS } from '../passwordPolicy';
 
 export function ResetPasswordPage({ onComplete }: { onComplete: () => void }) {
   const [password, setPassword] = useState('');
@@ -13,8 +14,8 @@ export function ResetPasswordPage({ onComplete }: { onComplete: () => void }) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.');
+    if (!isValidPassword(password)) {
+      setError(PASSWORD_REQUIREMENTS);
       return;
     }
     if (password !== confirmation) {
@@ -44,8 +45,8 @@ export function ResetPasswordPage({ onComplete }: { onComplete: () => void }) {
         </div>
       ) : (
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label><span>Nueva contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={8} onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((visible) => !visible)} type="button">{showPassword ? <EyeOff /> : <Eye />}</button></span></label>
-          <label><span>Repite la contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={8} onChange={(event) => setConfirmation(event.target.value)} required type={showPassword ? 'text' : 'password'} value={confirmation} /></span></label>
+          <label><span>Nueva contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((visible) => !visible)} type="button">{showPassword ? <EyeOff /> : <Eye />}</button></span><small className="auth-field-help">{PASSWORD_REQUIREMENTS}</small></label>
+          <label><span>Repite la contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setConfirmation(event.target.value)} required type={showPassword ? 'text' : 'password'} value={confirmation} /></span></label>
           {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
           <button className="auth-primary-button" disabled={loading} type="submit">{loading ? 'Guardando…' : 'Guardar contraseña'}</button>
         </form>

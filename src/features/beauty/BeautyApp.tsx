@@ -53,6 +53,7 @@ import { useWhatsAppConversations } from './data/whatsappRealtime';
 import { resolveBusinessTheme } from './data/businessTheme';
 import { localDateTimeToIso } from './data/mappers';
 import { addCalendarDays, dateInTimeZone, formatBusinessDate, formatWeekLabel, weekRange } from './data/dateRange';
+import { formatAppointmentSource, formatMoney, selectNextAppointment } from './presentation';
 import './beauty.css';
 
 function dateLabel(date: string, timezone = 'Europe/Madrid') {
@@ -235,7 +236,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'agenda' && <AgendaPage agendaMessage={beautyData.agendaMessage} agendaRange={beautyData.agendaRange ?? weekRange(selectedDate)} agendaStatus={beautyData.agendaStatus} appointments={appointments} customers={customers} date={selectedDate} mode={mode} onCreateAppointment={openNewAppointment} onCreateBlock={() => setActiveForm('block')} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onOpenBlock={(id) => { setSelectedBlockId(id); setActiveForm('edit-block'); }} onRetry={beautyData.retryAgenda} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
         {route === 'customers' && <CustomersPage canManage={canManageCustomers} customers={customers} mode={mode} onCreateCustomer={() => setActiveForm('customer')} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && (mode === 'supabase'
-          ? <SupabaseWhatsAppInbox businessId={membership.business.id} conversations={whatsappRealtime.conversations} conversationsError={whatsappRealtime.error} conversationsLoading={whatsappRealtime.loading} customers={customers} enabled={beautyEnvironment.whatsappEnabled} reloadConversations={whatsappRealtime.reload} />
+          ? <SupabaseWhatsAppInbox businessId={membership.business.id} conversations={whatsappRealtime.conversations} conversationsError={whatsappRealtime.error} conversationsLoading={whatsappRealtime.loading} customers={customers} enabled={beautyEnvironment.whatsappEnabled} reloadConversations={whatsappRealtime.reload} timezone={beautyData.data.business.timezone} />
           : <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />)}
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void handleSignOut()} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
@@ -266,7 +267,6 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
           }}
           onStatusChange={(status) => updateAppointmentStatus(selectedAppointment.id, status)}
           onEdit={() => setActiveForm('edit-appointment')}
-          showToast={showToast}
         />
       )}
       {selectedCustomer && <CustomerDetail canManage={canManageCustomers} customer={selectedCustomer} getHistory={beautyData.getCustomerHistory} mode={mode} onClose={() => setSelectedCustomerId(null)} onCreateAppointment={() => { setAppointmentCustomerId(selectedCustomer.id); setSelectedCustomerId(null); openNewAppointment(); }} onDeactivate={async () => { await beautyData.deactivateCustomer({ customerId: selectedCustomer.id }); showToast(mode === 'mock' ? 'Cliente desactivado en la demo' : 'Cliente desactivado'); }} onEdit={() => setActiveForm('edit-customer')} onOpenAppointment={(appointment, linkedServices) => { setAppointments((current) => current.some((item) => item.id === appointment.id) ? current : [...current, appointment]); setExtraAppointmentServices((current) => [...current.filter((item) => item.appointmentId !== appointment.id), ...linkedServices]); setSelectedCustomerId(null); setSelectedAppointmentId(appointment.id); }} services={services} staff={staff} timezone={beautyData.data.business.timezone} today={operationalToday} />}
@@ -279,8 +279,8 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
       )}
       {activeForm === 'block' && <TimeBlockForm defaultDate={selectedDate} initialStaffId={setupStaffId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => setActiveForm(null)} onCreate={beautyData.createTimeBlock} onSaved={() => { setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Tiempo no disponible guardado' : 'Tiempo no disponible creado en la demo'); }} staff={staff.filter((item) => item.active !== false)} />}
       {activeForm === 'edit-block' && selectedBlock && <TimeBlockForm block={selectedBlock} defaultDate={selectedBlock.date} initialStaffId={selectedBlock.staffId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => { setActiveForm(null); setSelectedBlockId(null); }} onCreate={async () => {}} onDeactivate={() => beautyData.deactivateTimeBlock({ blockId: selectedBlock.id })} onSaved={() => { setActiveForm(null); setSelectedBlockId(null); showToast(beautyData.mode === 'supabase' ? 'Tiempo no disponible actualizado' : 'Tiempo no disponible actualizado en la demo'); }} onUpdate={beautyData.updateTimeBlock} staff={staff.filter((item) => item.active !== false)} />}
-      {activeForm === 'appointment' && setupProgress.complete && <NewAppointmentForm customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedDate} initialCustomerId={appointmentCustomerId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => { setActiveForm(null); setAppointmentCustomerId(null); }} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setAppointmentCustomerId(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services.filter((item) => item.active !== false)} staff={staff.filter((item) => item.active !== false)} staffServices={beautyData.data.staffServices.filter((item) => item.active)} timezone={beautyData.data.business.timezone} />}
-      {activeForm === 'edit-appointment' && selectedAppointment && <NewAppointmentForm appointment={selectedAppointment} customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedAppointment.date} initialCustomerId={selectedAppointment.customerId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => setActiveForm(null)} onCreate={async () => {}} onUpdate={async (command) => { await beautyData.updateAppointment(command); setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Cita actualizada' : 'Cita actualizada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services.filter((item) => item.active !== false)} staff={staff.filter((item) => item.active !== false)} staffServices={beautyData.data.staffServices.filter((item) => item.active)} timezone={beautyData.data.business.timezone} />}
+      {activeForm === 'appointment' && setupProgress.complete && <NewAppointmentForm businessCurrency={beautyData.data.business.currency} customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedDate} initialCustomerId={appointmentCustomerId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => { setActiveForm(null); setAppointmentCustomerId(null); }} onCreate={async (command) => { const id = await beautyData.createAppointment(command); setActiveForm(null); setAppointmentCustomerId(null); setSelectedAppointmentId(id); showToast(beautyData.mode === 'supabase' ? 'Cita creada' : 'Cita creada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services.filter((item) => item.active !== false)} staff={staff.filter((item) => item.active !== false)} staffServices={beautyData.data.staffServices.filter((item) => item.active)} timezone={beautyData.data.business.timezone} />}
+      {activeForm === 'edit-appointment' && selectedAppointment && <NewAppointmentForm appointment={selectedAppointment} businessCurrency={beautyData.data.business.currency} customers={customers.filter((customer) => customer.active !== false)} defaultDate={selectedAppointment.date} initialCustomerId={selectedAppointment.customerId} maxDate={addCalendarDays(operationalToday, 730)} minDate={addCalendarDays(operationalToday, -365)} onClose={() => setActiveForm(null)} onCreate={async () => {}} onUpdate={async (command) => { await beautyData.updateAppointment(command); setActiveForm(null); showToast(beautyData.mode === 'supabase' ? 'Cita actualizada' : 'Cita actualizada en la demo'); }} onGetAvailability={beautyData.getAvailability} services={services.filter((item) => item.active !== false)} staff={staff.filter((item) => item.active !== false)} staffServices={beautyData.data.staffServices.filter((item) => item.active)} timezone={beautyData.data.business.timezone} />}
       {activeForm === 'customer' && <CustomerForm mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { const id = await beautyData.createCustomer(value); setActiveForm(null); setSelectedCustomerId(id); showToast(mode === 'mock' ? 'Cliente creado en la demo' : 'Cliente creado'); }} staff={staff} />}
       {activeForm === 'edit-customer' && selectedCustomer && <CustomerForm customer={selectedCustomer} mode={mode} onClose={() => setActiveForm(null)} onSave={async (value) => { await beautyData.updateCustomer({ ...value, customerId: selectedCustomer.id }); setActiveForm(null); showToast(mode === 'mock' ? 'Cliente actualizado en la demo' : 'Cliente actualizado'); }} staff={staff} />}
       {toast && <div className="beauty-toast"><Check size={17} />{toast}</div>}
@@ -291,7 +291,8 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
 function TodayPage({ appointments, businessName, customers, navigate, onContinueSetup, onCreateAppointment, onCreateBlock, onOpenAppointment, onStatusChange, ownerDisplayName, services, setupProgress, staff, today, timezone }: { appointments: Appointment[]; businessName: string; customers: Customer[]; navigate: (route: BeautyRoute) => void; onContinueSetup: () => void; onCreateAppointment: () => void; onCreateBlock: () => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; ownerDisplayName: string; services: import('./types').BeautyService[]; setupProgress: SetupProgress; staff: import('./types').StaffMember[]; today: string; timezone: string }) {
   const todayAppointments = appointments.filter((appointment) => appointment.date === today);
   const activeAppointments = todayAppointments.filter((appointment) => appointment.status !== 'cancelled');
-  const nextAppointment = activeAppointments.find((appointment) => ['pending', 'confirmed'].includes(appointment.status)) ?? activeAppointments[0];
+  const currentTime = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+  const nextAppointment = selectNextAppointment(todayAppointments, currentTime);
 
   return (
     <div className="beauty-page">
@@ -333,6 +334,7 @@ function TodayPage({ appointments, businessName, customers, navigate, onContinue
             <AppointmentCard appointment={appointment} customer={findCustomer(customers, appointment.customerId)} key={appointment.id} onOpen={() => onOpenAppointment(appointment.id)} onStatusChange={onStatusChange} service={findService(services, appointment.serviceId)} staffMember={findStaff(staff, appointment.staffId)} />
           ))}
         </div> : <div className="empty-state"><CalendarDays /><h2>No tienes citas hoy</h2><p>Puedes reservar una cita o marcar el tiempo que no está disponible.</p><div className="empty-state__actions"><button onClick={onCreateAppointment} type="button"><CirclePlus size={17} />Nueva cita</button><button onClick={onCreateBlock} type="button"><Clock3 size={17} />Tiempo no disponible</button></div></div>}
+        {todayAppointments.length > 5 && <button className="today-agenda-link" onClick={() => navigate('agenda')} type="button">Ver las {todayAppointments.length} citas en Agenda</button>}
       </section>
 
       <section>
@@ -402,7 +404,7 @@ function CustomersPage({ canManage, customers, mode, onCreateCustomer, onOpenCus
       <PageHeader eyebrow="Conoce a quienes vuelven" title="Clientes" action={<button aria-label="Nuevo cliente" className="primary-icon-button customer-create-button" disabled={!canManage} onClick={onCreateCustomer} type="button"><CirclePlus size={17} />Nuevo cliente{mode === 'mock' && <FeatureStateBadge state="demo" />}</button>} />
       <label className="beauty-search"><Search size={19} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o teléfono" value={query} /></label>
       <label className="inactive-filter"><input checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} type="checkbox" /><span>Mostrar clientes inactivos</span></label>
-      {filteredCustomers.length === 0 && <div className="empty-state"><UsersRound /><h2>{customers.length === 0 ? 'Aún no tienes clientes' : 'No hay resultados'}</h2><p>{customers.length === 0 ? 'Crea la primera ficha para guardar contacto, notas e historial.' : 'Prueba con otro nombre o teléfono.'}</p>{customers.length === 0 && <button disabled={!canManage} onClick={onCreateCustomer} type="button">Crear primer cliente</button>}</div>}
+      {filteredCustomers.length === 0 && <div className="empty-state"><UsersRound /><h2>{customers.length === 0 ? 'Todavía no hay clientes' : 'No encontramos clientes'}</h2><p>{customers.length === 0 ? 'Crea la primera ficha para guardar contacto, notas e historial.' : 'Prueba con otro nombre o teléfono.'}</p>{customers.length === 0 && <button disabled={!canManage} onClick={onCreateCustomer} type="button">Crear primer cliente</button>}</div>}
       <div className="customer-list">
         {filteredCustomers.map((customer) => (
           <button className={`customer-row ${customer.active === false ? 'customer-row--inactive' : ''}`} key={customer.id} onClick={() => onOpenCustomer(customer.id)} type="button">
@@ -412,7 +414,6 @@ function CustomersPage({ canManage, customers, mode, onCreateCustomer, onOpenCus
           </button>
         ))}
       </div>
-      {filteredCustomers.length === 0 && <div className="empty-state"><UsersRound /><h2>Sin clientes</h2><p>No hay clientes que coincidan con la búsqueda.</p></div>}
     </div>
   );
 }
@@ -481,7 +482,7 @@ function TimeBlockForm({ block, defaultDate, initialStaffId, maxDate, minDate, o
   );
 }
 
-function NewAppointmentForm({ appointment, customers, defaultDate, initialCustomerId, maxDate, minDate, onClose, onCreate, onUpdate, onGetAvailability, services, staff, staffServices, timezone }: { appointment?: Appointment; customers: Customer[]; defaultDate: string; initialCustomerId: string | null; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateAppointmentCommand) => Promise<void>; onUpdate?: (command: import('./data/types').UpdateAppointmentCommand) => Promise<void>; onGetAvailability: (command: import('./data/types').AvailabilityCommand) => Promise<import('./data/types').AvailabilitySlot[]>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffServices: import('./data/types').StaffServiceAssignment[]; timezone: string }) {
+function NewAppointmentForm({ appointment, businessCurrency, customers, defaultDate, initialCustomerId, maxDate, minDate, onClose, onCreate, onUpdate, onGetAvailability, services, staff, staffServices, timezone }: { appointment?: Appointment; businessCurrency: string; customers: Customer[]; defaultDate: string; initialCustomerId: string | null; maxDate: string; minDate: string; onClose: () => void; onCreate: (command: import('./data/types').CreateAppointmentCommand) => Promise<void>; onUpdate?: (command: import('./data/types').UpdateAppointmentCommand) => Promise<void>; onGetAvailability: (command: import('./data/types').AvailabilityCommand) => Promise<import('./data/types').AvailabilitySlot[]>; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; staffServices: import('./data/types').StaffServiceAssignment[]; timezone: string }) {
   const [customerId, setCustomerId] = useState(initialCustomerId ?? customers[0]?.id ?? '');
   const initialStaffId = appointment?.staffId ?? staff[0]?.id ?? '';
   const initialEligibleServiceIds = services.filter((service) => staffServices.some((item) => item.staffId === initialStaffId && item.serviceId === service.id && item.active)).map((service) => service.id);
@@ -533,7 +534,7 @@ function NewAppointmentForm({ appointment, customers, defaultDate, initialCustom
       setError('Completa cliente, profesional, servicios y horario.');
       return;
     }
-    if (!appointment && !window.confirm(`Crear cita por ${totalPrice} € y ${totalDuration} minutos?`)) return;
+    if (!appointment && !window.confirm(`¿Crear cita por ${formatMoney(totalPrice, businessCurrency)} y ${totalDuration} minutos?`)) return;
     setError('');
     setSaving(true);
     try {
@@ -552,8 +553,8 @@ function NewAppointmentForm({ appointment, customers, defaultDate, initialCustom
         <div className="appointment-create-form__body">
         <label><span>Cliente</span><select disabled={Boolean(appointment)} onChange={(event) => setCustomerId(event.target.value)} value={customerId}>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
         {staff.length > 1 ? <div className="form-columns"><label><span>Profesional</span><select onChange={(event) => { const nextStaffId = event.target.value; const nextEligible = services.filter((service) => staffServices.some((item) => item.staffId === nextStaffId && item.serviceId === service.id && item.active)); setStaffId(nextStaffId); setServiceIds(nextEligible.length === 1 ? [nextEligible[0].id] : []); setSlots([]); setStartsAt(''); }} value={staffId}>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label><label><span>Fecha</span><input max={maxDate} min={minDate} onChange={(event) => { setDate(event.target.value); setSlots([]); setStartsAt(''); }} required type="date" value={date} /></label></div> : <><p className="auto-selection-note">{staff[0]?.name} atenderá esta cita.</p><label><span>Fecha</span><input max={maxDate} min={minDate} onChange={(event) => { setDate(event.target.value); setSlots([]); setStartsAt(''); }} required type="date" value={date} /></label></>}
-        {eligibleServices.length === 1 ? <div className="single-service-selection"><span><small>Servicio</small><strong>{eligibleServices[0].name}</strong></span><small>{assignments[0]?.durationMinutes} min · {assignments[0]?.price} €</small></div> : <fieldset><legend>Servicios</legend><div className="service-options">{eligibleServices.map((service) => <label key={service.id}><input checked={serviceIds.includes(service.id)} onChange={(event) => { setServiceIds((current) => event.target.checked ? [...current, service.id] : current.filter((id) => id !== service.id)); setSlots([]); setStartsAt(''); }} type="checkbox" /><span><strong>{service.name}</strong><small>{assignments.find((item) => item.serviceId === service.id)?.durationMinutes} min · {assignments.find((item) => item.serviceId === service.id)?.price} €</small></span></label>)}</div></fieldset>}
-        <div className="appointment-total"><span><small>Duración</small><strong>{totalDuration} min</strong></span><span><small>Total</small><strong>{totalPrice} €</strong></span></div>
+        {eligibleServices.length === 1 ? <div className="single-service-selection"><span><small>Servicio</small><strong>{eligibleServices[0].name}</strong></span><small>{assignments[0]?.durationMinutes} min · {formatMoney(assignments[0]?.price ?? 0, businessCurrency)}</small></div> : <fieldset><legend>Servicios</legend><div className="service-options">{eligibleServices.map((service) => { const assignment = assignments.find((item) => item.serviceId === service.id); return <label key={service.id}><input checked={serviceIds.includes(service.id)} onChange={(event) => { setServiceIds((current) => event.target.checked ? [...current, service.id] : current.filter((id) => id !== service.id)); setSlots([]); setStartsAt(''); }} type="checkbox" /><span><strong>{service.name}</strong><small>{assignment?.durationMinutes} min · {formatMoney(assignment?.price ?? 0, businessCurrency)}</small></span></label>; })}</div></fieldset>}
+        <div className="appointment-total"><span><small>Duración</small><strong>{totalDuration} min</strong></span><span><small>Total</small><strong>{formatMoney(totalPrice, businessCurrency)}</strong></span></div>
         <button className="form-secondary" disabled={loadingSlots} onClick={() => void findSlots()} type="button">{loadingSlots ? 'Consultando…' : 'Consultar horarios'}</button>
         {slots.length > 0 && <fieldset><legend>Hora disponible</legend><div className="slot-options">{slots.map((slot) => <button aria-pressed={startsAt === slot.startsAt} className={startsAt === slot.startsAt ? 'is-selected' : ''} key={slot.startsAt} onClick={() => setStartsAt(slot.startsAt)} type="button">{slotLabel(slot.startsAt)}</button>)}</div></fieldset>}
         {!loadingSlots && serviceIds.length > 0 && slots.length === 0 && <p className="inline-data-message">Consulta la disponibilidad para mostrar horas reales.</p>}
@@ -617,7 +618,7 @@ function MorePage({ businessName, mode, navigate, onSignOut, progress, serviceCo
     { icon: UsersRound, label: 'Equipo', detail: `${staffCount} profesionales`, route: 'staff' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
     { icon: Sparkles, label: 'Servicios', detail: `${serviceCount} servicios`, route: 'services' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
     { icon: Clock3, label: 'Horarios', detail: 'Semana habitual y tiempo no disponible', route: 'schedules' as BeautyRoute, state: mode === 'mock' ? 'demo' as const : undefined },
-    { icon: Settings2, label: 'Configuración', detail: progress.complete ? 'Negocio configurado' : `${progress.completedCount} de 5 requisitos`, route: 'configuration' as BeautyRoute },
+    { icon: Settings2, label: 'Configuración', detail: progress.complete ? 'Datos del negocio y WhatsApp' : `${progress.completedCount} de 5 requisitos · Datos y WhatsApp`, route: 'configuration' as BeautyRoute },
   ];
   return (
     <div className="beauty-page">
@@ -668,7 +669,7 @@ const secondaryStatusActions: Partial<Record<AppointmentStatus, Array<{ status: 
   ],
 };
 
-function AppointmentDetail({ appointment, appointmentServices, customers, onClose, onEdit, onOpenConversation, onStatusChange, readOnly, services, showToast, staff, timezone }: { appointment: Appointment; appointmentServices: import('./data/types').AppointmentService[]; customers: Customer[]; onClose: () => void; onEdit: () => void; onOpenConversation: () => void; onStatusChange: (status: AppointmentStatus) => Promise<void>; readOnly: boolean; services: import('./types').BeautyService[]; showToast: (message: string) => void; staff: import('./types').StaffMember[]; timezone: string }) {
+function AppointmentDetail({ appointment, appointmentServices, customers, onClose, onEdit, onOpenConversation, onStatusChange, readOnly, services, staff, timezone }: { appointment: Appointment; appointmentServices: import('./data/types').AppointmentService[]; customers: Customer[]; onClose: () => void; onEdit: () => void; onOpenConversation: () => void; onStatusChange: (status: AppointmentStatus) => Promise<void>; readOnly: boolean; services: import('./types').BeautyService[]; staff: import('./types').StaffMember[]; timezone: string }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const customer = findCustomer(customers, appointment.customerId);
@@ -696,8 +697,8 @@ function AppointmentDetail({ appointment, appointmentServices, customers, onClos
       <div className="detail-grid">
         <DetailRow icon={<UserRound size={18} />} label="Profesional" value={member.name} />
         <DetailRow icon={<Clock3 size={18} />} label="Horario" value={`${appointment.start}–${appointment.end} · ${appointment.totalDurationMinutes ?? service.durationMinutes} min`} />
-        <DetailRow icon={<Sparkles size={18} />} label="Precio" value={`${appointment.totalPrice ?? service.price} ${appointment.currency === 'EUR' || !appointment.currency ? '€' : appointment.currency}`} />
-        <DetailRow icon={<MessageCircle size={18} />} label="Origen" value={appointment.source} />
+        <DetailRow icon={<Sparkles size={18} />} label="Precio" value={formatMoney(appointment.totalPrice ?? service.price, appointment.currency)} />
+        <DetailRow icon={<MessageCircle size={18} />} label="Origen" value={formatAppointmentSource(appointment.source)} />
         <DetailRow icon={<Phone size={18} />} label="Teléfono" value={customer.maskedPhone} />
       </div>
       {appointment.notes && <div className="detail-note"><strong>Notas</strong><p>{appointment.notes}</p></div>}
@@ -709,7 +710,6 @@ function AppointmentDetail({ appointment, appointmentServices, customers, onClos
         {secondaryActions.map((transition) => <button className="danger-action" disabled={saving} key={transition.status} onClick={() => void changeStatus(transition.status, transition.confirmation)} type="button">{transition.label}</button>)}
         {!readOnly && ['pending', 'confirmed', 'arrived', 'in_service'].includes(appointment.status) && <button onClick={onEdit} type="button">Editar o reprogramar</button>}
         {!readOnly && <button onClick={onOpenConversation} type="button">Abrir conversación</button>}
-        {!readOnly && <button onClick={() => showToast('Llamada deshabilitada en el prototipo')} type="button">Llamar</button>}
       </div>{readOnly && !primaryAction && secondaryActions.length === 0 && <div className="read-only-note"><ShieldCheck size={18} /><span><strong>Sin acciones disponibles</strong><small>Este estado no admite cambios desde el Manager.</small></span></div>}</section>
     </Sheet>
   );
@@ -773,8 +773,8 @@ function CustomerDetail({ canManage, customer, getHistory, mode, onClose, onCrea
       </div>
       <div className="customer-metrics">
         <article><small>Total de citas</small><strong>{history ? customerAppointments.length : '—'}</strong></article>
-        <article><small>Última visita</small><strong>{completed[0]?.date ?? 'Sin visitas'}</strong></article>
-        <article><small>Próxima cita</small><strong>{upcoming[0] ? `${upcoming[0].date} · ${upcoming[0].start}` : 'Sin cita'}</strong></article>
+        <article><small>Última visita</small><strong>{completed[0] ? formatBusinessDate(completed[0].date, timezone, true) : 'Sin visitas'}</strong></article>
+        <article><small>Próxima cita</small><strong>{upcoming[0] ? `${formatBusinessDate(upcoming[0].date, timezone, true)} · ${upcoming[0].start}` : 'Sin cita'}</strong></article>
       </div>
       <DetailRow icon={<Sparkles size={18} />} label="Servicios habituales" value={usualServices.length ? usualServices.join(', ') : 'Sin historial'} />
       <div className="detail-note"><strong>Notas</strong><p>{customer.notes || 'Sin notas.'}</p></div>

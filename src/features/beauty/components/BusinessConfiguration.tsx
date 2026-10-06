@@ -133,7 +133,7 @@ export function ConfigurationPage({
   return <div className="beauty-page configuration-page">
     <PageHeader eyebrow="Preferencias esenciales" title="Configuración" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack} type="button"><ArrowLeft /></button></div>} />
     <section className="setup-status-card">
-      <span><strong>{progress.complete ? 'Negocio configurado' : 'Configuración pendiente'}</strong><small>{progress.completedCount} de 5 requisitos completados</small></span>
+      <span><strong>{progress.complete ? 'Agenda preparada' : 'Configuración pendiente'}</strong><small>{progress.complete ? 'WhatsApp se gestiona por separado en esta pantalla' : `${progress.completedCount} de 5 requisitos completados`}</small></span>
       <button onClick={onOpenOnboarding} type="button">{progress.complete ? 'Revisar onboarding' : 'Continuar onboarding'}</button>
     </section>
     <section className="configuration-section"><h2>Datos del negocio</h2><p>Información visible y valores usados por la agenda.</p><BusinessProfileForm business={business} canManage={canManage} onSave={onSave} /></section>

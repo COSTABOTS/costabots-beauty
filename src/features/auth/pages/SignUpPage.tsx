@@ -9,6 +9,7 @@ import {
   beautyBusinessTypes,
   type BeautyBusinessType,
 } from '../../beauty/data/businessProfile';
+import { isValidPassword, PASSWORD_REQUIREMENTS } from '../passwordPolicy';
 
 export function SignUpPage({
   onBack,
@@ -51,8 +52,8 @@ export function SignUpPage({
       setError('Introduce un teléfono válido.');
       return;
     }
-    if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      setError('Usa al menos 10 caracteres e incluye letras y números.');
+    if (!isValidPassword(password)) {
+      setError(PASSWORD_REQUIREMENTS);
       return;
     }
     if (password !== confirmation) {
@@ -93,7 +94,7 @@ export function SignUpPage({
         <label><span>Tipo de negocio</span><select className="auth-select" onChange={(event) => setBusinessType(event.target.value as BeautyBusinessType)} value={businessType}>{beautyBusinessTypes.map((type) => <option key={type} value={type}>{beautyBusinessTypeLabels[type]}</option>)}</select></label>
         <label><span>Correo electrónico</span><span className="auth-input"><Mail size={19} /><input autoComplete="email" inputMode="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></span></label>
         <label><span>Teléfono del negocio</span><span className="auth-input"><Phone size={19} /><input autoComplete="tel" inputMode="tel" onChange={(event) => setBusinessPhone(event.target.value)} placeholder="+34 600 000 000" required type="tel" value={businessPhone} /></span></label>
-        <label><span>Contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((visible) => !visible)} type="button">{showPassword ? <EyeOff /> : <Eye />}</button></span><small className="auth-field-help">Mínimo 10 caracteres, con letras y números.</small></label>
+        <label><span>Contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} /><button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword((visible) => !visible)} type="button">{showPassword ? <EyeOff /> : <Eye />}</button></span><small className="auth-field-help">{PASSWORD_REQUIREMENTS}</small></label>
         <label><span>Confirmar contraseña</span><span className="auth-input"><LockKeyhole size={19} /><input autoComplete="new-password" minLength={10} onChange={(event) => setConfirmation(event.target.value)} required type={showPassword ? 'text' : 'password'} value={confirmation} /></span></label>
         <label className="auth-check"><input checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} type="checkbox" /><span>Acepto los términos de uso y la política de privacidad.</span></label>
         {error && <p className="auth-message auth-message--error" role="alert">{error}</p>}
