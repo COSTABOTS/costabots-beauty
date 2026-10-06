@@ -47,16 +47,153 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-focus-ring: rgba(166, 124, 82, .28);
 }
 .beauty-app[data-theme="barber"] {
-  --beauty-primary: #4e5a5b;
-  --beauty-primary-dark: #2f393a;
-  --beauty-primary-soft: #e4e8e6;
-  --beauty-bg: #f5f1e8;
-  --beauty-card: #fffdf7;
-  --beauty-ink: #252a29;
-  --beauty-muted: #6e716d;
-  --beauty-line: #ded8ca;
-  --beauty-primary-border: #c4cbc7;
-  --beauty-focus-ring: rgba(78, 90, 91, .3);
+  --beauty-primary: #303a39;
+  --beauty-primary-dark: #1e2524;
+  --beauty-primary-soft: #e5e3dc;
+  --beauty-bg: #f3efe6;
+  --beauty-card: #fffcf6;
+  --beauty-ink: #202625;
+  --beauty-muted: #6f6b63;
+  --beauty-line: #ddd5c7;
+  --beauty-primary-border: #bda98f;
+  --beauty-focus-ring: rgba(180, 122, 69, .3);
+  --beauty-accent: #b47a45;
+  --beauty-accent-dark: #81532d;
+  --beauty-accent-soft: #f1e3d2;
+  --beauty-barber-sage: #66736d;
+  --shadow-soft: 0 14px 34px rgba(32, 38, 37, .09);
+}
+
+/* The barber preset keeps the shared components but gives them a restrained
+   charcoal, warm-cream and copper identity. Semantic status colours remain
+   untouched so appointments and alerts retain their meaning. */
+.beauty-app[data-theme="barber"] .mode-notice {
+  color: var(--beauty-primary-dark);
+  border-color: #d5c5ae;
+  background: #eee7db;
+}
+.beauty-app[data-theme="barber"] .feature-state-badge--demo {
+  color: #fffaf2;
+  background: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .today-header p,
+.beauty-app[data-theme="barber"] .page-heading p,
+.beauty-app[data-theme="barber"] .section-kicker {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .today-header h1,
+.beauty-app[data-theme="barber"] .page-heading h1 {
+  color: var(--beauty-primary-dark);
+}
+.beauty-app[data-theme="barber"] .today-header h1::after {
+  display: block;
+  width: 34px;
+  height: 3px;
+  margin-top: 9px;
+  border-radius: 999px;
+  background: var(--beauty-accent);
+  content: "";
+}
+.beauty-app[data-theme="barber"] .primary-icon-button,
+.beauty-app[data-theme="barber"] .form-secondary {
+  border-color: #c6aa88;
+  background: #f4ede2;
+}
+.beauty-app[data-theme="barber"] :is(.appointment-card__primary, .form-submit, .primary-circle-button, .primary-detail-action):hover:not(:disabled) {
+  background: #3d4947;
+}
+.beauty-app[data-theme="barber"] :is(.primary-icon-button, .form-secondary):hover:not(:disabled) {
+  border-color: var(--beauty-accent);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar {
+  color: var(--beauty-primary-dark);
+  border-color: rgba(255, 252, 246, .92);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--sand {
+  background: #d9b88f;
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--sage {
+  color: #fff;
+  background: var(--beauty-barber-sage);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--coral {
+  color: #fff;
+  background: #596260;
+}
+.beauty-app[data-theme="barber"] .metric-card--sage .metric-card__icon,
+.beauty-app[data-theme="barber"] .metric-card--sand .metric-card__icon,
+.beauty-app[data-theme="barber"] .metric-card--lilac .metric-card__icon {
+  color: var(--beauty-accent-dark);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .next-appointment {
+  border-color: #c9ad8b;
+  background: linear-gradient(118deg, #f0e6d7 0%, var(--beauty-card) 58%);
+  box-shadow: 0 14px 36px rgba(49, 44, 37, .1);
+}
+.beauty-app[data-theme="barber"] .next-appointment__time {
+  border-right-color: #d5bea2;
+}
+.beauty-app[data-theme="barber"] .next-appointment__time strong {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .next-appointment__content p,
+.beauty-app[data-theme="barber"] .appointment-card__customer,
+.beauty-app[data-theme="barber"] .conversation-row__content p {
+  color: #5f605a;
+}
+.beauty-app[data-theme="barber"] .appointment-card {
+  border-color: #ddd4c5;
+  box-shadow: 0 7px 20px rgba(42, 45, 42, .035);
+}
+.beauty-app[data-theme="barber"] .appointment-card::before,
+.beauty-app[data-theme="barber"] .appointment-card--sage::before,
+.beauty-app[data-theme="barber"] .appointment-card--sand::before {
+  background: var(--beauty-accent);
+}
+.beauty-app[data-theme="barber"] .quick-actions svg,
+.beauty-app[data-theme="barber"] .empty-state svg,
+.beauty-app[data-theme="barber"] .time-block__action {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .week-switcher,
+.beauty-app[data-theme="barber"] .agenda-summary,
+.beauty-app[data-theme="barber"] .message-tabs,
+.beauty-app[data-theme="barber"] .conversation-tabs {
+  background: #e9e3d9;
+}
+.beauty-app[data-theme="barber"] .staff-filters button.is-active {
+  border-color: var(--beauty-primary);
+  background: var(--beauty-primary);
+}
+.beauty-app[data-theme="barber"] .business-card {
+  background: linear-gradient(135deg, #252d2c, #39413f);
+  box-shadow: 0 16px 34px rgba(30, 37, 36, .18);
+}
+.beauty-app[data-theme="barber"] .business-card small {
+  color: #d8c8b3;
+}
+.beauty-app[data-theme="barber"] .more-list__icon,
+.beauty-app[data-theme="barber"] .detail-row__icon,
+.beauty-app[data-theme="barber"] .onboarding-card__icon {
+  color: var(--beauty-accent-dark);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .beauty-navigation {
+  border-color: rgba(185, 169, 145, .72);
+  background: rgba(255, 252, 246, .96);
+  box-shadow: 0 16px 38px rgba(30, 37, 36, .17);
+}
+.beauty-app[data-theme="barber"] .beauty-navigation button {
+  color: #716f68;
+}
+.beauty-app[data-theme="barber"] .beauty-navigation button.is-active {
+  color: #fff;
+  background: var(--beauty-primary);
+}
+.beauty-app[data-theme="barber"] .unread-count {
+  background: var(--beauty-accent-dark);
 }
 .beauty-app[data-theme="beauty"] {
   --beauty-primary: #78927d;
