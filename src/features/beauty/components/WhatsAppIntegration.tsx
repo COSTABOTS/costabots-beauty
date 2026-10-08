@@ -1,5 +1,6 @@
 import { ArrowLeft, CheckCircle2, MessageCircle, RefreshCw, Send, ShieldCheck, Smartphone, Unplug } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { supabase } from '../../../lib/supabaseClient';
 import type { Customer } from '../types';
 import {
@@ -171,6 +172,11 @@ export function SupabaseWhatsAppInbox({
   const messageRequestId = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
   const handledTargetRef = useRef<string | null>(null);
+  const historyRef = useRef<HTMLDivElement | null>(null);
+  const initialScrollPendingRef = useRef<string | null>(null);
+  const preserveScrollRef = useRef<{ messageId: string; offsetTop: number } | null>(null);
+  const previousLastMessageIdRef = useRef<string | null>(null);
+  const isNearHistoryEndRef = useRef(true);
   useEffect(() => { selectedIdRef.current = selected?.id ?? null; }, [selected?.id]);
 
   const reload = useCallback(async () => {
@@ -206,10 +212,33 @@ export function SupabaseWhatsAppInbox({
     if (!targetCustomerId) handledTargetRef.current = null;
   }, [targetCustomerId]);
 
+  useEffect(() => {
+    initialScrollPendingRef.current = selected?.id ?? null;
+    preserveScrollRef.current = null;
+    previousLastMessageIdRef.current = null;
+    isNearHistoryEndRef.current = true;
+  }, [selected?.id]);
+
   const reloadMessages = useCallback(async (conversationId: string, limit: number) => {
     const requestId = ++messageRequestId.current;
     const items = await loadWhatsAppMessages(conversationId, limit);
-    if (requestId === messageRequestId.current && selectedIdRef.current === conversationId) setMessages(items);
+    if (requestId !== messageRequestId.current || selectedIdRef.current !== conversationId) return;
+
+    const preserved = preserveScrollRef.current;
+    flushSync(() => setMessages(items));
+    if (preserved) {
+      const history = historyRef.current;
+      const anchor = history
+        ? Array.from(history.querySelectorAll<HTMLElement>('[data-message-id]'))
+          .find((item) => item.dataset.messageId === preserved.messageId)
+        : null;
+      if (history && anchor) {
+        anchor.scrollIntoView({ block: 'start' });
+        history.scrollTop -= preserved.offsetTop;
+        isNearHistoryEndRef.current = history.scrollHeight - history.scrollTop - history.clientHeight <= 72;
+      }
+      preserveScrollRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -258,6 +287,22 @@ export function SupabaseWhatsAppInbox({
     };
   }, [businessId, enabled, messageLimit, reloadConversations, reloadMessages]);
 
+  useLayoutEffect(() => {
+    const history = historyRef.current;
+    if (!history || !selected || !messages.length) return;
+
+    const lastMessageId = messages[messages.length - 1]?.id ?? null;
+    if (initialScrollPendingRef.current === selected.id) {
+      history.scrollTop = history.scrollHeight;
+      initialScrollPendingRef.current = null;
+    } else if (lastMessageId !== previousLastMessageIdRef.current && isNearHistoryEndRef.current) {
+      history.scrollTop = history.scrollHeight;
+    }
+
+    previousLastMessageIdRef.current = lastMessageId;
+    isNearHistoryEndRef.current = history.scrollHeight - history.scrollTop - history.clientHeight <= 72;
+  }, [messages, selected?.id]);
+
   const visible = useMemo(() => conversations.filter((item) => filter === 'all' || item.needs_attention), [conversations, filter]);
   const targetConversation = useMemo(() => targetCustomerId
     ? findTargetConversation(conversations, customers, targetCustomerId)
@@ -278,6 +323,22 @@ export function SupabaseWhatsAppInbox({
     setDraft('');
     setMessageLimit(50);
     onTargetClear?.();
+  }
+
+  function loadOlderMessages() {
+    const history = historyRef.current;
+    if (history) {
+      const historyTop = history.getBoundingClientRect().top;
+      const anchor = Array.from(history.querySelectorAll<HTMLElement>('[data-message-id]'))
+        .find((item) => item.getBoundingClientRect().bottom > historyTop);
+      if (anchor?.dataset.messageId) {
+        preserveScrollRef.current = {
+          messageId: anchor.dataset.messageId,
+          offsetTop: anchor.getBoundingClientRect().top - historyTop,
+        };
+      }
+    }
+    setMessageLimit((value) => value + 50);
   }
 
   if (!enabled) return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" action={<FeatureStateBadge state="soon" />} /><div className="empty-state"><ShieldCheck /><h2>WhatsApp todavía no está activo</h2><p>La integración segura debe habilitarse expresamente en un entorno Supabase.</p></div></div>;
@@ -308,9 +369,12 @@ export function SupabaseWhatsAppInbox({
         {selected.needs_attention && <div className="whatsapp-attention"><ShieldCheck /><span><strong>Necesita intervención</strong><small>{selected.attention_reason || 'Revisa esta conversación antes de continuar.'}</small></span></div>}
         {connection.status !== 'connected' && <div className="whatsapp-disconnected"><Unplug /><span><strong>WhatsApp desconectado</strong><small>El historial sigue disponible, pero no puedes enviar mensajes.</small></span></div>}
         {error && <p className="form-error">{error}</p>}
-        <div className="whatsapp-message-history whatsapp-message-history--modal">
-          {messages.length >= messageLimit && <button className="load-older" onClick={() => setMessageLimit((value) => value + 50)} type="button">Cargar anteriores</button>}
-          {messages.map((message) => <article className={`chat-bubble chat-bubble--${message.direction === 'inbound' ? 'customer' : message.sender_type === 'human' ? 'human' : 'ai'}`} key={message.id}><p>{message.text_content || 'Contenido no compatible'}</p><span>{formatMessageDateTime(message.sent_at, timezone)} · {message.status}</span></article>)}
+        <div className="whatsapp-message-history whatsapp-message-history--modal" onScroll={(event) => {
+          const history = event.currentTarget;
+          isNearHistoryEndRef.current = history.scrollHeight - history.scrollTop - history.clientHeight <= 72;
+        }} ref={historyRef}>
+          {messages.length >= messageLimit && <button className="load-older" onClick={(event) => { event.currentTarget.blur(); loadOlderMessages(); }} type="button">Cargar anteriores</button>}
+          {messages.map((message) => <article className={`chat-bubble chat-bubble--${message.direction === 'inbound' ? 'customer' : message.sender_type === 'human' ? 'human' : 'ai'}`} data-message-id={message.id} key={message.id}><p>{message.text_content || 'Contenido no compatible'}</p><span>{formatMessageDateTime(message.sent_at, timezone)} · {message.status}</span></article>)}
           {!messages.length && <p className="inline-data-message">Esta conversación todavía no tiene mensajes visibles.</p>}
         </div>
         <div className="whatsapp-conversation-footer">
