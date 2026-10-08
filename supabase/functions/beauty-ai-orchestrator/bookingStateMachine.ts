@@ -64,6 +64,13 @@ export function reduceBookingState(input: {
     return decision(session, bookingReplies.humanRequested, 'send_handoff', { handoff: true });
   }
 
+  if (interpretation.intent === 'cancel_existing') {
+    if (!session) return decision(null, bookingReplies.cancellationNeedsHuman, 'send_handoff', { handoff: true });
+    session = withObservation(session, interpretation);
+    session.handoff_reason = 'requested';
+    return decision(session, bookingReplies.cancellationNeedsHuman, 'send_handoff', { handoff: true });
+  }
+
   if (!session) {
     if (interpretation.intent === 'ask_information') return decision(null, '', 'none');
     if (interpretation.intent === 'choose_service' && resolved.serviceId) {
@@ -145,7 +152,7 @@ export function reduceBookingState(input: {
           session.selected_starts_at = option.starts_at;
           session.staff_id = option.staff_id;
           session.status = 'awaiting_confirmation';
-          return decision(session, selectionReply(dateLabel, option.label));
+          return decision(session, selectionReply(dateLabel, option.label, option.staff_display_name));
         }
         session.last_error_code = 'TIME_NOT_OFFERED';
         return decision(session, unavailableTimeReply(session.offered_times), 'none', {
@@ -193,7 +200,7 @@ export function reduceBookingState(input: {
       session.selected_starts_at = resolved.selectedOption.starts_at;
       session.staff_id = resolved.selectedOption.staff_id;
       session.status = 'awaiting_confirmation';
-      return decision(session, selectionReply(dateLabel, resolved.selectedOption.label));
+      return decision(session, selectionReply(dateLabel, resolved.selectedOption.label, resolved.selectedOption.staff_display_name));
     }
     if (isAffirmative(rawText, interpretation)) {
       return decision(session, bookingReplies.chooseTimeBeforeConfirming);
@@ -211,13 +218,11 @@ export function reduceBookingState(input: {
     if (interpretation.intent === 'choose_time' && resolved.selectedOption) {
       session.selected_starts_at = resolved.selectedOption.starts_at;
       session.staff_id = resolved.selectedOption.staff_id;
-      return decision(session, selectionReply(dateLabel, resolved.selectedOption.label));
+      return decision(session, selectionReply(dateLabel, resolved.selectedOption.label, resolved.selectedOption.staff_display_name));
     }
     if (!isAffirmative(rawText, interpretation)) {
-      return decision(session, selectionReply(
-        dateLabel,
-        session.offered_times.find((option) => option.starts_at === session.selected_starts_at)?.label ?? '',
-      ));
+      const selected = session.offered_times.find((option) => option.starts_at === session.selected_starts_at);
+      return decision(session, selectionReply(dateLabel, selected?.label ?? '', selected?.staff_display_name));
     }
     if (!resolved.revalidation) return decision(session, '', 'revalidate_selected');
     if (resolved.revalidation === 'unavailable') {

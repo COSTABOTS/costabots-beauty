@@ -1,9 +1,10 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import { parseBookingInterpretation } from './bookingInterpreter.ts';
-import { askDateForService } from './bookingReplies.ts';
+import { askDateForService, selectionReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
   interpretBookingDeterministically,
+  isExistingAppointmentCancellation,
   normalizeRequestedTime,
   resolveRequestedDate,
   resolveStaffReference,
@@ -228,6 +229,64 @@ Deno.test('selecting an offered time moves to awaiting confirmation without clai
   assertEquals(result.next?.status, 'awaiting_confirmation');
   assertEquals(result.next?.selected_starts_at, options[1].starts_at);
   assert(!result.reply.toLowerCase().includes('confirmada'));
+  assert(result.reply.includes('¿Quieres confirmar la cita?'));
+  assert(!result.reply.toLowerCase().includes('persona del negocio'));
+  assert(result.reply.includes('con Ana'));
+});
+
+Deno.test('confirmation wording is controlled and does not mention a human team', () => {
+  const reply = selectionReply('el lunes 3 de agosto', '09:00', 'Ana');
+  assertEquals(reply, 'Has elegido el lunes 3 de agosto a las 09:00 con Ana. ¿Quieres confirmar la cita?');
+  assert(!reply.toLowerCase().includes('persona'));
+});
+
+Deno.test('an affirmative in awaiting confirmation keeps the real booking confirmation path', () => {
+  const awaiting = { ...session, status: 'awaiting_confirmation' as const, selected_starts_at: options[0].starts_at, staff_id: options[0].staff_id };
+  const result = reduceBookingState({
+    session: awaiting,
+    interpretation: { ...interpretation, intent: 'confirm', confirmation: true },
+    rawText: 'sí',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: options[0], revalidation: 'available', expired: false },
+    dateLabel: 'el lunes', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.operation, 'confirm_booking');
+  assertEquals(result.handoff, false);
+});
+
+Deno.test('an explicit request to cancel an existing appointment is not treated as a new booking', () => {
+  const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
+  const request = 'Quiero cancelar la cita';
+  assertEquals(isExistingAppointmentCancellation(request), true);
+  assertEquals(interpretBookingDeterministically(request, null, [], temporal)?.intent, 'cancel_existing');
+  assertEquals(isExistingAppointmentCancellation('No sé si podré ir'), false);
+});
+
+Deno.test('an existing-appointment cancellation follows the safe human handoff without creating a booking', () => {
+  const result = reduceBookingState({
+    session: null,
+    interpretation: { ...interpretation, intent: 'cancel_existing' },
+    rawText: 'Quiero cancelar la cita',
+    resolved: { serviceId: null, selectedDate: null, selectedOption: null, expired: false },
+    dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.operation, 'send_handoff');
+  assertEquals(result.handoff, true);
+  assertEquals(result.createSession, false);
+  assert(result.reply.includes('cancelación'));
+});
+
+Deno.test('ambiguous cancellation wording preserves an active booking and performs no action', () => {
+  const active = { ...session, status: 'choosing_date' as const, selected_date: null, offered_times: [] };
+  const result = reduceBookingState({
+    session: active,
+    interpretation: { ...interpretation, intent: 'unknown' },
+    rawText: 'Quiero cancelar',
+    resolved: { serviceId: active.service_id, selectedDate: null, selectedOption: null, expired: false },
+    dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.next?.status, 'choosing_date');
+  assertEquals(result.handoff, false);
+  assertEquals(result.operation, 'none');
 });
 
 Deno.test('date and service changes clear stale structured offers', () => {

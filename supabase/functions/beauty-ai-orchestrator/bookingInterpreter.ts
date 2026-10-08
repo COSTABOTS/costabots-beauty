@@ -85,6 +85,7 @@ export async function interpretBookingMessage(input: {
               `Fecha local actual: ${input.temporal.localDate}. Zona: ${input.temporal.timezone}.`,
               `Contexto de reserva visible: ${JSON.stringify(input.summary)}.`,
               'Una corrección parcial debe identificar solo el campo que cambia y conservar los demás.',
+              'Si el cliente pide cancelar o anular una cita existente, usa cancel_existing; no propongas una nueva reserva.',
               'Devuelve exclusivamente el JSON solicitado.',
             ].join('\n'),
           }],

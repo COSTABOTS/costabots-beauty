@@ -92,6 +92,12 @@ function baseInterpretation(intent: BookingInterpretation['intent']): BookingInt
   };
 }
 
+export function isExistingAppointmentCancellation(rawText: string) {
+  const text = normalizeText(rawText);
+  return /\b(cancelar|cancelo|cancela|cancelacion|anular|anulo|anula)\b/.test(text)
+    && /\b(cita|reserva|turno)\b/.test(text);
+}
+
 export function interpretBookingDeterministically(
   rawText: string,
   status: BookingStatus | null,
@@ -102,6 +108,9 @@ export function interpretBookingDeterministically(
   const text = normalizeText(rawText);
   if (/\b(persona|humano|humana|agente|encargad[oa])\b/.test(text)) {
     return { ...baseInterpretation('request_human'), wants_human: true };
+  }
+  if (isExistingAppointmentCancellation(rawText)) {
+    return baseInterpretation('cancel_existing');
   }
 
   const service = services.find(({ name }) => {

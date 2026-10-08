@@ -19,6 +19,7 @@ export const BOOKING_INTENTS = [
   'choose_time',
   'confirm',
   'reject',
+  'cancel_existing',
   'change_selection',
   'request_human',
   'unknown',

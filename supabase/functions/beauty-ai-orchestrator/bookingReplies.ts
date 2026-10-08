@@ -16,6 +16,7 @@ export const bookingReplies = {
   clarifyTime: 'No he entendido qué horario prefieres.',
   chooseTimeBeforeConfirming: 'Antes de confirmar necesito que elijas uno de los horarios disponibles.',
   cancelled: 'De acuerdo, no continuamos con esta solicitud. Si necesitas otra cosa, aquí estoy.',
+  cancellationNeedsHuman: 'Para gestionar la cancelación de una cita, una persona del negocio debe revisarla contigo. Te atenderán en breve.',
   handoff: 'Perfecto. La cita todavía no está confirmada. Una persona del negocio la finalizará contigo.',
   humanRequested: 'De acuerdo. Te atenderá una persona del negocio en cuanto sea posible.',
 };
@@ -44,8 +45,9 @@ export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
   return `Para ${dateLabel} tengo estos horarios disponibles: ${joined}. ¿Cuál te viene mejor?`;
 }
 
-export function selectionReply(dateLabel: string, time: string) {
-  return `Has elegido ${dateLabel} a las ${time}. ¿Quieres que una persona del negocio confirme la cita?`;
+export function selectionReply(dateLabel: string, time: string, staffName?: string) {
+  const staff = staffName ? ` con ${staffName}` : '';
+  return `Has elegido ${dateLabel} a las ${time}${staff}. ¿Quieres confirmar la cita?`;
 }
 
 export function pendingFieldReply(field: PendingBookingField, options: OfferedTime[] = []) {

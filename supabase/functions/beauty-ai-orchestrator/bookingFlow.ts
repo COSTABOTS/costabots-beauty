@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForService, bookingReplies, availabilityReply, pendingFieldReply } from './bookingReplies.ts';
+import { askDateForService, bookingReplies, availabilityReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
 import { interpretBookingMessage } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -11,6 +11,7 @@ import {
 } from './bookingSessionRepository.ts';
 import {
   deterministicDateOverride,
+  isExistingAppointmentCancellation,
   interpretBookingDeterministically,
   normalizeRequestedTime,
   optionStillOffered,
@@ -114,6 +115,22 @@ function initialStatus(serviceId: string | null, date: string | null) {
   return 'choosing_time' as const;
 }
 
+async function handoffCancellationToHuman(
+  client: SupabaseClient,
+  context: FlowContext,
+) {
+  const result = await client.from('beauty_conversations').update({
+    mode: 'manual',
+    assigned_user_id: null,
+    needs_attention: true,
+    attention_reason: 'AI_HANDOFF_REQUESTED',
+  }).eq('id', context.conversationId)
+    .eq('business_id', context.businessId)
+    .eq('mode', 'ai')
+    .select('id').maybeSingle();
+  if (result.error || !result.data) throw new Error('CANCELLATION_HANDOFF_FAILED');
+}
+
 function interpreterSummary(session: BookingSession | null, services: Array<{ id: string; name: string }>) {
   const selected = session?.offered_times.find((option) => option.starts_at === session?.selected_starts_at);
   return {
@@ -175,6 +192,15 @@ export async function processBookingFlow(input: {
   if (!session && interpretation.intent === 'unknown') {
     const sent = await input.sendReply(bookingReplies.greeting);
     return { handled: true as const, sent, handoff: false };
+  }
+
+  // A cancellation of an existing appointment is deliberately never inferred
+  // from booking state. There is no cancellation RPC in this flow, so hand it
+  // to a person after the controlled reply instead of starting another booking.
+  if (interpretation.intent === 'cancel_existing' || isExistingAppointmentCancellation(input.text)) {
+    const sent = await input.sendReply(bookingReplies.cancellationNeedsHuman);
+    if (!sent.discarded) await handoffCancellationToHuman(client, context);
+    return { handled: true as const, sent, handoff: true };
   }
 
   // Informational questions are answered by the constrained information
@@ -303,7 +329,7 @@ export async function processBookingFlow(input: {
       last_interpretation_intent: interpretation.intent,
     };
     const reply = selected
-      ? `Has elegido ${selectedDate} a las ${selected.label}. ¿Quieres que una persona del negocio confirme la cita?`
+      ? selectionReply(selectedDate, selected.label, selected.staff_display_name)
       : options.length
       ? availabilityReply(selectedDate, options)
       : bookingReplies.noAvailability;
