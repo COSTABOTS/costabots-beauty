@@ -157,6 +157,30 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   }, [loadedAppointments]);
 
   useEffect(() => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    window.history.replaceState({ ...window.history.state, auraRoot: true }, '', window.location.href);
+    window.history.pushState({ ...window.history.state, auraExitGuard: true }, '', window.location.href);
+    let active = true;
+    const onPopState = () => {
+      // A Sheet owns the first Back press. Its local handler closes it.
+      if (document.documentElement.dataset.auraSheetOpen || document.documentElement.dataset.auraSheetClosing) return;
+      if (!active) return;
+      if (!window.confirm('¿Seguro que quieres salir de AURA?')) {
+        window.history.pushState({ ...window.history.state, auraExitGuard: true }, '', window.location.href);
+        return;
+      }
+      active = false;
+      window.removeEventListener('popstate', onPopState);
+      window.history.back();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      active = false;
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
     const range = weekRange(selectedDate);
     if (beautyData.agendaRange?.from !== range.from || beautyData.agendaRange?.to !== range.to) {
       void beautyData.loadAgendaRange(range);
@@ -253,7 +277,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
 
       <BeautyNavigation active={['automations', 'staff', 'services', 'schedules', 'configuration', 'onboarding'].includes(route) ? 'more' : route} messageUnreadCount={mode === 'supabase' ? whatsappRealtime.unreadCount : conversations.reduce((total, item) => total + item.unread, 0)} onNavigate={navigate} />
 
-      {selectedAppointment && (
+      {selectedAppointment && activeForm !== 'edit-appointment' && (
         <AppointmentDetail
           appointment={selectedAppointment}
           appointmentServices={[...beautyData.data.appointmentServices, ...extraAppointmentServices]}
@@ -274,7 +298,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
           onEdit={() => setActiveForm('edit-appointment')}
         />
       )}
-      {selectedCustomer && <CustomerDetail canManage={canManageCustomers} customer={selectedCustomer} getHistory={beautyData.getCustomerHistory} mode={mode} onClose={() => setSelectedCustomerId(null)} onCreateAppointment={() => { setAppointmentCustomerId(selectedCustomer.id); setSelectedCustomerId(null); openNewAppointment(); }} onDeactivate={async () => { await beautyData.deactivateCustomer({ customerId: selectedCustomer.id }); showToast(mode === 'mock' ? 'Cliente desactivado en la demo' : 'Cliente desactivado'); }} onEdit={() => setActiveForm('edit-customer')} onOpenAppointment={(appointment, linkedServices) => { setAppointments((current) => current.some((item) => item.id === appointment.id) ? current : [...current, appointment]); setExtraAppointmentServices((current) => [...current.filter((item) => item.appointmentId !== appointment.id), ...linkedServices]); setSelectedCustomerId(null); setSelectedAppointmentId(appointment.id); }} services={services} staff={staff} timezone={beautyData.data.business.timezone} today={operationalToday} />}
+      {selectedCustomer && activeForm !== 'edit-customer' && <CustomerDetail canManage={canManageCustomers} customer={selectedCustomer} getHistory={beautyData.getCustomerHistory} mode={mode} onClose={() => setSelectedCustomerId(null)} onCreateAppointment={() => { setAppointmentCustomerId(selectedCustomer.id); setSelectedCustomerId(null); openNewAppointment(); }} onDeactivate={async () => { await beautyData.deactivateCustomer({ customerId: selectedCustomer.id }); showToast(mode === 'mock' ? 'Cliente desactivado en la demo' : 'Cliente desactivado'); }} onEdit={() => setActiveForm('edit-customer')} onOpenAppointment={(appointment, linkedServices) => { setAppointments((current) => current.some((item) => item.id === appointment.id) ? current : [...current, appointment]); setExtraAppointmentServices((current) => [...current.filter((item) => item.appointmentId !== appointment.id), ...linkedServices]); setSelectedCustomerId(null); setSelectedAppointmentId(appointment.id); }} services={services} staff={staff} timezone={beautyData.data.business.timezone} today={operationalToday} />}
       {selectedConversation && (
         <ConversationDetail
           conversation={selectedConversation}

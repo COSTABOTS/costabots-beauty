@@ -6,15 +6,16 @@ import {
   interpretBookingDeterministically,
   normalizeRequestedTime,
   resolveRequestedDate,
+  resolveStaffReference,
   resolveTimeExpression,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import { buildTemporalContext } from './dateResolution.ts';
-import type { BookingInterpretation, BookingSession, OfferedTime } from './bookingTypes.ts';
+import { pendingBookingField, type BookingInterpretation, type BookingSession, type OfferedTime } from './bookingTypes.ts';
 
 const options: OfferedTime[] = [
-  { starts_at: '2026-08-03T09:00:00+02:00', staff_id: '11111111-1111-4111-8111-111111111111', label: '09:00' },
-  { starts_at: '2026-08-03T10:00:00+02:00', staff_id: '11111111-1111-4111-8111-111111111111', label: '10:00' },
+  { starts_at: '2026-08-03T09:00:00+02:00', staff_id: '11111111-1111-4111-8111-111111111111', staff_display_name: 'Ana', label: '09:00' },
+  { starts_at: '2026-08-03T10:00:00+02:00', staff_id: '11111111-1111-4111-8111-111111111111', staff_display_name: 'Ana', label: '10:00' },
 ];
 const interpretation: BookingInterpretation = {
   intent: 'choose_time',
@@ -526,4 +527,82 @@ Deno.test('affirmative option confirmation is deterministic', () => {
   );
   assertEquals(result?.intent, 'confirm');
   assertEquals(result?.confirmation, true);
+});
+
+Deno.test('pending field is derived from persisted session shape without storing a new column', () => {
+  assertEquals(pendingBookingField(null), 'service');
+  assertEquals(pendingBookingField({ ...session, status: 'choosing_date', selected_date: null }), 'date');
+  assertEquals(pendingBookingField({ ...session, status: 'choosing_time', selected_starts_at: null }), 'time');
+});
+
+Deno.test('partial corrections preserve the remaining booking context', () => {
+  const friday = reduceBookingState({
+    session,
+    interpretation: { ...interpretation, intent: 'change_selection', date_expression: 'viernes' },
+    rawText: 'No, mejor el viernes',
+    resolved: { serviceId: session.service_id, selectedDate: '2026-08-07', selectedOption: null, dateExplicit: true, expired: false },
+    dateLabel: 'el viernes', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(friday.next?.service_id, session.service_id);
+  assertEquals(friday.next?.selected_date, '2026-08-07');
+  assertEquals(friday.next?.offered_times, []);
+  assertEquals(friday.operation, 'query_availability');
+
+  const atSix = reduceBookingState({
+    session,
+    interpretation,
+    rawText: 'A las 6 mejor',
+    resolved: { serviceId: session.service_id, selectedDate: session.selected_date, selectedOption: null, requestedTime: '18:00', expired: false },
+    dateLabel: 'el lunes', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(atSix.next?.service_id, session.service_id);
+  assertEquals(atSix.next?.selected_date, session.selected_date);
+  assertEquals(atSix.errorCode, 'TIME_NOT_OFFERED');
+});
+
+Deno.test('professional correction is deterministic and refreshes only the availability options', () => {
+  assertEquals(resolveStaffReference('Con Ana', session), options[0].staff_id);
+  const result = reduceBookingState({
+    session,
+    interpretation: { ...interpretation, intent: 'change_selection', staff_reference: 'Ana' },
+    rawText: 'Con Ana',
+    resolved: {
+      serviceId: session.service_id, selectedDate: session.selected_date, selectedOption: null,
+      staffId: options[0].staff_id, staffExplicit: true, expired: false,
+    },
+    dateLabel: 'el lunes', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.next?.staff_id, options[0].staff_id);
+  assertEquals(result.next?.service_id, session.service_id);
+  assertEquals(result.next?.selected_date, session.selected_date);
+  assertEquals(result.operation, 'query_availability');
+});
+
+Deno.test('ambiguous, typo and empty-style inputs preserve the pending context', () => {
+  const choosingDate = { ...session, status: 'choosing_date' as const, selected_date: null, offered_times: [] };
+  for (const rawText of ['Nañana', '🤔', '']) {
+    const result = reduceBookingState({
+      session: choosingDate,
+      interpretation: { ...interpretation, intent: rawText === 'Nañana' ? 'choose_date' : 'unknown' },
+      rawText,
+      resolved: { serviceId: session.service_id, selectedDate: rawText === 'Nañana' ? '2026-08-03' : null, selectedOption: null, dateExplicit: rawText === 'Nañana', expired: false },
+      dateLabel: 'mañana', nowIso: '2026-08-02T10:01:00Z',
+    });
+    assertEquals(result.next?.service_id, session.service_id);
+  }
+});
+
+Deno.test('part-of-day and repeated incomprehension keep a choosing-time session intact', () => {
+  for (const rawText of ['Por la tarde', 'No sé', '🤷']) {
+    const result = reduceBookingState({
+      session,
+      interpretation: { ...interpretation, intent: 'unknown' },
+      rawText,
+      resolved: { serviceId: session.service_id, selectedDate: session.selected_date, selectedOption: null, expired: false },
+      dateLabel: 'el lunes', nowIso: '2026-08-02T10:01:00Z',
+    });
+    assertEquals(result.next?.status, 'choosing_time');
+    assertEquals(result.next?.service_id, session.service_id);
+    assertEquals(result.handoff, false);
+  }
 });

@@ -1,7 +1,7 @@
 import { geminiConfig } from '../_shared/beautyAi.ts';
 import { geminiFetchJson, generateContentUrl, validateConfiguredGeminiModel } from './gemini.ts';
 import { BOOKING_INTENTS } from './bookingTypes.ts';
-import type { BookingInterpretation, BookingStatus } from './bookingTypes.ts';
+import type { BookingInterpretation, BookingStatus, PendingBookingField } from './bookingTypes.ts';
 import type { TemporalContext } from './dateResolution.ts';
 
 const OPTION_REFERENCES = ['first', 'second', 'last', 'that'] as const;
@@ -14,6 +14,7 @@ const INTERPRETATION_KEYS = [
   'confirmation',
   'wants_human',
   'confidence',
+  'staff_reference',
 ] as const;
 
 function nullableShortString(value: unknown) {
@@ -26,7 +27,9 @@ export function parseBookingInterpretation(value: unknown): BookingInterpretatio
   }
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record).sort();
-  if (keys.join('|') !== [...INTERPRETATION_KEYS].sort().join('|')) {
+  const expectedKeys = [...INTERPRETATION_KEYS].sort();
+  const legacyKeys = expectedKeys.filter((key) => key !== 'staff_reference');
+  if (keys.join('|') !== expectedKeys.join('|') && keys.join('|') !== legacyKeys.join('|')) {
     throw new Error('INTERPRETATION_INVALID');
   }
   if (!BOOKING_INTENTS.includes(record.intent as BookingInterpretation['intent'])) {
@@ -36,6 +39,7 @@ export function parseBookingInterpretation(value: unknown): BookingInterpretatio
     !nullableShortString(record.service_reference) ||
     !nullableShortString(record.date_expression) ||
     !nullableShortString(record.time_expression) ||
+    !(record.staff_reference === undefined || nullableShortString(record.staff_reference)) ||
     !(record.option_reference === null ||
       OPTION_REFERENCES.includes(record.option_reference as typeof OPTION_REFERENCES[number])) ||
     !(record.confirmation === null || typeof record.confirmation === 'boolean') ||
@@ -54,6 +58,17 @@ export async function interpretBookingMessage(input: {
   text: string;
   status: BookingStatus | null;
   temporal: TemporalContext;
+  // Only customer-visible values are sent to the model. Internal UUIDs and
+  // message identifiers intentionally stay in the coordinator.
+  summary: {
+    selected_service: string | null;
+    selected_staff: string | null;
+    selected_date: string | null;
+    selected_time: string | null;
+    offered_times: Array<{ label: string; staff: string | null }>;
+    pending_field: PendingBookingField;
+    last_intent: BookingInterpretation['intent'] | null;
+  };
 }) {
   const model = await validateConfiguredGeminiModel();
   const response = await geminiFetchJson(
@@ -68,6 +83,8 @@ export async function interpretBookingMessage(input: {
               'No decidas transiciones, no inventes datos y no respondas al cliente.',
               `Estado actual: ${input.status ?? 'sin_sesion'}.`,
               `Fecha local actual: ${input.temporal.localDate}. Zona: ${input.temporal.timezone}.`,
+              `Contexto de reserva visible: ${JSON.stringify(input.summary)}.`,
+              'Una corrección parcial debe identificar solo el campo que cambia y conservar los demás.',
               'Devuelve exclusivamente el JSON solicitado.',
             ].join('\n'),
           }],
@@ -86,6 +103,7 @@ export async function interpretBookingMessage(input: {
               date_expression: { type: 'STRING', nullable: true },
               time_expression: { type: 'STRING', nullable: true },
               option_reference: { type: 'STRING', nullable: true, enum: [...OPTION_REFERENCES] },
+              staff_reference: { type: 'STRING', nullable: true },
               confirmation: { type: 'BOOLEAN', nullable: true },
               wants_human: { type: 'BOOLEAN' },
               confidence: { type: 'NUMBER', minimum: 0, maximum: 1 },

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForService, bookingReplies, availabilityReply } from './bookingReplies.ts';
+import { askDateForService, bookingReplies, availabilityReply, pendingFieldReply } from './bookingReplies.ts';
 import { interpretBookingMessage } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -16,6 +16,7 @@ import {
   optionStillOffered,
   resolveRequestedDate,
   resolveServiceReference,
+  resolveStaffReference,
   resolveTimeExpression,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
@@ -27,6 +28,7 @@ import type {
   OfferedTime,
   ResolvedBookingInput,
 } from './bookingTypes.ts';
+import { pendingBookingField } from './bookingTypes.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -112,6 +114,19 @@ function initialStatus(serviceId: string | null, date: string | null) {
   return 'choosing_time' as const;
 }
 
+function interpreterSummary(session: BookingSession | null, services: Array<{ id: string; name: string }>) {
+  const selected = session?.offered_times.find((option) => option.starts_at === session?.selected_starts_at);
+  return {
+    selected_service: session?.service_id ? services.find(({ id }) => id === session.service_id)?.name ?? null : null,
+    selected_staff: selected?.staff_display_name ?? null,
+    selected_date: session?.selected_date ?? null,
+    selected_time: selected?.label ?? null,
+    offered_times: (session?.offered_times ?? []).map((option) => ({ label: option.label, staff: option.staff_display_name ?? null })),
+    pending_field: pendingBookingField(session),
+    last_intent: session?.last_interpretation_intent ?? null,
+  };
+}
+
 export async function processBookingFlow(input: {
   client: SupabaseClient;
   context: FlowContext;
@@ -126,12 +141,13 @@ export async function processBookingFlow(input: {
   const services = (serviceResult.services ?? []) as Array<{ id: string; name: string }>;
   const deterministicDate = deterministicDateOverride(session?.status ?? null, input.text, temporal);
   let interpretation = deterministicDate?.interpretation
-    ?? interpretBookingDeterministically(input.text, session?.status ?? null, services, temporal);
+    ?? interpretBookingDeterministically(input.text, session?.status ?? null, services, temporal, session);
   if (!interpretation) try {
     interpretation = await interpretBookingMessage({
       text: input.text,
       status: session?.status ?? null,
       temporal,
+      summary: interpreterSummary(session, services),
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'INTERPRETATION_INVALID') {
@@ -159,6 +175,13 @@ export async function processBookingFlow(input: {
   if (!session && interpretation.intent === 'unknown') {
     const sent = await input.sendReply(bookingReplies.greeting);
     return { handled: true as const, sent, handoff: false };
+  }
+
+  // Informational questions are answered by the constrained information
+  // generator. The persisted reservation session remains untouched so a later
+  // reply can continue from the pending field instead of starting over.
+  if (session && interpretation.intent === 'ask_information') {
+    return { handled: false as const };
   }
 
   const serviceExplicit = Boolean(interpretation.service_reference?.trim());
@@ -193,9 +216,10 @@ export async function processBookingFlow(input: {
   }
 
   if (session && interpretation.intent === 'unknown') {
-    const reply = session.status === 'choosing_date'
+    const pending = pendingBookingField(session);
+    const reply = pending === 'date'
       ? await contextualDatePrompt(client, context.businessId, session)
-      : bookingReplies.clarify;
+      : pendingFieldReply(pending, session.offered_times);
     const next = {
       ...session,
       last_interpretation_intent: 'unknown' as const,
@@ -214,9 +238,7 @@ export async function processBookingFlow(input: {
   }
 
   if (interpretation.confidence < MIN_INTERPRETATION_CONFIDENCE) {
-    const reply = session
-      ? session.status === 'choosing_date' ? bookingReplies.clarifyDate : bookingReplies.lowConfidence
-      : bookingReplies.lowConfidence;
+    const reply = session ? pendingFieldReply(pendingBookingField(session), session.offered_times) : bookingReplies.lowConfidence;
     if (session) {
       const next = {
         ...session,
@@ -299,6 +321,7 @@ export async function processBookingFlow(input: {
 
   const selectedOption = resolveTimeExpression(input.text, interpretation, session);
   const requestedTime = normalizeRequestedTime(input.text, interpretation);
+  const requestedStaffId = resolveStaffReference(interpretation.staff_reference ?? input.text, session);
   const resolved: ResolvedBookingInput = {
     serviceId,
     selectedDate,
@@ -306,6 +329,8 @@ export async function processBookingFlow(input: {
     requestedTime,
     serviceExplicit,
     dateExplicit,
+    staffId: requestedStaffId,
+    staffExplicit: Boolean(requestedStaffId),
     expired: Date.parse(session.expires_at) <= Date.parse(nowIso),
   };
   let decision = reduceBookingState({

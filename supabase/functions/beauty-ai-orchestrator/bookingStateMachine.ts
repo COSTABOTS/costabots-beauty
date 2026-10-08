@@ -93,10 +93,11 @@ export function reduceBookingState(input: {
 
   const serviceExplicit = resolved.serviceExplicit === true;
   const dateExplicit = resolved.dateExplicit === true;
+  const staffExplicit = resolved.staffExplicit === true;
 
   // Explicit context changes take priority over time selection. Handling them
   // together also supports messages such as "corte el lunes a las 9".
-  if (serviceExplicit || dateExplicit) {
+  if (serviceExplicit || dateExplicit || staffExplicit) {
     const serviceChanged = serviceExplicit && resolved.serviceId !== session.service_id;
     if (serviceExplicit && !resolved.serviceId) {
       session.last_error_code = 'SERVICE_NOT_RESOLVED';
@@ -112,7 +113,7 @@ export function reduceBookingState(input: {
     if (serviceExplicit) session.service_id = resolved.serviceId;
     if (dateExplicit) session.selected_date = resolved.selectedDate;
     else if (serviceChanged) session.selected_date = null;
-    session.staff_id = null;
+    session.staff_id = staffExplicit ? resolved.staffId ?? null : null;
     session.offered_times = [];
     session.selected_starts_at = null;
 

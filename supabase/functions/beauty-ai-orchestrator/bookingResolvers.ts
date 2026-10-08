@@ -97,6 +97,7 @@ export function interpretBookingDeterministically(
   status: BookingStatus | null,
   services: Array<{ id: string; name: string }>,
   temporal: TemporalContext,
+  session: BookingSession | null = null,
 ): BookingInterpretation | null {
   const text = normalizeText(rawText);
   if (/\b(persona|humano|humana|agente|encargad[oa])\b/.test(text)) {
@@ -110,6 +111,7 @@ export function interpretBookingDeterministically(
   const date = resolveDateExpression(rawText, temporal);
   const time = timeFromText(rawText);
   const option = optionReference(rawText);
+  const staffId = resolveStaffReference(rawText, session);
   const affirmative = /^(si|sí|vale|de acuerdo|confirmo|reserva(?:la)?|reservala)(?:[\s,]+(esa|ese))?$/i.test(rawText.trim());
   const reject = /^(no|cancelar|cancela|dejalo|déjalo)$/i.test(rawText.trim());
 
@@ -120,6 +122,13 @@ export function interpretBookingDeterministically(
       date_expression: date.status === 'resolved' ? rawText : null,
       time_expression: time,
       option_reference: option,
+    };
+  }
+  if (staffId) {
+    const staff = session?.offered_times.find((option) => option.staff_id === staffId);
+    return {
+      ...baseInterpretation('change_selection'),
+      staff_reference: staff?.staff_display_name ?? rawText,
     };
   }
   if (date.status === 'resolved') {
@@ -199,6 +208,16 @@ export function resolveServiceReference(
     normalizeText(service.name).includes(wanted) || wanted.includes(normalizeText(service.name))
   );
   return partial.length === 1 ? partial[0].id : null;
+}
+
+export function resolveStaffReference(reference: string | null | undefined, session: BookingSession | null) {
+  const wanted = normalizeText(reference ?? '');
+  if (!wanted || !session) return null;
+  const matches = session.offered_times.filter((option) =>
+    option.staff_display_name && normalizeText(option.staff_display_name).includes(wanted)
+  );
+  const staffIds = [...new Set(matches.map((option) => option.staff_id))];
+  return staffIds.length === 1 ? staffIds[0] : null;
 }
 
 export function optionStillOffered(selected: OfferedTime, options: OfferedTime[]) {

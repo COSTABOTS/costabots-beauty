@@ -1,4 +1,5 @@
 import type { OfferedTime } from './bookingTypes.ts';
+import type { PendingBookingField } from './bookingTypes.ts';
 
 export const bookingReplies = {
   greeting: 'Hola. ¿En qué puedo ayudarte?',
@@ -45,4 +46,11 @@ export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
 
 export function selectionReply(dateLabel: string, time: string) {
   return `Has elegido ${dateLabel} a las ${time}. ¿Quieres que una persona del negocio confirme la cita?`;
+}
+
+export function pendingFieldReply(field: PendingBookingField, options: OfferedTime[] = []) {
+  if (field === 'service') return bookingReplies.askService;
+  if (field === 'date') return bookingReplies.clarifyDate;
+  if (field === 'time') return timeClarificationReply(options);
+  return bookingReplies.clarify;
 }

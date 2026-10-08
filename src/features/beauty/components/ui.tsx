@@ -9,7 +9,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Appointment, AppointmentStatus, BeautyRoute, BeautyService, Customer, StaffMember } from '../types';
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
@@ -162,6 +162,32 @@ export function DetailRow({ icon, label, value }: { icon?: ReactNode; label: str
 }
 
 export function Sheet({ bodyClassName = '', children, title, subtitle, onClose, wide = false }: { bodyClassName?: string; children: ReactNode; title: string; subtitle?: string; onClose: () => void; wide?: boolean }) {
+  const historyKey = useRef(`aura-sheet-${crypto.randomUUID()}`);
+  const pushedHistory = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const key = historyKey.current;
+    document.documentElement.dataset.auraSheetOpen = key;
+    window.history.pushState({ ...window.history.state, auraSheet: key }, '', window.location.href);
+    pushedHistory.current = true;
+    const onPopState = () => onCloseRef.current();
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      delete document.documentElement.dataset.auraSheetOpen;
+      // Closing through the UI consumes only this temporary Sheet entry. A
+      // browser Back already consumed it before onClose runs.
+      if (pushedHistory.current && window.history.state?.auraSheet === key) {
+        document.documentElement.dataset.auraSheetClosing = 'true';
+        window.history.back();
+        queueMicrotask(() => delete document.documentElement.dataset.auraSheetClosing);
+      }
+    };
+  }, []);
+
   return (
     <div className="beauty-sheet-backdrop" role="presentation" onMouseDown={onClose}>
       <section aria-label={title} aria-modal="true" className={`beauty-sheet ${wide ? 'beauty-sheet--wide' : ''}`} onMouseDown={(event) => event.stopPropagation()} role="dialog">

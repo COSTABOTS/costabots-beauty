@@ -35,6 +35,7 @@ export type BookingInterpretation = {
   confirmation: boolean | null;
   wants_human: boolean;
   confidence: number;
+  staff_reference?: string | null;
 };
 
 export type OfferedTime = {
@@ -90,6 +91,17 @@ export type BookingSession = {
   expires_at: string;
 };
 
+export type PendingBookingField = 'service' | 'date' | 'time' | null;
+
+// Derived only: it deliberately does not add persistence requirements to the
+// existing booking-session schema.
+export function pendingBookingField(session: Pick<BookingSession, 'status' | 'service_id' | 'selected_date' | 'selected_starts_at'> | null): PendingBookingField {
+  if (!session || session.status === 'choosing_service' || !session.service_id) return 'service';
+  if (session.status === 'choosing_date' || !session.selected_date) return 'date';
+  if (session.status === 'choosing_time' || !session.selected_starts_at) return 'time';
+  return null;
+}
+
 export type ResolvedBookingInput = {
   serviceId: string | null;
   selectedDate: string | null;
@@ -97,6 +109,8 @@ export type ResolvedBookingInput = {
   requestedTime?: string | null;
   serviceExplicit?: boolean;
   dateExplicit?: boolean;
+  staffId?: string | null;
+  staffExplicit?: boolean;
   availabilityOptions?: OfferedTime[];
   revalidation?: 'available' | 'unavailable';
   expired: boolean;
