@@ -125,6 +125,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [messageTargetCustomerId, setMessageTargetCustomerId] = useState<string | null>(null);
   const [appointmentCustomerId, setAppointmentCustomerId] = useState<string | null>(null);
   const [extraAppointmentServices, setExtraAppointmentServices] = useState<import('./data/types').AppointmentService[]>([]);
   const [setupStaffId, setSetupStaffId] = useState<string | undefined>();
@@ -178,6 +179,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
 
   function navigate(nextRoute: BeautyRoute) {
     if (route === 'more' && ['staff', 'services', 'schedules'].includes(nextRoute)) setSetupReturnRoute('more');
+    if (nextRoute !== 'messages') setMessageTargetCustomerId(null);
     setRoute(nextRoute);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -236,8 +238,10 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
         {route === 'agenda' && <AgendaPage agendaMessage={beautyData.agendaMessage} agendaRange={beautyData.agendaRange ?? weekRange(selectedDate)} agendaStatus={beautyData.agendaStatus} appointments={appointments} customers={customers} date={selectedDate} mode={mode} onCreateAppointment={openNewAppointment} onCreateBlock={() => setActiveForm('block')} onDateChange={setSelectedDate} onOpenAppointment={setSelectedAppointmentId} onOpenBlock={(id) => { setSelectedBlockId(id); setActiveForm('edit-block'); }} onRetry={beautyData.retryAgenda} onStatusChange={updateAppointmentStatus} services={services} staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter} timeBlocks={timeBlocks} timezone={beautyData.data.business.timezone} today={operationalToday} />}
         {route === 'customers' && <CustomersPage canManage={canManageCustomers} customers={customers} mode={mode} onCreateCustomer={() => setActiveForm('customer')} onOpenCustomer={setSelectedCustomerId} />}
         {route === 'messages' && (mode === 'supabase'
-          ? <SupabaseWhatsAppInbox businessId={membership.business.id} conversations={whatsappRealtime.conversations} conversationsError={whatsappRealtime.error} conversationsLoading={whatsappRealtime.loading} customers={customers} enabled={beautyEnvironment.whatsappEnabled} reloadConversations={whatsappRealtime.reload} timezone={beautyData.data.business.timezone} />
-          : <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />)}
+          ? <SupabaseWhatsAppInbox businessId={membership.business.id} conversations={whatsappRealtime.conversations} conversationsError={whatsappRealtime.error} conversationsLoading={whatsappRealtime.loading} customers={customers} enabled={beautyEnvironment.whatsappEnabled} onTargetClear={() => setMessageTargetCustomerId(null)} reloadConversations={whatsappRealtime.reload} targetCustomerId={messageTargetCustomerId} timezone={beautyData.data.business.timezone} />
+          : messageTargetCustomerId && !conversations.some((item) => item.customerId === messageTargetCustomerId)
+            ? <ConversationNotFound onShowAll={() => setMessageTargetCustomerId(null)} />
+            : <MessagesPage conversations={conversations} mode={mode} onOpenConversation={setSelectedConversationId} />)}
         {route === 'more' && <MorePage businessName={businessName} mode={mode} navigate={navigate} onSignOut={() => void handleSignOut()} progress={setupProgress} serviceCount={services.length} staffCount={staff.length} />}
         {route === 'automations' && <AutomationsPage mode={mode} rules={automationRules} setRules={setAutomationRules} onBack={() => navigate('more')} />}
         {route === 'staff' && <StaffManagementPage appointments={appointments} canManage={canManageCustomers} mode={mode} onBack={() => navigate(setupReturnRoute)} onCreate={beautyData.createStaff} onDeactivate={(staffId) => beautyData.deactivateStaff({ staffId })} onOpenSchedules={(staffId) => { setSetupStaffId(staffId); openSetup('schedules', setupReturnRoute); }} onSetAssignment={beautyData.setStaffService} onUpdate={beautyData.updateStaff} services={services} staff={staff} staffServices={beautyData.data.staffServices} />}
@@ -262,6 +266,7 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
           onOpenConversation={() => {
             const conversation = conversations.find((item) => item.customerId === selectedAppointment.customerId);
             setSelectedAppointmentId(null);
+            setMessageTargetCustomerId(selectedAppointment.customerId);
             navigate('messages');
             setSelectedConversationId(conversation?.id ?? null);
           }}
@@ -286,6 +291,10 @@ function BeautyManager({ initialRoute }: { initialRoute: BeautyRoute }) {
       {toast && <div className="beauty-toast"><Check size={17} />{toast}</div>}
     </div>
   );
+}
+
+function ConversationNotFound({ onShowAll }: { onShowAll: () => void }) {
+  return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" /><div className="empty-state"><MessageCircle /><h2>Este cliente todavía no tiene conversación</h2><p>Cuando escriba por WhatsApp, su conversación aparecerá aquí.</p><button onClick={onShowAll} type="button">Ver todas las conversaciones</button></div></div>;
 }
 
 function TodayPage({ appointments, businessName, customers, navigate, onContinueSetup, onCreateAppointment, onCreateBlock, onOpenAppointment, onStatusChange, ownerDisplayName, services, setupProgress, staff, today, timezone }: { appointments: Appointment[]; businessName: string; customers: Customer[]; navigate: (route: BeautyRoute) => void; onContinueSetup: () => void; onCreateAppointment: () => void; onCreateBlock: () => void; onOpenAppointment: (id: string) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => Promise<void>; ownerDisplayName: string; services: import('./types').BeautyService[]; setupProgress: SetupProgress; staff: import('./types').StaffMember[]; today: string; timezone: string }) {

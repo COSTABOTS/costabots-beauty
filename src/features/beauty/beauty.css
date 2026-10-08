@@ -1,18 +1,21 @@
 :root {
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #292724;
-  background: #f7f3ee;
+  color: var(--cb-text);
+  background: var(--cb-bg);
   font-synthesis: none;
-  --beauty-bg: #f7f3ee;
-  --beauty-card: #fffdfb;
-  --beauty-ink: #292724;
-  --beauty-muted: #7a746e;
-  --beauty-line: #e9e1d8;
-  --beauty-primary: #c96f63;
-  --beauty-primary-dark: #a95148;
-  --beauty-primary-soft: #f6e3df;
-  --beauty-primary-border: #e2c8c3;
-  --beauty-focus-ring: rgba(201, 111, 99, .28);
+  --beauty-bg: var(--cb-bg);
+  --beauty-card: var(--cb-surface);
+  --beauty-ink: var(--cb-text);
+  --beauty-muted: var(--cb-muted);
+  --beauty-line: var(--cb-border);
+  --beauty-primary: var(--cb-primary);
+  --beauty-primary-dark: var(--cb-primary-strong);
+  --beauty-primary-soft: var(--cb-primary-soft);
+  --beauty-primary-border: var(--cb-primary-border);
+  --beauty-focus-ring: var(--cb-focus-ring);
+  --beauty-accent: var(--cb-accent);
+  --beauty-accent-dark: var(--cb-accent-strong);
+  --beauty-accent-soft: var(--cb-accent-soft);
   --beauty-sand: #e7d3b7;
   --beauty-sand-soft: #f7efe3;
   --beauty-sage: #78927d;
@@ -33,10 +36,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 
 .beauty-app { min-height: 100vh; background: var(--beauty-bg); }
 .beauty-app[data-theme="nails"] {
-  --beauty-primary: #c96f63;
-  --beauty-primary-dark: #a95148;
-  --beauty-primary-soft: #f6e3df;
-  --beauty-brand-mark-color: #c96f63;
+  --beauty-primary: #786956;
+  --beauty-primary-dark: #554a3d;
+  --beauty-primary-soft: #eee9e1;
+  --beauty-brand-mark-color: #8a755b;
 }
 .beauty-app[data-theme="hair"] {
   --beauty-primary: #a67c52;
@@ -217,6 +220,26 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
   --beauty-focus-ring: rgba(82, 111, 145, .28);
   --beauty-brand-mark-color: #526f91;
 }
+.beauty-app[data-theme="nails"],
+.beauty-app[data-theme="hair"],
+.beauty-app[data-theme="barber"],
+.beauty-app[data-theme="beauty"],
+.beauty-app[data-theme="neutral"] {
+  --beauty-primary: var(--cb-primary);
+  --beauty-primary-dark: var(--cb-primary-strong);
+  --beauty-primary-soft: var(--cb-primary-soft);
+  --beauty-bg: var(--cb-bg);
+  --beauty-card: var(--cb-surface);
+  --beauty-ink: var(--cb-text);
+  --beauty-muted: var(--cb-muted);
+  --beauty-line: var(--cb-border);
+  --beauty-primary-border: var(--cb-primary-border);
+  --beauty-focus-ring: var(--cb-focus-ring);
+  --beauty-brand-mark-color: var(--cb-primary);
+  --beauty-accent: var(--cb-accent);
+  --beauty-accent-dark: var(--cb-accent-strong);
+  --beauty-accent-soft: var(--cb-accent-soft);
+}
 .beauty-main { width: 100%; max-width: 760px; min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
 .beauty-page { display: grid; gap: 24px; padding: 22px 16px 32px; }
 .desktop-brand { display: none; }
@@ -241,12 +264,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .profile-button--brand .beauty-brand-mark { box-shadow: none; }
 .primary-circle-button { color: #fff; background: var(--beauty-primary); }
 .primary-icon-button { min-height: 42px; padding: 0 16px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 999px; background: var(--beauty-primary-soft); cursor: pointer; }
+.primary-icon-button:hover { color: var(--beauty-accent-dark); border-color: var(--beauty-accent); background: var(--beauty-accent-soft); }
 
 .beauty-avatar { display: inline-grid; flex: 0 0 auto; place-items: center; color: #584641; font-weight: 800; border: 2px solid rgba(255,255,255,.9); border-radius: 50%; }
 .beauty-avatar--sm { width: 24px; height: 24px; font-size: .58rem; }
 .beauty-avatar--md { width: 42px; height: 42px; font-size: .74rem; }
 .beauty-avatar--lg { width: 52px; height: 52px; font-size: .88rem; }
-.beauty-avatar--coral { background: #f1c8c0; }
+.beauty-avatar--coral { background: #dfd5c7; }
 .beauty-avatar--sage { background: #c8d9cb; }
 .beauty-avatar--sand { background: #ead8bf; }
 
@@ -320,6 +344,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 
 .quick-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .quick-actions button { display: flex; min-height: 78px; align-items: center; gap: 10px; padding: 13px; text-align: left; font-size: .78rem; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 17px; background: var(--beauty-card); cursor: pointer; }
+.quick-actions button:hover { border-color: var(--beauty-primary-border); background: #fcf8f2; }
+.quick-actions button svg { color: var(--beauty-accent-dark); }
 .quick-actions svg { width: 21px; color: var(--beauty-primary); }
 
 .page-heading { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 16px; padding-top: 5px; }
@@ -412,6 +438,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .more-list button { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; min-height: 72px; align-items: center; gap: 11px; padding: 11px; text-align: left; border: 1px solid var(--beauty-line); border-radius: 17px; background: var(--beauty-card); cursor: pointer; }
 .more-list button:disabled { cursor: not-allowed; opacity: .72; background: #f8f6f3; }
 .more-list__icon { display: grid; width: 42px; height: 42px; place-items: center; color: var(--beauty-primary-dark); border-radius: 13px; background: var(--beauty-primary-soft); }
+.more-list button:hover { border-color: var(--beauty-primary-border); background: #fcf8f2; }
+.more-list button:hover .more-list__icon { color: var(--beauty-accent-dark); background: var(--beauty-accent-soft); }
 .more-list button > span:nth-child(2) { display: grid; gap: 3px; }
 .more-list strong { font-size: .86rem; }
 .more-list small { color: var(--beauty-muted); font-size: .68rem; }
@@ -420,7 +448,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .isolation-note strong { font-size: .78rem; }
 .isolation-note small { font-size: .66rem; }
 .beauty-signout { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; width: fit-content; padding: 0 16px; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 13px; background: var(--beauty-danger-soft); cursor: pointer; }
-.more-signout, .desktop-signout { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 14px; background: var(--beauty-danger-soft); cursor: pointer; }
+.more-signout, .desktop-signout { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; color: var(--beauty-muted); font-weight: 750; border: 1px solid var(--beauty-line); border-radius: 13px; background: transparent; cursor: pointer; transition: color .18s ease, border-color .18s ease, background .18s ease; }
+.more-signout:hover, .desktop-signout:hover { color: var(--beauty-danger); border-color: #d9aaa5; background: var(--beauty-danger-soft); }
 .more-signout { width: 100%; margin-top: 8px; }
 .desktop-signout { display: none; }
 
@@ -778,6 +807,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .conversation-tabs { display:flex; gap:6px; margin-bottom:16px; padding:4px; border-radius:13px; background:var(--beauty-primary-soft); }
 .conversation-tabs button { flex:1; min-height:38px; border:0; border-radius:10px; background:transparent; color:var(--beauty-muted); font-weight:700; }
 .conversation-tabs button.is-active { background:var(--beauty-card); color:var(--beauty-primary-dark); box-shadow:0 2px 8px var(--beauty-focus-ring); }
+.conversation-tabs button:hover { color:var(--beauty-accent-dark); }
 .conversation-list { display:grid; }
 .conversation-list > button { display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:11px; width:100%; padding:14px 4px; border:0; border-bottom:1px solid #eee5df; background:transparent; text-align:left; }
 .conversation-avatar { display:grid; width:42px; height:42px; place-items:center; border-radius:50%; background:var(--beauty-primary-soft); color:var(--beauty-primary-dark); }
@@ -787,8 +817,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .conversation-meta b { display:grid; min-width:20px; height:20px; padding:0 5px; place-items:center; border-radius:999px; background:var(--beauty-primary); color:#fff; font-size:.68rem; }
 .conversation-meta em { color:#8c7f78; font-size:.61rem; font-style:normal; font-weight:700; }
 .whatsapp-conversation-page { display:flex; min-height:calc(100dvh - 80px); flex-direction:column; }
-.whatsapp-handoff { justify-content:space-between; margin:12px 0; padding:10px 12px; border-radius:13px; background:var(--beauty-primary-soft); }
+.whatsapp-handoff { justify-content:space-between; margin:12px 0; padding:11px 12px; border:1px solid var(--beauty-line); border-radius:13px; background:var(--beauty-card); }
 .whatsapp-handoff small { color:var(--beauty-muted); text-align:right; }
+.whatsapp-handoff__action,.load-older { display:inline-flex; min-height:40px; align-items:center; justify-content:center; padding:0 13px; color:var(--beauty-primary-dark); font:inherit; font-size:.72rem; font-weight:800; border:1px solid var(--beauty-primary-border); border-radius:11px; background:var(--beauty-primary-soft); cursor:pointer; }
+.whatsapp-handoff__action:hover,.load-older:hover { border-color:var(--beauty-primary); background:#e7e0d6; }
+.whatsapp-handoff__action:disabled { cursor:wait; opacity:.6; }
 .whatsapp-message-history { display:flex; flex:1; min-height:240px; flex-direction:column; gap:9px; padding:16px 0; }
 .whatsapp-bubble { max-width:min(78%,520px); padding:10px 12px; border-radius:15px 15px 15px 4px; background:#f0ece9; }
 .whatsapp-bubble--outbound { align-self:flex-end; border-radius:15px 15px 4px; background:var(--beauty-primary-soft); }

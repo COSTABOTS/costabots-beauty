@@ -128,7 +128,9 @@ export function SupabaseWhatsAppInbox({
   customers,
   enabled,
   onBack,
+  onTargetClear,
   reloadConversations,
+  targetCustomerId,
   timezone = 'Europe/Madrid',
 }: {
   businessId: string;
@@ -138,7 +140,9 @@ export function SupabaseWhatsAppInbox({
   customers: Customer[];
   enabled: boolean;
   onBack?: () => void;
+  onTargetClear?: () => void;
   reloadConversations: (showLoading?: boolean) => Promise<void>;
+  targetCustomerId?: string | null;
   timezone?: string;
 }) {
   const [connection, setConnection] = useState(emptyConnection);
@@ -151,6 +155,7 @@ export function SupabaseWhatsAppInbox({
   const [working, setWorking] = useState(false);
   const messageRequestId = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
+  const handledTargetRef = useRef<string | null>(null);
   useEffect(() => { selectedIdRef.current = selected?.id ?? null; }, [selected?.id]);
 
   const reload = useCallback(async () => {
@@ -173,6 +178,18 @@ export function SupabaseWhatsAppInbox({
       ? conversations.find((item) => item.id === current.id) ?? null
       : null);
   }, [conversations]);
+
+  useEffect(() => {
+    if (!targetCustomerId || conversationsLoading || handledTargetRef.current === targetCustomerId) return;
+    handledTargetRef.current = targetCustomerId;
+    const target = conversations.find((item) => item.customer_id === targetCustomerId) ?? null;
+    setMessageLimit(50);
+    setSelected(target);
+  }, [conversations, conversationsLoading, targetCustomerId]);
+
+  useEffect(() => {
+    if (!targetCustomerId) handledTargetRef.current = null;
+  }, [targetCustomerId]);
 
   const reloadMessages = useCallback(async (conversationId: string, limit: number) => {
     const requestId = ++messageRequestId.current;
@@ -238,17 +255,17 @@ export function SupabaseWhatsAppInbox({
 
   if (!enabled) return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" action={<FeatureStateBadge state="soon" />} /><div className="empty-state"><ShieldCheck /><h2>WhatsApp todavía no está activo</h2><p>La integración segura debe habilitarse expresamente en un entorno Supabase.</p></div></div>;
   if (selected) return <div className="beauty-page whatsapp-conversation-page">
-    <PageHeader eyebrow={selected.mode === 'manual' ? 'Atención manual' : 'Atención automática'} title={conversationDisplayName(selected, customer?.name)} action={<button className="icon-button-soft" onClick={() => setSelected(null)} type="button"><ArrowLeft /></button>} />
+    <PageHeader eyebrow={selected.mode === 'manual' ? 'Atención manual' : 'Atención automática'} title={conversationDisplayName(selected, customer?.name)} action={<button className="icon-button-soft" onClick={() => { setSelected(null); onTargetClear?.(); }} type="button"><ArrowLeft /></button>} />
     {connection.status !== 'connected' && <div className="whatsapp-disconnected"><Unplug /><span><strong>WhatsApp desconectado</strong><small>El historial sigue disponible, pero no puedes enviar mensajes.</small></span></div>}
     {error && <p className="form-error">{error}</p>}
     <div className="whatsapp-handoff">
       {selected.mode === 'ai'
         ? <button disabled={working} onClick={() => {
           if (window.confirm('¿Tomar esta conversación? COSTABOTS dejará de responder automáticamente hasta que la devuelvas a la atención automática.')) void mutate(() => takeConversation(selected.id));
-        }} type="button">Tomar conversación</button>
+        }} className="whatsapp-handoff__action" type="button">Tomar conversación</button>
         : <button disabled={working} onClick={() => {
           if (window.confirm('¿Devolver la conversación a la atención automática? COSTABOTS volverá a responder a los próximos mensajes.')) void mutate(() => releaseConversation(selected.id));
-        }} type="button">Devolver a la IA</button>}
+        }} className="whatsapp-handoff__action" type="button">Devolver a la IA</button>}
       <small>{selected.mode === 'ai' ? 'COSTABOTS responde automáticamente a los próximos mensajes.' : 'Atención manual activa: COSTABOTS no responderá automáticamente en esta conversación.'}</small>
     </div>
     <div className="whatsapp-message-history">
@@ -266,6 +283,10 @@ export function SupabaseWhatsAppInbox({
       <button aria-label="Enviar mensaje" disabled={!draft.trim() || selected.mode !== 'manual' || connection.status !== 'connected' || working} type="submit"><Send /></button>
     </form>
   </div>;
+
+  if (targetCustomerId && !conversationsLoading && !conversations.some((item) => item.customer_id === targetCustomerId)) {
+    return <div className="beauty-page whatsapp-inbox-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" /><div className="empty-state"><MessageCircle /><h2>Este cliente todavía no tiene conversación</h2><p>Cuando escriba por WhatsApp, su conversación aparecerá aquí.</p><button onClick={() => onTargetClear?.()} type="button">Ver todas las conversaciones</button></div></div>;
+  }
 
   return <div className="beauty-page whatsapp-inbox-page">
     <PageHeader eyebrow="WhatsApp" title="Mensajes" action={<div className="heading-actions"><button aria-label="Actualizar" className="icon-button-soft" onClick={() => void reload()} type="button"><RefreshCw /></button>{onBack && <button aria-label="Volver" className="icon-button-soft" onClick={onBack} type="button"><ArrowLeft /></button>}</div>} />

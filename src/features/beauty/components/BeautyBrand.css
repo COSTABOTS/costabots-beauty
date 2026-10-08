@@ -1,8 +1,23 @@
 :root {
-  --beauty-brand-mark-color: #c96f63;
+  --cb-bg: #f2eee7;
+  --cb-surface: #fffefa;
+  --cb-text: #292824;
+  --cb-muted: #6f6961;
+  --cb-border: #dcd3c7;
+  --cb-primary: #2f6f68;
+  --cb-primary-hover: #285e58;
+  --cb-primary-strong: var(--cb-primary-hover);
+  --cb-primary-soft: #ddebe8;
+  --cb-primary-border: #a9c8c3;
+  --cb-accent: #c49a62;
+  --cb-accent-strong: #8b6537;
+  --cb-accent-soft: #f3e7d7;
+  --cb-focus-ring: rgba(47, 111, 104, .25);
+  --beauty-brand-mark-color: var(--cb-primary);
 }
 
 .beauty-brand-mark {
+  --beauty-brand-mark-color: var(--cb-primary);
   display: inline-grid;
   flex: 0 0 auto;
   overflow: visible;
