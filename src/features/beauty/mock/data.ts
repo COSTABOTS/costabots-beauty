@@ -16,6 +16,7 @@ export const business: BeautyBusiness = {
   name: 'Luna Beauty Studio',
   ownerName: 'Laura',
   assistantActive: true,
+  businessType: 'nail_salon',
 };
 
 export const staff: StaffMember[] = [

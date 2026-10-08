@@ -1,4 +1,4 @@
-const CACHE_NAME = 'costabots-beauty-brand-v3';
+const CACHE_NAME = 'aura-brand-v5';
 const IS_LOCAL_DEV = ['localhost', '127.0.0.1', '::1'].includes(self.location.hostname);
 const APP_SHELL = [
   '/',

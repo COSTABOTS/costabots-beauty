@@ -6,6 +6,7 @@ import type {
   StaffMember,
   TimeBlock,
 } from '../types';
+import type { BeautyBusinessType } from './businessProfile';
 
 export type DateRange = {
   from: string;
@@ -16,7 +17,7 @@ export type RepositoryBusiness = {
   id: string;
   name: string;
   slug: string;
-  businessType: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
+  businessType: BeautyBusinessType;
   timezone: string;
   currency: string;
   language: string;
@@ -245,7 +246,7 @@ export type BusinessRow = {
   id: string;
   name: string;
   slug: string;
-  business_type: 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
+  business_type: BeautyBusinessType;
   timezone: string;
   phone: string | null;
   email: string | null;

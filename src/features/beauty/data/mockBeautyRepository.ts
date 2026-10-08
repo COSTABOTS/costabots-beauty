@@ -5,13 +5,14 @@ import {
   services,
   staff,
   timeBlocks,
-} from '../mock/data';
+} from '../mock/barberDemo';
 import type { BeautyRepository } from './BeautyRepository';
 import { BeautyRepositoryError } from './BeautyRepository';
 import { localDateTimeToIso } from './mappers';
-import type { BeautyOperationalData, DateRange, WritableAppointmentStatus } from './types';
+import type { BeautyOperationalData, DateRange, RepositoryBusiness, WritableAppointmentStatus } from './types';
 import type { BeautyService } from '../types';
 import { beautyEnvironment } from '../../../config/environment';
+import { isBeautyBusinessType } from './businessProfile';
 
 let mockAppointments = appointments.map((appointment) => ({ ...appointment }));
 let mockTimeBlocks = timeBlocks.map((block) => ({ ...block }));
@@ -21,14 +22,16 @@ let mockStaffServices = mockStaff.flatMap((member) => mockServices.map((service)
   id: `${member.id}-${service.id}`, staffId: member.id, serviceId: service.id,
   durationMinutes: service.durationMinutes, price: service.price, active: true,
 })));
-let mockSchedules: import('./types').StaffSchedule[] = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
-  id: `mock-schedule-initial-${dayOfWeek}`,
-  staffId: mockStaff[0].id,
-  dayOfWeek,
-  start: '09:00',
-  end: '18:00',
-  active: true,
-}));
+let mockSchedules: import('./types').StaffSchedule[] = mockStaff.flatMap((member) => (
+  [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+    id: `mock-schedule-${member.id}-${dayOfWeek}`,
+    staffId: member.id,
+    dayOfWeek,
+    start: '09:00',
+    end: '20:00',
+    active: true,
+  }))
+));
 let mockCustomers = seededCustomers.map((customer) => ({
   ...customer,
   firstName: customer.name.split(' ')[0] ?? customer.name,
@@ -38,21 +41,21 @@ let mockCustomers = seededCustomers.map((customer) => ({
   reminderConsent: customer.messagingConsent,
   active: true,
 }));
-let mockBusiness = {
+let mockBusiness: RepositoryBusiness = {
   id: business.id,
   name: business.name,
-  slug: 'luna-beauty-studio',
-  businessType: 'nail_salon' as const,
+  slug: 'nor-barber-club',
+  businessType: business.businessType,
   timezone: 'Europe/Madrid',
   currency: 'EUR',
   language: 'es',
   phone: '+34 600 000 000',
-  email: 'hola@lunabeauty.example',
-  address: 'Calle de ejemplo, 12',
+  email: 'hola@norbarber.example',
+  address: 'Calle de la Barbería, 12',
 };
 
 export const MOCK_BEAUTY_STORAGE_KEY = 'costabots-beauty:mock-state:v1';
-const MOCK_BEAUTY_STORAGE_VERSION = 1;
+const MOCK_BEAUTY_STORAGE_VERSION = 2;
 let mockPersistenceEnabled = true;
 
 type StoredMockState = {
@@ -118,7 +121,12 @@ function restoreMockState() {
       storage.removeItem(MOCK_BEAUTY_STORAGE_KEY);
       return;
     }
-    mockBusiness = { ...stored.business, businessType: stored.business.businessType ?? 'nail_salon' };
+    mockBusiness = {
+      ...stored.business,
+      businessType: isBeautyBusinessType(stored.business.businessType)
+        ? stored.business.businessType
+        : 'nail_salon',
+    };
     mockAppointments = stored.appointments;
     mockTimeBlocks = stored.timeBlocks;
     mockStaff = stored.staff;

@@ -92,7 +92,7 @@ export function MembershipGate() {
       <AuthNotice
         action={<button className="auth-primary-button" onClick={() => void signOut()} type="button">Cerrar sesión</button>}
         detail="Pide al administrador del negocio que revise tu invitación o membresía."
-        title="No tienes acceso a ningún negocio de COSTABOTS Beauty."
+        title="No tienes acceso a ningún negocio de AURA."
       />
     );
   }

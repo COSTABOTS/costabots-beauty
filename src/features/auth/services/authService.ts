@@ -1,6 +1,10 @@
 import { supabase } from '../../../lib/supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BeautyMembership } from '../types';
+import {
+  isBeautyBusinessType,
+  type BeautyBusinessType,
+} from '../../beauty/data/businessProfile';
 
 const safeAuthError = 'No hemos podido completar la solicitud. Revisa los datos e inténtalo de nuevo.';
 
@@ -35,7 +39,7 @@ export async function updatePassword(password: string) {
   if (error) throw new Error('No hemos podido actualizar la contraseña. Solicita un enlace nuevo.');
 }
 
-export type BeautyBusinessType = 'nail_salon' | 'hair_salon' | 'beauty_center' | 'other';
+export type { BeautyBusinessType } from '../../beauty/data/businessProfile';
 
 export type BeautySignUpInput = {
   ownerDisplayName: string;
@@ -107,6 +111,9 @@ export async function completeBeautySignup(user: User) {
   if (!businessName || !ownerDisplayName || !businessType || !businessPhone) {
     throw new Error('Faltan datos para preparar tu espacio. Revisa el registro e inténtalo de nuevo.');
   }
+  if (!isBeautyBusinessType(businessType)) {
+    throw new Error('El tipo de negocio no es válido. Revisa el registro.');
+  }
   const { data, error } = await supabase.rpc('complete_beauty_signup', {
     p_business_name: businessName,
     p_owner_display_name: ownerDisplayName,
@@ -136,6 +143,7 @@ type BusinessRow = {
   id: string;
   name: string;
   slug: string;
+  business_type: BeautyBusinessType;
   timezone: string;
   default_currency: string;
   default_language: string;
@@ -157,7 +165,7 @@ export async function loadActiveMemberships(userId: string): Promise<BeautyMembe
 
   const businessResult = await supabase
     .from('beauty_businesses')
-    .select('id,name,slug,timezone,default_currency,default_language')
+    .select('id,name,slug,business_type,timezone,default_currency,default_language')
     .in('id', memberRows.map((membership) => membership.business_id))
     .eq('active', true);
 
@@ -179,6 +187,7 @@ export async function loadActiveMemberships(userId: string): Promise<BeautyMembe
         id: business.id,
         name: business.name,
         slug: business.slug,
+        businessType: business.business_type,
         timezone: business.timezone,
         defaultCurrency: business.default_currency,
         defaultLanguage: business.default_language,

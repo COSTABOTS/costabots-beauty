@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "tsc -b --pretty false",
+    "test:productization": "node --experimental-strip-types --test scripts/productization.test.ts",
+    "test:demo": "node --experimental-strip-types --test scripts/barberDemo.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

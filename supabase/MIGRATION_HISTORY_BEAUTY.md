@@ -235,3 +235,15 @@ También se aplicó la migración de seguimiento
 `20260730211026_whatsapp_send_idempotency.sql`. Añade un identificador único
 de petición del Manager para que un reintento de envío no pueda duplicar el
 mensaje aunque Evolution devuelva un provider message ID diferente.
+
+## Producto transversal para negocios con cita previa
+
+La migración pendiente
+`20261006120035_productize_appointments_business_types.sql` incorpora
+`barber_shop` al constraint de `beauty_businesses.business_type` y reemplaza
+de forma compatible `complete_beauty_signup` para aceptar el mismo valor. No
+modifica las migraciones ya aplicadas, los permisos de la función, su contrato,
+la idempotencia ni el aprovisionamiento transaccional existente.
+
+Esta migración se versiona para revisión en la rama de producto y no se aplica
+a ningún entorno durante esta iteración.

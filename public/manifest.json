@@ -1,13 +1,13 @@
 {
   "id": "/costabots-beauty",
-  "name": "COSTABOTS Beauty",
-  "short_name": "Beauty",
-  "description": "Manager mobile-first para negocios de belleza con agenda y recepción inteligente.",
+  "name": "AURA by COSTABOTS",
+  "short_name": "AURA",
+  "description": "AURA by COSTABOTS: agenda, clientes y recepción inteligente para profesionales.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#c96f73",
-  "background_color": "#f7f3ee",
+  "theme_color": "#2F6F68",
+  "background_color": "#F2EEE7",
   "icons": [
     {
       "src": "/branding/pwa-192x192.png",

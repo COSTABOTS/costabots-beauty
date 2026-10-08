@@ -12,13 +12,18 @@ y la importación solo comienza al pulsar **Importar servicios**.
   decoración.
 - **Peluquería:** 11 sugerencias de corte, peinado, color, mechas, balayage,
   tratamientos y recogidos.
+- **Barbería:** 6 sugerencias de corte, barba, servicios combinados y afeitado
+  clásico.
 - **Centro de estética:** 10 sugerencias de facial, cejas, pestañas, masaje,
   depilación y corporal.
 - **Otro:** no importa ni selecciona servicios automáticamente. Permite usar
-  cualquiera de los tres catálogos como punto de partida.
+  cualquiera de los cuatro catálogos como punto de partida.
 
 El `business_type` destaca la plantilla correspondiente durante el onboarding.
 La selección sigue necesitando confirmación humana.
+
+`other` no tiene plantilla recomendada: el importador comienza vacío para no
+presentar un catálogo de uñas como sugerencia implícita a negocios genéricos.
 
 ## Estructura y valores sugeridos
 

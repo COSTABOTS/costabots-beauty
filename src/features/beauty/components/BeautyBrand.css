@@ -1,0 +1,60 @@
+:root {
+  --cb-bg: #f2eee7;
+  --cb-surface: #fffefa;
+  --cb-text: #292824;
+  --cb-muted: #6f6961;
+  --cb-border: #dcd3c7;
+  --cb-primary: #2f6f68;
+  --cb-primary-hover: #285e58;
+  --cb-primary-strong: var(--cb-primary-hover);
+  --cb-primary-soft: #ddebe8;
+  --cb-primary-border: #a9c8c3;
+  --cb-accent: #c49a62;
+  --cb-accent-strong: #8b6537;
+  --cb-accent-soft: #f3e7d7;
+  --cb-focus-ring: rgba(47, 111, 104, .25);
+  --beauty-brand-mark-color: var(--cb-primary);
+}
+
+.beauty-brand-mark {
+  --beauty-brand-mark-color: var(--cb-primary);
+  display: inline-grid;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.beauty-brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.beauty-brand-mark--sm { width: 36px; height: 36px; }
+.beauty-brand-mark--md { width: 44px; height: 44px; }
+.beauty-brand-mark--lg { width: 58px; height: 58px; }
+
+@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
+  .beauty-brand-mark {
+    background-color: var(--beauty-brand-mark-color);
+    -webkit-mask-image: url('/branding/ui-symbol-transparent-256.png?v=20261008a');
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-image: url('/branding/ui-symbol-transparent-256.png?v=20261008a');
+    mask-mode: alpha;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+  }
+
+  .beauty-brand-mark img {
+    opacity: 0;
+  }
+}

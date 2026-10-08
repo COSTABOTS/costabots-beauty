@@ -1,9 +1,11 @@
+import './BeautyBrand.css';
+
 type BeautyBrandMarkProps = {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
 };
 
-const beautySymbol = '/branding/ui-symbol-transparent-256.png?v=20260729b';
+const beautySymbol = '/branding/ui-symbol-transparent-256.png?v=20261008a';
 
 export function BeautyBrandMark({ className = '', size = 'md' }: BeautyBrandMarkProps) {
   return (
@@ -15,9 +17,9 @@ export function BeautyBrandMark({ className = '', size = 'md' }: BeautyBrandMark
 
 export function BeautyBrandLockup() {
   return (
-    <div className="beauty-brand-lockup" aria-label="COSTABOTS Beauty">
+    <div className="beauty-brand-lockup" aria-label="AURA by COSTABOTS">
       <BeautyBrandMark />
-      <span><strong>COSTABOTS</strong><small>BEAUTY</small></span>
+      <span><strong>AURA</strong><small>by COSTABOTS</small></span>
     </div>
   );
 }

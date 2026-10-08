@@ -1,16 +1,21 @@
 :root {
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #292724;
-  background: #f7f3ee;
+  color: var(--cb-text);
+  background: var(--cb-bg);
   font-synthesis: none;
-  --beauty-bg: #f7f3ee;
-  --beauty-card: #fffdfb;
-  --beauty-ink: #292724;
-  --beauty-muted: #7a746e;
-  --beauty-line: #e9e1d8;
-  --beauty-primary: #c96f63;
-  --beauty-primary-dark: #a95148;
-  --beauty-primary-soft: #f6e3df;
+  --beauty-bg: var(--cb-bg);
+  --beauty-card: var(--cb-surface);
+  --beauty-ink: var(--cb-text);
+  --beauty-muted: var(--cb-muted);
+  --beauty-line: var(--cb-border);
+  --beauty-primary: var(--cb-primary);
+  --beauty-primary-dark: var(--cb-primary-strong);
+  --beauty-primary-soft: var(--cb-primary-soft);
+  --beauty-primary-border: var(--cb-primary-border);
+  --beauty-focus-ring: var(--cb-focus-ring);
+  --beauty-accent: var(--cb-accent);
+  --beauty-accent-dark: var(--cb-accent-strong);
+  --beauty-accent-soft: var(--cb-accent-soft);
   --beauty-sand: #e7d3b7;
   --beauty-sand-soft: #f7efe3;
   --beauty-sage: #78927d;
@@ -27,9 +32,214 @@ html { overflow-x: hidden; background: var(--beauty-bg); }
 body { margin: 0; min-width: 320px; overflow-x: hidden; background: var(--beauty-bg); }
 button, input { font: inherit; }
 button { color: inherit; }
-button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99, .28); outline-offset: 2px; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focus-ring); outline-offset: 2px; }
 
 .beauty-app { min-height: 100vh; background: var(--beauty-bg); }
+.beauty-app[data-theme="nails"] {
+  --beauty-primary: #786956;
+  --beauty-primary-dark: #554a3d;
+  --beauty-primary-soft: #eee9e1;
+  --beauty-brand-mark-color: #8a755b;
+}
+.beauty-app[data-theme="hair"] {
+  --beauty-primary: #a67c52;
+  --beauty-primary-dark: #75563a;
+  --beauty-primary-soft: #f1e6d8;
+  --beauty-bg: #f7f3ed;
+  --beauty-line: #e6ddd2;
+  --beauty-primary-border: #d9c6b2;
+  --beauty-focus-ring: rgba(166, 124, 82, .28);
+  --beauty-brand-mark-color: #a67c52;
+}
+.beauty-app[data-theme="barber"] {
+  --beauty-primary: #303a39;
+  --beauty-primary-dark: #1e2524;
+  --beauty-primary-soft: #e5e3dc;
+  --beauty-bg: #f3efe6;
+  --beauty-card: #fffcf6;
+  --beauty-ink: #202625;
+  --beauty-muted: #6f6b63;
+  --beauty-line: #ddd5c7;
+  --beauty-primary-border: #bda98f;
+  --beauty-focus-ring: rgba(180, 122, 69, .3);
+  --beauty-accent: #b47a45;
+  --beauty-accent-dark: #81532d;
+  --beauty-accent-soft: #f1e3d2;
+  --beauty-barber-sage: #66736d;
+  --beauty-brand-mark-color: var(--beauty-accent);
+  --shadow-soft: 0 14px 34px rgba(32, 38, 37, .09);
+}
+
+/* The barber preset keeps the shared components but gives them a restrained
+   charcoal, warm-cream and copper identity. Semantic status colours remain
+   untouched so appointments and alerts retain their meaning. */
+.beauty-app[data-theme="barber"] .mode-notice {
+  color: var(--beauty-primary-dark);
+  border-color: #d5c5ae;
+  background: #eee7db;
+}
+.beauty-app[data-theme="barber"] .feature-state-badge--demo {
+  color: #fffaf2;
+  background: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .today-header p,
+.beauty-app[data-theme="barber"] .page-heading p,
+.beauty-app[data-theme="barber"] .section-kicker {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .today-header h1,
+.beauty-app[data-theme="barber"] .page-heading h1 {
+  color: var(--beauty-primary-dark);
+}
+.beauty-app[data-theme="barber"] .today-header h1::after {
+  display: block;
+  width: 34px;
+  height: 3px;
+  margin-top: 9px;
+  border-radius: 999px;
+  background: var(--beauty-accent);
+  content: "";
+}
+.beauty-app[data-theme="barber"] .primary-icon-button,
+.beauty-app[data-theme="barber"] .form-secondary {
+  border-color: #c6aa88;
+  background: #f4ede2;
+}
+.beauty-app[data-theme="barber"] :is(.appointment-card__primary, .form-submit, .primary-circle-button, .primary-detail-action):hover:not(:disabled) {
+  background: #3d4947;
+}
+.beauty-app[data-theme="barber"] :is(.primary-icon-button, .form-secondary):hover:not(:disabled) {
+  border-color: var(--beauty-accent);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar {
+  color: var(--beauty-primary-dark);
+  border-color: rgba(255, 252, 246, .92);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--sand {
+  background: #d9b88f;
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--sage {
+  color: #fff;
+  background: var(--beauty-barber-sage);
+}
+.beauty-app[data-theme="barber"] .beauty-avatar--coral {
+  color: #fff;
+  background: #596260;
+}
+.beauty-app[data-theme="barber"] .metric-card--sage .metric-card__icon,
+.beauty-app[data-theme="barber"] .metric-card--sand .metric-card__icon,
+.beauty-app[data-theme="barber"] .metric-card--lilac .metric-card__icon {
+  color: var(--beauty-accent-dark);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .next-appointment {
+  border-color: #c9ad8b;
+  background: linear-gradient(118deg, #f0e6d7 0%, var(--beauty-card) 58%);
+  box-shadow: 0 14px 36px rgba(49, 44, 37, .1);
+}
+.beauty-app[data-theme="barber"] .next-appointment__time {
+  border-right-color: #d5bea2;
+}
+.beauty-app[data-theme="barber"] .next-appointment__time strong {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .next-appointment__content p,
+.beauty-app[data-theme="barber"] .appointment-card__customer,
+.beauty-app[data-theme="barber"] .conversation-row__content p {
+  color: #5f605a;
+}
+.beauty-app[data-theme="barber"] .appointment-card {
+  border-color: #ddd4c5;
+  box-shadow: 0 7px 20px rgba(42, 45, 42, .035);
+}
+.beauty-app[data-theme="barber"] .appointment-card::before,
+.beauty-app[data-theme="barber"] .appointment-card--sage::before,
+.beauty-app[data-theme="barber"] .appointment-card--sand::before {
+  background: var(--beauty-accent);
+}
+.beauty-app[data-theme="barber"] .quick-actions svg,
+.beauty-app[data-theme="barber"] .empty-state svg,
+.beauty-app[data-theme="barber"] .time-block__action {
+  color: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="barber"] .week-switcher,
+.beauty-app[data-theme="barber"] .agenda-summary,
+.beauty-app[data-theme="barber"] .message-tabs,
+.beauty-app[data-theme="barber"] .conversation-tabs {
+  background: #e9e3d9;
+}
+.beauty-app[data-theme="barber"] .staff-filters button.is-active {
+  border-color: var(--beauty-primary);
+  background: var(--beauty-primary);
+}
+.beauty-app[data-theme="barber"] .business-card {
+  background: linear-gradient(135deg, #252d2c, #39413f);
+  box-shadow: 0 16px 34px rgba(30, 37, 36, .18);
+}
+.beauty-app[data-theme="barber"] .business-card small {
+  color: #d8c8b3;
+}
+.beauty-app[data-theme="barber"] .more-list__icon,
+.beauty-app[data-theme="barber"] .detail-row__icon,
+.beauty-app[data-theme="barber"] .onboarding-card__icon {
+  color: var(--beauty-accent-dark);
+  background: var(--beauty-accent-soft);
+}
+.beauty-app[data-theme="barber"] .beauty-navigation {
+  border-color: rgba(185, 169, 145, .72);
+  background: rgba(255, 252, 246, .96);
+  box-shadow: 0 16px 38px rgba(30, 37, 36, .17);
+}
+.beauty-app[data-theme="barber"] .beauty-navigation button {
+  color: #716f68;
+}
+.beauty-app[data-theme="barber"] .beauty-navigation button.is-active {
+  color: #fff;
+  background: var(--beauty-primary);
+}
+.beauty-app[data-theme="barber"] .unread-count {
+  background: var(--beauty-accent-dark);
+}
+.beauty-app[data-theme="beauty"] {
+  --beauty-primary: #78927d;
+  --beauty-primary-dark: #526b58;
+  --beauty-primary-soft: #e3ede5;
+  --beauty-bg: #f5f3ea;
+  --beauty-primary-border: #c8d7ca;
+  --beauty-focus-ring: rgba(120, 146, 125, .28);
+  --beauty-brand-mark-color: #78927d;
+}
+.beauty-app[data-theme="neutral"] {
+  --beauty-primary: #526f91;
+  --beauty-primary-dark: #38526f;
+  --beauty-primary-soft: #e5edf5;
+  --beauty-bg: #f3f5f7;
+  --beauty-line: #dfe4e8;
+  --beauty-primary-border: #c6d3df;
+  --beauty-focus-ring: rgba(82, 111, 145, .28);
+  --beauty-brand-mark-color: #526f91;
+}
+.beauty-app[data-theme="nails"],
+.beauty-app[data-theme="hair"],
+.beauty-app[data-theme="barber"],
+.beauty-app[data-theme="beauty"],
+.beauty-app[data-theme="neutral"] {
+  --beauty-primary: var(--cb-primary);
+  --beauty-primary-dark: var(--cb-primary-strong);
+  --beauty-primary-soft: var(--cb-primary-soft);
+  --beauty-bg: var(--cb-bg);
+  --beauty-card: var(--cb-surface);
+  --beauty-ink: var(--cb-text);
+  --beauty-muted: var(--cb-muted);
+  --beauty-line: var(--cb-border);
+  --beauty-primary-border: var(--cb-primary-border);
+  --beauty-focus-ring: var(--cb-focus-ring);
+  --beauty-brand-mark-color: var(--cb-primary);
+  --beauty-accent: var(--cb-accent);
+  --beauty-accent-dark: var(--cb-accent-strong);
+  --beauty-accent-soft: var(--cb-accent-soft);
+}
 .beauty-main { width: 100%; max-width: 760px; min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
 .beauty-page { display: grid; gap: 24px; padding: 22px 16px 32px; }
 .desktop-brand { display: none; }
@@ -51,15 +261,16 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .today-date { display: block; margin-top: 7px; color: var(--beauty-muted); font-size: .88rem; }
 .profile-button, .icon-button-soft, .primary-circle-button, .round-arrow { display: inline-grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: var(--beauty-card); box-shadow: var(--shadow-soft); cursor: pointer; }
 .profile-button--brand { width: 42px; height: 42px; padding: 2px; background: transparent; box-shadow: none; }
-.profile-button--brand .beauty-brand-mark { background: transparent; box-shadow: none; }
+.profile-button--brand .beauty-brand-mark { box-shadow: none; }
 .primary-circle-button { color: #fff; background: var(--beauty-primary); }
-.primary-icon-button { min-height: 42px; padding: 0 16px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid #e2c8c3; border-radius: 999px; background: var(--beauty-primary-soft); cursor: pointer; }
+.primary-icon-button { min-height: 42px; padding: 0 16px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 999px; background: var(--beauty-primary-soft); cursor: pointer; }
+.primary-icon-button:hover { color: var(--beauty-accent-dark); border-color: var(--beauty-accent); background: var(--beauty-accent-soft); }
 
 .beauty-avatar { display: inline-grid; flex: 0 0 auto; place-items: center; color: #584641; font-weight: 800; border: 2px solid rgba(255,255,255,.9); border-radius: 50%; }
 .beauty-avatar--sm { width: 24px; height: 24px; font-size: .58rem; }
 .beauty-avatar--md { width: 42px; height: 42px; font-size: .74rem; }
 .beauty-avatar--lg { width: 52px; height: 52px; font-size: .88rem; }
-.beauty-avatar--coral { background: #f1c8c0; }
+.beauty-avatar--coral { background: #dfd5c7; }
 .beauty-avatar--sage { background: #c8d9cb; }
 .beauty-avatar--sand { background: #ead8bf; }
 
@@ -86,8 +297,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .section-heading .section-kicker { margin: 0; }
 .section-heading button, .section-heading > span { padding: 0; color: var(--beauty-muted); font-size: .76rem; font-weight: 700; border: 0; background: none; }
-.next-appointment { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 15px; padding: 18px 14px; color: #44332e; border: 1px solid #e6c9c4; border-radius: 22px; background: linear-gradient(135deg, #f8e8e4, #fffaf7 62%); box-shadow: var(--shadow-soft); }
-.next-appointment__time { display: grid; min-width: 64px; padding-right: 14px; border-right: 1px solid #e4c7c1; }
+.next-appointment { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 15px; padding: 18px 14px; color: var(--beauty-ink); border: 1px solid var(--beauty-primary-border); border-radius: 22px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card) 62%); box-shadow: var(--shadow-soft); }
+.next-appointment__time { display: grid; min-width: 64px; padding-right: 14px; border-right: 1px solid var(--beauty-primary-border); }
 .next-appointment__time small, .next-appointment__time span { color: var(--beauty-muted); font-size: .67rem; }
 .next-appointment__time strong { margin: 3px 0; color: var(--beauty-primary-dark); font-size: 1.55rem; }
 .next-appointment__content { display: grid; min-width: 0; gap: 2px; }
@@ -98,6 +309,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .round-arrow { width: 40px; height: 40px; box-shadow: none; }
 
 .appointment-list, .agenda-timeline { display: grid; gap: 9px; }
+.today-agenda-link { width: 100%; min-height: 44px; margin-top: 10px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 13px; background: var(--beauty-primary-soft); }
 .appointment-card { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; width: 100%; min-height: 126px; padding: 12px; text-align: left; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
 .appointment-card::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--beauty-primary); content: ""; }
 .appointment-card--sage::before { background: var(--beauty-sage); }
@@ -132,6 +344,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 
 .quick-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .quick-actions button { display: flex; min-height: 78px; align-items: center; gap: 10px; padding: 13px; text-align: left; font-size: .78rem; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 17px; background: var(--beauty-card); cursor: pointer; }
+.quick-actions button:hover { border-color: var(--beauty-primary-border); background: #fcf8f2; }
+.quick-actions button svg { color: var(--beauty-accent-dark); }
 .quick-actions svg { width: 21px; color: var(--beauty-primary); }
 
 .page-heading { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 16px; padding-top: 5px; }
@@ -224,6 +438,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .more-list button { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; min-height: 72px; align-items: center; gap: 11px; padding: 11px; text-align: left; border: 1px solid var(--beauty-line); border-radius: 17px; background: var(--beauty-card); cursor: pointer; }
 .more-list button:disabled { cursor: not-allowed; opacity: .72; background: #f8f6f3; }
 .more-list__icon { display: grid; width: 42px; height: 42px; place-items: center; color: var(--beauty-primary-dark); border-radius: 13px; background: var(--beauty-primary-soft); }
+.more-list button:hover { border-color: var(--beauty-primary-border); background: #fcf8f2; }
+.more-list button:hover .more-list__icon { color: var(--beauty-accent-dark); background: var(--beauty-accent-soft); }
 .more-list button > span:nth-child(2) { display: grid; gap: 3px; }
 .more-list strong { font-size: .86rem; }
 .more-list small { color: var(--beauty-muted); font-size: .68rem; }
@@ -232,11 +448,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .isolation-note strong { font-size: .78rem; }
 .isolation-note small { font-size: .66rem; }
 .beauty-signout { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; width: fit-content; padding: 0 16px; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 13px; background: var(--beauty-danger-soft); cursor: pointer; }
-.more-signout, .desktop-signout { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; color: var(--beauty-danger); font-weight: 800; border: 1px solid #e3bbb7; border-radius: 14px; background: var(--beauty-danger-soft); cursor: pointer; }
+.more-signout, .desktop-signout { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; color: var(--beauty-muted); font-weight: 750; border: 1px solid var(--beauty-line); border-radius: 13px; background: transparent; cursor: pointer; transition: color .18s ease, border-color .18s ease, background .18s ease; }
+.more-signout:hover, .desktop-signout:hover { color: var(--beauty-danger); border-color: #d9aaa5; background: var(--beauty-danger-soft); }
 .more-signout { width: 100%; margin-top: 8px; }
 .desktop-signout { display: none; }
 
-.automation-hero { display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid #e6c9c3; border-radius: 20px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
+.automation-hero { display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid var(--beauty-primary-border); border-radius: 20px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .automation-hero > svg { width: 28px; height: 28px; color: var(--beauty-primary-dark); }
 .automation-hero span { display: grid; gap: 4px; }
 .automation-hero strong { font-size: .9rem; }
@@ -311,7 +528,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .beauty-command-form > label, .form-columns label { display: grid; gap: 6px; color: var(--beauty-muted); font-size: .7rem; font-weight: 800; }
 .beauty-command-form input:not([type="checkbox"]), .beauty-command-form select, .beauty-command-form textarea { width: 100%; min-height: 47px; padding: 10px 12px; color: var(--beauty-ink); border: 1px solid var(--beauty-line); border-radius: 13px; outline: 0; background: var(--beauty-card); }
 .beauty-command-form textarea { min-height: 82px; resize: vertical; }
-.beauty-command-form input:focus, .beauty-command-form select:focus, .beauty-command-form textarea:focus { border-color: var(--beauty-primary); box-shadow: 0 0 0 3px rgba(201,111,99,.12); }
+.beauty-command-form input:focus, .beauty-command-form select:focus, .beauty-command-form textarea:focus { border-color: var(--beauty-primary); box-shadow: 0 0 0 3px var(--beauty-focus-ring); }
 .form-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
 .beauty-command-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .beauty-command-form legend { margin-bottom: 8px; color: var(--beauty-muted); font-size: .7rem; font-weight: 800; }
@@ -330,7 +547,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .slot-options button.is-selected { color: #fff; border-color: var(--beauty-primary); background: var(--beauty-primary); }
 .form-submit, .form-secondary { min-height: 49px; padding: 0 15px; font-weight: 800; border-radius: 14px; cursor: pointer; }
 .form-submit { color: #fff; border: 0; background: var(--beauty-primary); }
-.form-secondary { color: var(--beauty-primary-dark); border: 1px solid #e2c8c3; background: var(--beauty-primary-soft); }
+.form-secondary { color: var(--beauty-primary-dark); border: 1px solid var(--beauty-primary-border); background: var(--beauty-primary-soft); }
 .form-submit:disabled { cursor: not-allowed; opacity: .6; }
 .form-secondary:disabled { cursor: wait; opacity: .6; }
 .form-error { margin: 0; padding: 11px 12px; color: #8f433e; font-size: .72rem; border-radius: 12px; background: var(--beauty-danger-soft); }
@@ -424,14 +641,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .setup-page > label { display: grid; gap: 6px; color: var(--beauty-muted); font-size: .7rem; font-weight: 750; }
 .setup-page select { min-height: 46px; padding: 0 12px; border: 1px solid var(--beauty-line); border-radius: 13px; background: var(--beauty-card); }
 .setup-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 9px; }
-.setup-toolbar > button { display: inline-flex; min-height: 50px; align-items: center; gap: 6px; padding: 0 14px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid #e6c4bd; border-radius: 16px; background: var(--beauty-primary-soft); }
+.setup-toolbar > button { display: inline-flex; min-height: 50px; align-items: center; gap: 6px; padding: 0 14px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 16px; background: var(--beauty-primary-soft); }
 .setup-list { display: grid; gap: 8px; }
 .setup-list > article { display: flex; min-height: 68px; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--beauty-line); border-radius: 16px; background: var(--beauty-card); }
 .setup-list > article.is-inactive { opacity: .56; }
 .setup-list > article > span:not(.beauty-avatar) { display: grid; min-width: 0; flex: 1; gap: 3px; }
 .setup-list > article small { overflow: hidden; color: var(--beauty-muted); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 .setup-list > article > button { min-height: 36px; padding: 0 10px; font-size: .68rem; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 10px; background: var(--beauty-bg); }
-.inline-editor { display: grid; gap: 14px; padding: 14px; border: 1px solid #e6c4bd; border-radius: 18px; background: #fffaf8; }
+.inline-editor { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--beauty-primary-border); border-radius: 18px; background: var(--beauty-card); }
 .inline-editor h2, .inline-editor h3 { margin: 0; font-size: 1rem; }
 .assignment-list { display: grid; gap: 7px; margin-top: 8px; }
 .assignment-list article { display: grid; grid-template-columns: minmax(120px,1fr) 72px 78px auto; align-items: center; gap: 7px; padding: 8px; border: 1px solid var(--beauty-line); border-radius: 12px; background: #fff; }
@@ -471,11 +688,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 }
 .copy-day { width: max-content; color: var(--beauty-muted); background: var(--beauty-bg); }
 
-.setup-reminder, .setup-status-card { display: grid; gap: 10px; padding: 15px; color: #654d43; border: 1px solid #e5c6bb; border-radius: 18px; background: linear-gradient(135deg,#fff7f3,#f8ece7); }
+.setup-reminder, .setup-status-card { display: grid; gap: 10px; padding: 15px; color: var(--beauty-ink); border: 1px solid var(--beauty-primary-border); border-radius: 18px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .setup-reminder > span, .setup-status-card > span { display: grid; gap: 3px; }
 .setup-reminder strong, .setup-status-card strong { font-size: .82rem; }
 .setup-reminder small, .setup-status-card small { color: var(--beauty-muted); font-size: .66rem; }
-.setup-reminder__progress, .onboarding-progress { height: 7px; overflow: hidden; border-radius: 999px; background: #eaded8; }
+.setup-reminder__progress, .onboarding-progress { height: 7px; overflow: hidden; border-radius: 999px; background: var(--beauty-line); }
 .setup-reminder__progress span, .onboarding-progress span { display: block; height: 100%; border-radius: inherit; background: var(--beauty-primary); }
 .setup-reminder button, .setup-status-card button, .onboarding-action > button:not(.soon-action), .onboarding-navigation button { min-height: 44px; padding: 0 13px; color: #fff; font-weight: 850; border: 0; border-radius: 13px; background: var(--beauty-primary); }
 .setup-status-card { grid-template-columns: minmax(0,1fr) auto; align-items: center; }
@@ -496,7 +713,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .setup-complete-badge { position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 4px; padding: 5px 8px; color: #4b6753; font-size: .61rem; font-weight: 850; border-radius: 999px; background: var(--beauty-sage-soft); }
 .onboarding-action, .onboarding-finish { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
 .onboarding-action p, .onboarding-action small, .onboarding-finish p { margin: 0; color: var(--beauty-muted); font-size: .72rem; line-height: 1.5; }
-.onboarding-action .secondary-action { color: var(--beauty-primary-dark); border: 1px solid #e4c3bc; background: var(--beauty-primary-soft); }
+.onboarding-action .secondary-action { color: var(--beauty-primary-dark); border: 1px solid var(--beauty-primary-border); background: var(--beauty-primary-soft); }
 .soon-action { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; color: var(--beauty-muted); font-weight: 800; border: 1px dashed #d8ccc4; border-radius: 13px; background: var(--beauty-bg); }
 .onboarding-finish { place-items: center; padding: 28px 18px; text-align: center; }
 .onboarding-finish > svg { color: var(--beauty-primary); }
@@ -504,17 +721,17 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .onboarding-finish.is-complete { border-color: #c8dbc9; background: var(--beauty-sage-soft); }
 .onboarding-navigation { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: auto; }
 .onboarding-navigation button { display: flex; align-items: center; justify-content: center; gap: 4px; }
-.onboarding-navigation button:first-child { color: var(--beauty-primary-dark); border: 1px solid #e4c3bc; background: var(--beauty-card); }
+.onboarding-navigation button:first-child { color: var(--beauty-primary-dark); border: 1px solid var(--beauty-primary-border); background: var(--beauty-card); }
 .onboarding-navigation button:disabled, .onboarding-action button:disabled { cursor: not-allowed; opacity: .5; }
-.empty-state > button { min-height: 42px; padding: 0 13px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid #e4c3bc; border-radius: 12px; background: var(--beauty-primary-soft); }
+.empty-state > button { min-height: 42px; padding: 0 13px; color: var(--beauty-primary-dark); font-weight: 800; border: 1px solid var(--beauty-primary-border); border-radius: 12px; background: var(--beauty-primary-soft); }
 .empty-state > small { max-width: 420px; color: var(--beauty-muted); font-size: .66rem; line-height: 1.45; }
-.service-add-options { display: grid; gap: 10px; padding: 16px; border: 1px solid #e6c4bd; border-radius: 18px; background: linear-gradient(135deg, #fff8f5, #fffdfb); }
+.service-add-options { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--beauty-primary-border); border-radius: 18px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .service-add-options h2 { margin: 0; font-size: 1rem; }
 .service-add-options > div { display: grid; grid-template-columns: 1.2fr .8fr .9fr; gap: 8px; }
 .service-add-options button { min-height: 48px; padding: 9px 12px; font-weight: 800; border: 1px solid var(--beauty-line); border-radius: 13px; background: var(--beauty-card); }
 .service-add-options .template-primary-action { display: grid; gap: 2px; color: #fff; border-color: var(--beauty-primary); background: var(--beauty-primary); }
 .service-add-options .template-primary-action small { font-size: .6rem; font-weight: 650; opacity: .82; }
-.template-importer { position: fixed; z-index: 80; inset: 12px; display: flex; max-width: 780px; max-height: calc(100dvh - 24px); flex-direction: column; gap: 12px; margin: auto; padding: 16px; overflow: hidden; border: 1px solid #e3c5bd; border-radius: 24px; background: #fffdfb; box-shadow: 0 22px 70px rgba(70, 44, 36, .2); }
+.template-importer { position: fixed; z-index: 80; inset: 12px; display: flex; max-width: 780px; max-height: calc(100dvh - 24px); flex-direction: column; gap: 12px; margin: auto; padding: 16px; overflow: hidden; border: 1px solid var(--beauty-primary-border); border-radius: 24px; background: var(--beauty-card); box-shadow: 0 22px 70px rgba(38, 42, 40, .18); }
 .template-importer::before { position: fixed; z-index: -1; inset: 0; content: ''; background: rgba(48, 38, 34, .35); backdrop-filter: blur(3px); }
 .template-importer > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .template-importer > header span { display: grid; gap: 2px; }
@@ -587,29 +804,33 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(201, 111, 99
 .whatsapp-qr img { width:min(250px,100%); aspect-ratio:1; object-fit:contain; }
 .whatsapp-qr code { max-width:100%; overflow-wrap:anywhere; padding:15px; border-radius:12px; background:#f6f2ef; }
 .whatsapp-qr span { display:grid; gap:4px; }
-.conversation-tabs { display:flex; gap:6px; margin-bottom:16px; padding:4px; border-radius:13px; background:#f1ece8; }
-.conversation-tabs button { flex:1; min-height:38px; border:0; border-radius:10px; background:transparent; color:#756c67; font-weight:700; }
-.conversation-tabs button.is-active { background:#fff; color:#bc5d55; box-shadow:0 2px 8px #6c4c3d12; }
+.conversation-tabs { display:flex; gap:6px; margin-bottom:16px; padding:4px; border-radius:13px; background:var(--beauty-primary-soft); }
+.conversation-tabs button { flex:1; min-height:38px; border:0; border-radius:10px; background:transparent; color:var(--beauty-muted); font-weight:700; }
+.conversation-tabs button.is-active { background:var(--beauty-card); color:var(--beauty-primary-dark); box-shadow:0 2px 8px var(--beauty-focus-ring); }
+.conversation-tabs button:hover { color:var(--beauty-accent-dark); }
 .conversation-list { display:grid; }
 .conversation-list > button { display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:11px; width:100%; padding:14px 4px; border:0; border-bottom:1px solid #eee5df; background:transparent; text-align:left; }
-.conversation-avatar { display:grid; width:42px; height:42px; place-items:center; border-radius:50%; background:#f7e5df; color:#c7665c; }
+.conversation-avatar { display:grid; width:42px; height:42px; place-items:center; border-radius:50%; background:var(--beauty-primary-soft); color:var(--beauty-primary-dark); }
 .conversation-list > button > span:nth-child(2) { display:grid; min-width:0; gap:4px; }
 .conversation-list > button strong,.conversation-list > button small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .conversation-meta { display:grid; justify-items:end; gap:4px; max-width:120px; }
-.conversation-meta b { display:grid; min-width:20px; height:20px; place-items:center; border-radius:999px; background:#dc685d; color:#fff; font-size:.68rem; }
+.conversation-meta b { display:grid; min-width:20px; height:20px; padding:0 5px; place-items:center; border-radius:999px; background:var(--beauty-primary); color:#fff; font-size:.68rem; }
 .conversation-meta em { color:#8c7f78; font-size:.61rem; font-style:normal; font-weight:700; }
 .whatsapp-conversation-page { display:flex; min-height:calc(100dvh - 80px); flex-direction:column; }
-.whatsapp-handoff { justify-content:space-between; margin:12px 0; padding:10px 12px; border-radius:13px; background:#f8f3f0; }
-.whatsapp-handoff small { color:#776c65; text-align:right; }
+.whatsapp-handoff { justify-content:space-between; margin:12px 0; padding:11px 12px; border:1px solid var(--beauty-line); border-radius:13px; background:var(--beauty-card); }
+.whatsapp-handoff small { color:var(--beauty-muted); text-align:right; }
+.whatsapp-handoff__action,.load-older { display:inline-flex; min-height:40px; align-items:center; justify-content:center; padding:0 13px; color:var(--beauty-primary-dark); font:inherit; font-size:.72rem; font-weight:800; border:1px solid var(--beauty-primary-border); border-radius:11px; background:var(--beauty-primary-soft); cursor:pointer; }
+.whatsapp-handoff__action:hover,.load-older:hover { border-color:var(--beauty-primary); background:#e7e0d6; }
+.whatsapp-handoff__action:disabled { cursor:wait; opacity:.6; }
 .whatsapp-message-history { display:flex; flex:1; min-height:240px; flex-direction:column; gap:9px; padding:16px 0; }
 .whatsapp-bubble { max-width:min(78%,520px); padding:10px 12px; border-radius:15px 15px 15px 4px; background:#f0ece9; }
-.whatsapp-bubble--outbound { align-self:flex-end; border-radius:15px 15px 4px; background:#f8ded8; }
+.whatsapp-bubble--outbound { align-self:flex-end; border-radius:15px 15px 4px; background:var(--beauty-primary-soft); }
 .whatsapp-bubble p { margin:0 0 5px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .whatsapp-bubble small { color:#81756e; font-size:.64rem; }
 .load-older { align-self:center; }
-.whatsapp-composer { position:sticky; bottom:70px; display:grid; grid-template-columns:minmax(0,1fr) 46px; gap:9px; padding:10px 0 calc(10px + env(safe-area-inset-bottom)); background:#fcfaf8; }
+.whatsapp-composer { position:sticky; bottom:70px; display:grid; grid-template-columns:minmax(0,1fr) 46px; gap:9px; padding:10px 0 calc(10px + env(safe-area-inset-bottom)); background:var(--beauty-bg); }
 .whatsapp-composer textarea { min-height:46px; max-height:120px; resize:vertical; }
-.whatsapp-composer button { display:grid; width:46px; height:46px; place-items:center; border:0; border-radius:14px; background:#d8665e; color:#fff; }
+.whatsapp-composer button { display:grid; width:46px; height:46px; place-items:center; border:0; border-radius:14px; background:var(--beauty-primary); color:#fff; }
 
 @media (min-width: 769px) {
   .whatsapp-composer { bottom:0; }

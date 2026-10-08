@@ -22,9 +22,9 @@ void import('./features/auth/AuthApp')
       <React.StrictMode>
         <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f7f3ee', color: '#292724', fontFamily: 'system-ui' }}>
           <section style={{ width: '100%', maxWidth: 460, padding: 28, borderRadius: 24, background: '#fffdfb' }}>
-            <strong>COSTABOTS Beauty</strong>
+            <strong>AURA <small>by COSTABOTS</small></strong>
             <h1>Configuración no válida</h1>
-            <p>La aplicación se ha bloqueado de forma segura. Revisa las variables de entorno de Beauty.</p>
+            <p>La aplicación se ha bloqueado de forma segura. Revisa las variables de entorno.</p>
           </section>
         </main>
       </React.StrictMode>,
