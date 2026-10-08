@@ -632,7 +632,7 @@ function MorePage({ businessName, mode, navigate, onSignOut, progress, serviceCo
   return (
     <div className="beauty-page">
       <PageHeader eyebrow="Tu espacio de trabajo" title="Más" />
-      <section className="business-card"><BeautyBrandMark size="lg" /><span><strong>{businessName}</strong><small>COSTABOTS · Sesión protegida</small></span><ShieldCheck size={20} /></section>
+      <section className="business-card"><BeautyBrandMark size="lg" /><span><strong>{businessName}</strong><small>AURA by COSTABOTS · Sesión protegida</small></span><ShieldCheck size={20} /></section>
       <div className="more-list">
         {items.map(({ icon: Icon, label, detail, route, state }) => <button disabled={!route} key={label} onClick={() => route && navigate(route)} type="button"><span className="more-list__icon"><Icon size={21} /></span><span><strong>{label}</strong><small>{detail}</small></span>{state && <FeatureStateBadge state={state} />}{!route && <FeatureStateBadge state="soon" />}</button>)}
       </div>

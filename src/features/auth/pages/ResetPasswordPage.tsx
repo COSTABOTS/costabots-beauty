@@ -40,7 +40,7 @@ export function ResetPasswordPage({ onComplete }: { onComplete: () => void }) {
         <div className="auth-success" role="status">
           <LockKeyhole size={28} />
           <strong>Contraseña actualizada</strong>
-          <p>Ya puedes continuar a COSTABOTS.</p>
+          <p>Ya puedes continuar a AURA.</p>
           <button className="auth-primary-button" onClick={onComplete} type="button">Continuar</button>
         </div>
       ) : (

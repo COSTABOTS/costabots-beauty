@@ -261,12 +261,12 @@ export function SupabaseWhatsAppInbox({
     <div className="whatsapp-handoff">
       {selected.mode === 'ai'
         ? <button disabled={working} onClick={() => {
-          if (window.confirm('¿Tomar esta conversación? COSTABOTS dejará de responder automáticamente hasta que la devuelvas a la atención automática.')) void mutate(() => takeConversation(selected.id));
+          if (window.confirm('¿Tomar esta conversación? AURA dejará de responder automáticamente hasta que la devuelvas a la atención automática.')) void mutate(() => takeConversation(selected.id));
         }} className="whatsapp-handoff__action" type="button">Tomar conversación</button>
         : <button disabled={working} onClick={() => {
-          if (window.confirm('¿Devolver la conversación a la atención automática? COSTABOTS volverá a responder a los próximos mensajes.')) void mutate(() => releaseConversation(selected.id));
+          if (window.confirm('¿Devolver la conversación a la atención automática? AURA volverá a responder a los próximos mensajes.')) void mutate(() => releaseConversation(selected.id));
         }} className="whatsapp-handoff__action" type="button">Devolver a la IA</button>}
-      <small>{selected.mode === 'ai' ? 'COSTABOTS responde automáticamente a los próximos mensajes.' : 'Atención manual activa: COSTABOTS no responderá automáticamente en esta conversación.'}</small>
+      <small>{selected.mode === 'ai' ? 'AURA responde automáticamente a los próximos mensajes.' : 'Atención manual activa: AURA no responderá automáticamente en esta conversación.'}</small>
     </div>
     <div className="whatsapp-message-history">
       {messages.length >= messageLimit && <button className="load-older" onClick={() => setMessageLimit((value) => value + 50)} type="button">Cargar anteriores</button>}

@@ -43,11 +43,11 @@
 @supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
   .beauty-brand-mark {
     background-color: var(--beauty-brand-mark-color);
-    -webkit-mask-image: url('/branding/ui-symbol-transparent-256.png?v=20260729b');
+    -webkit-mask-image: url('/branding/ui-symbol-transparent-256.png?v=20261008a');
     -webkit-mask-position: center;
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-size: contain;
-    mask-image: url('/branding/ui-symbol-transparent-256.png?v=20260729b');
+    mask-image: url('/branding/ui-symbol-transparent-256.png?v=20261008a');
     mask-mode: alpha;
     mask-position: center;
     mask-repeat: no-repeat;
