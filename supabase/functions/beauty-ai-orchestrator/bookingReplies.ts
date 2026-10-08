@@ -17,6 +17,10 @@ export const bookingReplies = {
   chooseTimeBeforeConfirming: 'Antes de confirmar necesito que elijas uno de los horarios disponibles.',
   cancelled: 'De acuerdo, no continuamos con esta solicitud. Si necesitas otra cosa, aquí estoy.',
   cancellationNeedsHuman: 'Para gestionar la cancelación de una cita, una persona del negocio debe revisarla contigo. Te atenderán en breve.',
+  rescheduleNeedsHuman: 'Puedo ayudarte a cambiar la hora de tu cita. Una persona del negocio revisará contigo las opciones disponibles.',
+  rescheduleWithoutReference: 'Para cambiar una cita, una persona del negocio debe revisarla contigo. Te atenderán en breve.',
+  thanks: '¡De nada! Si necesitas una cita, consultar servicios, precios u horarios, estoy aquí.',
+  outOfDomain: 'Puedo ayudarte con citas, servicios, precios, horarios y temas del negocio. ¿Qué necesitas?',
   handoff: 'Perfecto. La cita todavía no está confirmada. Una persona del negocio la finalizará contigo.',
   humanRequested: 'De acuerdo. Te atenderá una persona del negocio en cuanto sea posible.',
 };

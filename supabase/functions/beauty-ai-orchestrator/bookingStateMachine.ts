@@ -64,11 +64,21 @@ export function reduceBookingState(input: {
     return decision(session, bookingReplies.humanRequested, 'send_handoff', { handoff: true });
   }
 
+  if (interpretation.intent === 'social') return decision(session, bookingReplies.thanks);
+  if (interpretation.intent === 'out_of_domain') return decision(session, bookingReplies.outOfDomain);
+
   if (interpretation.intent === 'cancel_existing') {
     if (!session) return decision(null, bookingReplies.cancellationNeedsHuman, 'send_handoff', { handoff: true });
     session = withObservation(session, interpretation);
     session.handoff_reason = 'requested';
     return decision(session, bookingReplies.cancellationNeedsHuman, 'send_handoff', { handoff: true });
+  }
+
+  if (interpretation.intent === 'reschedule_existing') {
+    if (!session) return decision(null, bookingReplies.rescheduleNeedsHuman, 'send_handoff', { handoff: true });
+    session = withObservation(session, interpretation);
+    session.handoff_reason = 'requested';
+    return decision(session, bookingReplies.rescheduleNeedsHuman, 'send_handoff', { handoff: true });
   }
 
   if (!session) {

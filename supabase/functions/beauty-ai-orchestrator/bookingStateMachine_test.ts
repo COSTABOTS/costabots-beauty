@@ -5,6 +5,9 @@ import {
   deterministicDateOverride,
   interpretBookingDeterministically,
   isExistingAppointmentCancellation,
+  isExistingAppointmentReschedule,
+  isOutOfDomainMessage,
+  isSocialMessage,
   normalizeRequestedTime,
   resolveRequestedDate,
   resolveStaffReference,
@@ -570,6 +573,46 @@ Deno.test('natural hour words and afternoon expressions normalize deterministica
   assertEquals(normalizeRequestedTime('a las nueve', interpretation), '09:00');
   assertEquals(normalizeRequestedTime('las 10', interpretation), '10:00');
   assertEquals(normalizeRequestedTime('5 de la tarde', interpretation), '17:00');
+  assertEquals(normalizeRequestedTime('12 y media', interpretation), '12:30');
+  assertEquals(normalizeRequestedTime('11 y cuarto', interpretation), '11:15');
+  assertEquals(normalizeRequestedTime('las 12 menos cuarto', interpretation), '11:45');
+});
+
+Deno.test('a completed booking can request a safe reschedule handoff without starting another booking', () => {
+  const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
+  const request = 'Y cambiar la hora?';
+  assertEquals(isExistingAppointmentReschedule(request), true);
+  assertEquals(interpretBookingDeterministically(request, null, [], temporal)?.intent, 'reschedule_existing');
+  const result = reduceBookingState({
+    session: null,
+    interpretation: { ...interpretation, intent: 'reschedule_existing' },
+    rawText: request,
+    resolved: { serviceId: null, selectedDate: null, selectedOption: null, expired: false },
+    dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.operation, 'send_handoff');
+  assertEquals(result.createSession, false);
+  assert(result.reply.includes('cambiar la hora'));
+});
+
+Deno.test('social and out-of-domain messages do not start a booking', () => {
+  const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
+  assertEquals(isSocialMessage('Gracias'), true);
+  assertEquals(interpretBookingDeterministically('Gracias', null, [], temporal)?.intent, 'social');
+  assertEquals(isOutOfDomainMessage('Quiero ir a la playa'), true);
+  assertEquals(interpretBookingDeterministically('Quiero ir a la playa', null, [], temporal)?.intent, 'out_of_domain');
+  for (const intent of ['social', 'out_of_domain'] as const) {
+    const result = reduceBookingState({
+      session: null,
+      interpretation: { ...interpretation, intent },
+      rawText: intent,
+      resolved: { serviceId: null, selectedDate: null, selectedOption: null, expired: false },
+      dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+    });
+    assertEquals(result.createSession, false);
+    assertEquals(result.handoff, false);
+    assert(intent === 'social' ? result.reply.includes('De nada') : result.reply.includes('citas'));
+  }
 });
 
 Deno.test('greetings and clarification do not masquerade as a time', () => {

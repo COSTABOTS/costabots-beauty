@@ -90,6 +90,23 @@ export async function loadActiveBookingSession(
   return result.data as BookingSession | null;
 }
 
+export async function loadLatestCompletedBookingSession(
+  client: SupabaseClient,
+  businessId: string,
+  conversationId: string,
+): Promise<BookingSession | null> {
+  const result = await client.from('beauty_booking_sessions').select('*')
+    .eq('business_id', businessId)
+    .eq('conversation_id', conversationId)
+    .eq('status', 'completed')
+    .not('appointment_id', 'is', null)
+    .order('confirmed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) throw new Error('BOOKING_SESSION_READ_FAILED');
+  return result.data as BookingSession | null;
+}
+
 export function initialSessionValues(input: {
   businessId: string;
   conversationId: string;

@@ -16,6 +16,12 @@ function canonicalTime(hour: number, minute: number) {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
+function withAfternoon(hour: number, text: string) {
+  return /\b(de\s+la\s+tarde|por\s+la\s+tarde)\b/.test(text) && hour < 12
+    ? hour + 12
+    : hour;
+}
+
 const NUMBER_WORDS: Record<string, number> = {
   una: 1,
   dos: 2,
@@ -42,16 +48,28 @@ function optionReference(rawText: string): BookingInterpretation['option_referen
 
 function timeFromText(value: string) {
   const normalized = normalizeText(value);
+  const numericNatural = normalized.match(/\b(?:a\s+las?|las?)?\s*(\d{1,2})\s+(y\s+(?:cuarto|media)|menos\s+cuarto)\b/);
+  if (numericNatural) {
+    let hour = withAfternoon(Number(numericNatural[1]), normalized);
+    const qualifier = numericNatural[2];
+    if (qualifier === 'menos cuarto') hour = (hour + 23) % 24;
+    return canonicalTime(hour, qualifier === 'y media' ? 30 : qualifier === 'y cuarto' ? 15 : 45);
+  }
+  const wordNatural = normalized.match(/\b(?:a\s+las?|las?)?\s*(una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\s+(y\s+(?:cuarto|media)|menos\s+cuarto)\b/);
+  if (wordNatural) {
+    let hour = withAfternoon(NUMBER_WORDS[wordNatural[1]], normalized);
+    const qualifier = wordNatural[2];
+    if (qualifier === 'menos cuarto') hour = (hour + 23) % 24;
+    return canonicalTime(hour, qualifier === 'y media' ? 30 : qualifier === 'y cuarto' ? 15 : 45);
+  }
   const numeric = normalized.match(/\b(?:a\s+las?|las?)?\s*(\d{1,2})(?::([0-5]\d))?\b/);
   if (numeric) {
-    let hour = Number(numeric[1]);
-    if (/\b(de\s+la\s+tarde|por\s+la\s+tarde)\b/.test(normalized) && hour < 12) hour += 12;
+    const hour = withAfternoon(Number(numeric[1]), normalized);
     return canonicalTime(hour, Number(numeric[2] ?? 0));
   }
   const words = normalized.match(/\b(?:a\s+las?|las?)?\s*(una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/);
   if (!words) return null;
-  let hour = NUMBER_WORDS[words[1]];
-  if (/\b(de\s+la\s+tarde|por\s+la\s+tarde)\b/.test(normalized) && hour < 12) hour += 12;
+  const hour = withAfternoon(NUMBER_WORDS[words[1]], normalized);
   return canonicalTime(hour, 0);
 }
 
@@ -98,6 +116,21 @@ export function isExistingAppointmentCancellation(rawText: string) {
     && /\b(cita|reserva|turno)\b/.test(text);
 }
 
+export function isExistingAppointmentReschedule(rawText: string) {
+  const text = normalizeText(rawText);
+  return /\b(cambiar|cambio|modificar|reprogramar|mover|adelantar|retrasar)\b/.test(text)
+    && /\b(cita|reserva|turno|hora|fecha|dia)\b/.test(text);
+}
+
+export function isSocialMessage(rawText: string) {
+  return /^(?:muchas\s+)?gracias[!.\s]*$/i.test(normalizeText(rawText));
+}
+
+export function isOutOfDomainMessage(rawText: string) {
+  const text = normalizeText(rawText);
+  return /\b(playa|viaje|viajar|futbol|pelicula|receta|meteorologico|clima)\b/.test(text);
+}
+
 export function interpretBookingDeterministically(
   rawText: string,
   status: BookingStatus | null,
@@ -112,6 +145,11 @@ export function interpretBookingDeterministically(
   if (isExistingAppointmentCancellation(rawText)) {
     return baseInterpretation('cancel_existing');
   }
+  if (isExistingAppointmentReschedule(rawText)) {
+    return baseInterpretation('reschedule_existing');
+  }
+  if (isSocialMessage(rawText)) return baseInterpretation('social');
+  if (isOutOfDomainMessage(rawText)) return baseInterpretation('out_of_domain');
 
   const service = services.find(({ name }) => {
     const normalizedName = normalizeText(name);

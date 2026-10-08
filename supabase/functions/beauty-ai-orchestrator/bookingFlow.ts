@@ -6,12 +6,14 @@ import {
   createBookingSession,
   initialSessionValues,
   loadActiveBookingSession,
+  loadLatestCompletedBookingSession,
   recordBookingConfirmationResponse,
   saveBookingDecision,
 } from './bookingSessionRepository.ts';
 import {
   deterministicDateOverride,
   isExistingAppointmentCancellation,
+  isExistingAppointmentReschedule,
   interpretBookingDeterministically,
   normalizeRequestedTime,
   optionStillOffered,
@@ -115,7 +117,7 @@ function initialStatus(serviceId: string | null, date: string | null) {
   return 'choosing_time' as const;
 }
 
-async function handoffCancellationToHuman(
+async function handoffConversationToHuman(
   client: SupabaseClient,
   context: FlowContext,
 ) {
@@ -199,8 +201,30 @@ export async function processBookingFlow(input: {
   // to a person after the controlled reply instead of starting another booking.
   if (interpretation.intent === 'cancel_existing' || isExistingAppointmentCancellation(input.text)) {
     const sent = await input.sendReply(bookingReplies.cancellationNeedsHuman);
-    if (!sent.discarded) await handoffCancellationToHuman(client, context);
+    if (!sent.discarded) await handoffConversationToHuman(client, context);
     return { handled: true as const, sent, handoff: true };
+  }
+
+  if (interpretation.intent === 'reschedule_existing' || isExistingAppointmentReschedule(input.text)) {
+    // Preserve the confirmed appointment reference in its completed booking
+    // session; this phase deliberately does not modify it without an RPC.
+    const completedSession = await loadLatestCompletedBookingSession(client, context.businessId, context.conversationId);
+    const reply = completedSession?.appointment_id
+      ? bookingReplies.rescheduleNeedsHuman
+      : bookingReplies.rescheduleWithoutReference;
+    const sent = await input.sendReply(reply);
+    if (!sent.discarded) await handoffConversationToHuman(client, context);
+    return { handled: true as const, sent, handoff: true };
+  }
+
+  if (interpretation.intent === 'social') {
+    const sent = await input.sendReply(bookingReplies.thanks);
+    return { handled: true as const, sent, handoff: false };
+  }
+
+  if (interpretation.intent === 'out_of_domain') {
+    const sent = await input.sendReply(bookingReplies.outOfDomain);
+    return { handled: true as const, sent, handoff: false };
   }
 
   // Informational questions are answered by the constrained information
