@@ -17,7 +17,7 @@ import {
   type WhatsAppConversation,
   type WhatsAppMessage,
 } from '../data/whatsappService';
-import { FeatureStateBadge, PageHeader } from './ui';
+import { FeatureStateBadge, PageHeader, Sheet } from './ui';
 import { formatMessageDateTime, formatMessageTime } from '../presentation';
 
 const statusLabels: Record<WhatsAppConnection['status'], string> = {
@@ -40,6 +40,21 @@ function conversationDisplayName(conversation: WhatsAppConversation, customerNam
   const phone = conversation.remote_phone_normalized?.replace(/\D/g, '') ?? '';
   if (phone) return `••• ${phone.slice(-4)}`;
   return 'Contacto de WhatsApp';
+}
+
+function normalizePhoneForMatch(value?: string | null) {
+  return value?.replace(/\D/g, '') ?? '';
+}
+
+function findTargetConversation(conversations: WhatsAppConversation[], customers: Customer[], customerId: string) {
+  const exact = conversations.find((item) => item.customer_id === customerId);
+  if (exact) return exact;
+
+  const customer = customers.find((item) => item.id === customerId);
+  const targetPhone = normalizePhoneForMatch(customer?.phone);
+  if (!targetPhone) return null;
+  const phoneMatches = conversations.filter((item) => normalizePhoneForMatch(item.remote_phone_normalized) === targetPhone);
+  return phoneMatches.length === 1 ? phoneMatches[0] : null;
 }
 
 export function WhatsAppSettings({
@@ -182,10 +197,10 @@ export function SupabaseWhatsAppInbox({
   useEffect(() => {
     if (!targetCustomerId || conversationsLoading || handledTargetRef.current === targetCustomerId) return;
     handledTargetRef.current = targetCustomerId;
-    const target = conversations.find((item) => item.customer_id === targetCustomerId) ?? null;
+    const target = findTargetConversation(conversations, customers, targetCustomerId);
     setMessageLimit(50);
     setSelected(target);
-  }, [conversations, conversationsLoading, targetCustomerId]);
+  }, [conversations, conversationsLoading, customers, targetCustomerId]);
 
   useEffect(() => {
     if (!targetCustomerId) handledTargetRef.current = null;
@@ -244,6 +259,9 @@ export function SupabaseWhatsAppInbox({
   }, [businessId, enabled, messageLimit, reloadConversations, reloadMessages]);
 
   const visible = useMemo(() => conversations.filter((item) => filter === 'all' || item.needs_attention), [conversations, filter]);
+  const targetConversation = useMemo(() => targetCustomerId
+    ? findTargetConversation(conversations, customers, targetCustomerId)
+    : null, [conversations, customers, targetCustomerId]);
   const customer = selected?.customer_id ? customers.find((item) => item.id === selected.customer_id) : null;
 
   async function mutate(action: () => Promise<unknown>) {
@@ -253,38 +271,18 @@ export function SupabaseWhatsAppInbox({
     finally { setWorking(false); }
   }
 
-  if (!enabled) return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" action={<FeatureStateBadge state="soon" />} /><div className="empty-state"><ShieldCheck /><h2>WhatsApp todavía no está activo</h2><p>La integración segura debe habilitarse expresamente en un entorno Supabase.</p></div></div>;
-  if (selected) return <div className="beauty-page whatsapp-conversation-page">
-    <PageHeader eyebrow={selected.mode === 'manual' ? 'Atención manual' : 'Atención automática'} title={conversationDisplayName(selected, customer?.name)} action={<button className="icon-button-soft" onClick={() => { setSelected(null); onTargetClear?.(); }} type="button"><ArrowLeft /></button>} />
-    {connection.status !== 'connected' && <div className="whatsapp-disconnected"><Unplug /><span><strong>WhatsApp desconectado</strong><small>El historial sigue disponible, pero no puedes enviar mensajes.</small></span></div>}
-    {error && <p className="form-error">{error}</p>}
-    <div className="whatsapp-handoff">
-      {selected.mode === 'ai'
-        ? <button disabled={working} onClick={() => {
-          if (window.confirm('¿Tomar esta conversación? AURA dejará de responder automáticamente hasta que la devuelvas a la atención automática.')) void mutate(() => takeConversation(selected.id));
-        }} className="whatsapp-handoff__action" type="button">Tomar conversación</button>
-        : <button disabled={working} onClick={() => {
-          if (window.confirm('¿Devolver la conversación a la atención automática? AURA volverá a responder a los próximos mensajes.')) void mutate(() => releaseConversation(selected.id));
-        }} className="whatsapp-handoff__action" type="button">Devolver a la IA</button>}
-      <small>{selected.mode === 'ai' ? 'AURA responde automáticamente a los próximos mensajes.' : 'Atención manual activa: AURA no responderá automáticamente en esta conversación.'}</small>
-    </div>
-    <div className="whatsapp-message-history">
-      {messages.length >= messageLimit && <button className="load-older" onClick={() => setMessageLimit((value) => value + 50)} type="button">Cargar anteriores</button>}
-      {messages.map((message) => <article className={`whatsapp-bubble whatsapp-bubble--${message.direction}`} key={message.id}><p>{message.text_content || 'Contenido no compatible'}</p><small>{formatMessageDateTime(message.sent_at, timezone)} · {message.status}</small></article>)}
-      {!messages.length && <p className="inline-data-message">Esta conversación todavía no tiene mensajes visibles.</p>}
-    </div>
-    <form className="whatsapp-composer" onSubmit={(event) => {
-      event.preventDefault();
-      const text = draft.trim();
-      if (!text) return;
-      void mutate(() => sendWhatsAppMessage(businessId, selected.id, text)).then(() => { setDraft(''); return reloadMessages(selected.id, messageLimit); });
-    }}>
-      <textarea disabled={selected.mode !== 'manual' || connection.status !== 'connected' || working} maxLength={2000} onChange={(event) => setDraft(event.target.value)} placeholder={selected.mode === 'manual' ? 'Escribe un mensaje…' : 'Toma la conversación para responder'} value={draft} />
-      <button aria-label="Enviar mensaje" disabled={!draft.trim() || selected.mode !== 'manual' || connection.status !== 'connected' || working} type="submit"><Send /></button>
-    </form>
-  </div>;
+  function closeConversation() {
+    messageRequestId.current += 1;
+    setSelected(null);
+    setMessages([]);
+    setDraft('');
+    setMessageLimit(50);
+    onTargetClear?.();
+  }
 
-  if (targetCustomerId && !conversationsLoading && !conversations.some((item) => item.customer_id === targetCustomerId)) {
+  if (!enabled) return <div className="beauty-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" action={<FeatureStateBadge state="soon" />} /><div className="empty-state"><ShieldCheck /><h2>WhatsApp todavía no está activo</h2><p>La integración segura debe habilitarse expresamente en un entorno Supabase.</p></div></div>;
+
+  if (targetCustomerId && !conversationsLoading && !targetConversation) {
     return <div className="beauty-page whatsapp-inbox-page"><PageHeader eyebrow="WhatsApp" title="Mensajes" /><div className="empty-state"><MessageCircle /><h2>Este cliente todavía no tiene conversación</h2><p>Cuando escriba por WhatsApp, su conversación aparecerá aquí.</p><button onClick={() => onTargetClear?.()} type="button">Ver todas las conversaciones</button></div></div>;
   }
 
@@ -300,5 +298,43 @@ export function SupabaseWhatsAppInbox({
         : null;
       return <button key={conversation.id} onClick={() => { setMessageLimit(50); setSelected(conversation); }} type="button"><span className="conversation-avatar"><MessageCircle /></span><span><strong>{conversationDisplayName(conversation, linkedCustomer?.name)}</strong><small>{conversation.last_message_preview || 'Sin vista previa'}</small></span><span className="conversation-meta"><small>{conversation.last_message_at ? formatMessageTime(conversation.last_message_at, timezone) : ''}</small>{conversation.unread_count > 0 && <b>{conversation.unread_count}</b>}<em>{conversation.needs_attention ? 'Necesita atención' : conversation.mode === 'manual' ? 'Atención manual' : 'Atención automática'}</em></span></button>;
     })}</div>
+    {selected && <Sheet
+      bodyClassName="beauty-sheet__body--conversation"
+      onClose={closeConversation}
+      subtitle={selected.needs_attention ? 'Necesita intervención' : selected.mode === 'manual' ? 'Atención manual' : 'Atención automática'}
+      title={conversationDisplayName(selected, customer?.name)}
+    >
+      <div className="whatsapp-conversation-modal">
+        {selected.needs_attention && <div className="whatsapp-attention"><ShieldCheck /><span><strong>Necesita intervención</strong><small>{selected.attention_reason || 'Revisa esta conversación antes de continuar.'}</small></span></div>}
+        {connection.status !== 'connected' && <div className="whatsapp-disconnected"><Unplug /><span><strong>WhatsApp desconectado</strong><small>El historial sigue disponible, pero no puedes enviar mensajes.</small></span></div>}
+        {error && <p className="form-error">{error}</p>}
+        <div className="whatsapp-message-history whatsapp-message-history--modal">
+          {messages.length >= messageLimit && <button className="load-older" onClick={() => setMessageLimit((value) => value + 50)} type="button">Cargar anteriores</button>}
+          {messages.map((message) => <article className={`chat-bubble chat-bubble--${message.direction === 'inbound' ? 'customer' : message.sender_type === 'human' ? 'human' : 'ai'}`} key={message.id}><p>{message.text_content || 'Contenido no compatible'}</p><span>{formatMessageDateTime(message.sent_at, timezone)} · {message.status}</span></article>)}
+          {!messages.length && <p className="inline-data-message">Esta conversación todavía no tiene mensajes visibles.</p>}
+        </div>
+        <div className="whatsapp-conversation-footer">
+          <form className="whatsapp-composer whatsapp-composer--modal" onSubmit={(event) => {
+            event.preventDefault();
+            const text = draft.trim();
+            if (!text) return;
+            void mutate(() => sendWhatsAppMessage(businessId, selected.id, text)).then(() => { setDraft(''); return reloadMessages(selected.id, messageLimit); });
+          }}>
+            <textarea disabled={selected.mode !== 'manual' || connection.status !== 'connected' || working} maxLength={2000} onChange={(event) => setDraft(event.target.value)} placeholder={selected.mode === 'manual' ? 'Escribe un mensaje…' : 'Toma la conversación para responder'} value={draft} />
+            <button aria-label="Enviar mensaje" disabled={!draft.trim() || selected.mode !== 'manual' || connection.status !== 'connected' || working} type="submit"><Send /></button>
+          </form>
+          <div className="whatsapp-handoff whatsapp-handoff--footer">
+            <small>{selected.mode === 'ai' ? 'AURA responde automáticamente a los próximos mensajes.' : 'Atención manual activa: AURA no responderá automáticamente en esta conversación.'}</small>
+            {selected.mode === 'ai'
+              ? <button disabled={working} onClick={() => {
+                if (window.confirm('¿Tomar esta conversación? AURA dejará de responder automáticamente hasta que la devuelvas a la atención automática.')) void mutate(() => takeConversation(selected.id));
+              }} className="whatsapp-handoff__action" type="button">Tomar conversación</button>
+              : <button disabled={working} onClick={() => {
+                if (window.confirm('¿Devolver la conversación a la atención automática? AURA volverá a responder a los próximos mensajes.')) void mutate(() => releaseConversation(selected.id));
+              }} className="whatsapp-handoff__action" type="button">Devolver a la IA</button>}
+          </div>
+        </div>
+      </div>
+    </Sheet>}
   </div>;
 }

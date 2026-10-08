@@ -816,7 +816,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .conversation-meta { display:grid; justify-items:end; gap:4px; max-width:120px; }
 .conversation-meta b { display:grid; min-width:20px; height:20px; padding:0 5px; place-items:center; border-radius:999px; background:var(--beauty-primary); color:#fff; font-size:.68rem; }
 .conversation-meta em { color:#8c7f78; font-size:.61rem; font-style:normal; font-weight:700; }
-.whatsapp-conversation-page { display:flex; min-height:calc(100dvh - 80px); flex-direction:column; }
 .whatsapp-handoff { justify-content:space-between; margin:12px 0; padding:11px 12px; border:1px solid var(--beauty-line); border-radius:13px; background:var(--beauty-card); }
 .whatsapp-handoff small { color:var(--beauty-muted); text-align:right; }
 .whatsapp-handoff__action,.load-older { display:inline-flex; min-height:40px; align-items:center; justify-content:center; padding:0 13px; color:var(--beauty-primary-dark); font:inherit; font-size:.72rem; font-weight:800; border:1px solid var(--beauty-primary-border); border-radius:11px; background:var(--beauty-primary-soft); cursor:pointer; }
@@ -831,6 +830,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .whatsapp-composer { position:sticky; bottom:70px; display:grid; grid-template-columns:minmax(0,1fr) 46px; gap:9px; padding:10px 0 calc(10px + env(safe-area-inset-bottom)); background:var(--beauty-bg); }
 .whatsapp-composer textarea { min-height:46px; max-height:120px; resize:vertical; }
 .whatsapp-composer button { display:grid; width:46px; height:46px; place-items:center; border:0; border-radius:14px; background:var(--beauty-primary); color:#fff; }
+.beauty-sheet__body--conversation { display:flex; padding:0; overflow:hidden; }
+.whatsapp-conversation-modal { display:flex; min-width:0; min-height:0; flex:1; flex-direction:column; padding:14px 17px 0; }
+.whatsapp-attention { display:flex; align-items:center; gap:10px; padding:11px 12px; color:var(--beauty-danger); border:1px solid #e3bbb7; border-radius:13px; background:var(--beauty-danger-soft); }
+.whatsapp-attention svg { width:19px; flex:0 0 auto; }
+.whatsapp-attention span { display:grid; gap:2px; }
+.whatsapp-attention strong { font-size:.74rem; }
+.whatsapp-attention small { font-size:.64rem; line-height:1.4; }
+.whatsapp-message-history--modal { min-height:180px; overflow-y:auto; overscroll-behavior:contain; }
+.whatsapp-conversation-footer { box-sizing:border-box; z-index:2; width:calc(100% + 34px); max-width:none; flex:none; margin:0 -17px; padding:11px 17px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--beauty-line); background:var(--beauty-card); box-shadow:0 -8px 24px rgba(42,33,27,.07); }
+.whatsapp-composer--modal { box-sizing:border-box; position:relative; bottom:auto; width:100%; max-width:none; grid-template-columns:minmax(0,1fr) 52px; gap:8px; margin:0; padding:0; background:transparent; }
+.whatsapp-composer--modal textarea { box-sizing:border-box; width:100%; min-width:0; min-height:52px; max-height:112px; padding:14px 16px; overflow-y:auto; color:var(--beauty-ink); font:inherit; font-size:.82rem; line-height:1.45; resize:none; border:1px solid var(--beauty-line); border-radius:17px; outline:0; background:var(--beauty-bg); box-shadow:inset 0 1px 2px rgba(42,33,27,.025); }
+.whatsapp-composer--modal textarea::placeholder { color:var(--beauty-muted); font-size:.8rem; opacity:.88; }
+.whatsapp-composer--modal textarea:focus { border-color:var(--beauty-primary); box-shadow:0 0 0 3px var(--beauty-focus-ring); }
+.whatsapp-composer--modal button { width:52px; height:52px; border-radius:17px; box-shadow:0 5px 14px rgba(47,111,104,.18); }
+.whatsapp-composer--modal button:disabled { box-shadow:none; opacity:.5; }
+.whatsapp-handoff--footer { box-sizing:border-box; display:flex; width:100%; max-width:none; align-items:stretch; flex-direction:column; gap:6px; margin:8px 0 0; padding:0; border:0; background:transparent; }
+.whatsapp-handoff--footer small { text-align:left; }
+.whatsapp-handoff--footer .whatsapp-handoff__action { box-sizing:border-box; display:flex; width:100%; max-width:none; min-height:48px; align-self:stretch; flex:0 0 auto; margin:0; padding:0 16px; color:#fff; border-color:var(--beauty-primary); border-radius:15px; background:var(--beauty-primary); }
+.whatsapp-handoff--footer .whatsapp-handoff__action:hover { border-color:var(--beauty-primary-dark); background:var(--beauty-primary-dark); }
 
 @media (min-width: 769px) {
   .whatsapp-composer { bottom:0; }
