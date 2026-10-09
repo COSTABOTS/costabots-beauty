@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
-import { parseBookingInterpretation } from './bookingInterpreter.ts';
+import { boundedCustomerContext, parseBookingInterpretation, redactInterpreterText } from './bookingInterpreter.ts';
 import { askDateForService, selectionReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
@@ -10,6 +10,7 @@ import {
   isSocialMessage,
   normalizeRequestedTime,
   resolveRequestedDate,
+  resolveServiceReference,
   resolveStaffReference,
   resolveTimeExpression,
 } from './bookingResolvers.ts';
@@ -57,6 +58,13 @@ Deno.test('strict interpretation rejects extra fields and invalid confidence', (
   assertThrows(() => parseBookingInterpretation({ ...interpretation, confidence: 2 }));
 });
 
+Deno.test('short customer context is bounded and has no session metadata', () => {
+  const context = boundedCustomerContext([' Quiero cortarme el pelo ', 'Ya te lo he dicho', 'Ese mismo', 'Lo de antes']);
+  assertEquals(context, ['Ya te lo he dicho', 'Ese mismo', 'Lo de antes']);
+  assertEquals(context.some((message) => message.includes('55555555')), false);
+  assertEquals(redactInterpreterText('Llámame al +34 611 102 304, id 11111111-1111-4111-8111-111111111111'), 'Llámame al [teléfono omitido], id [identificador omitido]');
+});
+
 Deno.test('choosing date deterministically recognizes relative dates and bare weekdays', () => {
   const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
   const cases = [
@@ -76,6 +84,64 @@ Deno.test('choosing date deterministically recognizes relative dates and bare we
   assertEquals(deterministicDateOverride('choosing_date', 'Nañana', temporal)?.resolution.isoDate, '2026-08-01');
   assertEquals(deterministicDateOverride('choosing_date', 'El día 1', temporal)?.resolution.isoDate, '2026-08-01');
   assertEquals(deterministicDateOverride('choosing_date', '5 de agosto', temporal)?.resolution.isoDate, '2026-08-05');
+});
+
+Deno.test('Nieves regression: natural service language resolves only to the real catalog service', () => {
+  const catalog = [{ id: '55555555-5555-4555-8555-555555555555', name: 'Corte de pelo' }];
+  // Gemini must return this exact real name after receiving the catalog; the
+  // deterministic fallback still produces the canonical name for literal input.
+  assertEquals(resolveServiceReference('Corte de pelo', catalog), catalog[0].id);
+  assertEquals(resolveServiceReference('Cortarme el pelo', catalog), null);
+  assertEquals(resolveServiceReference('Servicio inventado', catalog), null);
+  const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
+  assertEquals(interpretBookingDeterministically('Corte de pelo', 'choosing_service', catalog, temporal)?.service_reference, 'Corte de pelo');
+  const choosingService = { ...session, status: 'choosing_service' as const, service_id: null, selected_date: null, offered_times: [] };
+  for (const rawText of ['Quiero cortarme el pelo', 'Cortarme el pelo', 'Quiero un corte', 'Ya te lo he dicho']) {
+    const result = reduceBookingState({
+      session: choosingService,
+      interpretation: { ...interpretation, intent: 'choose_service', service_reference: 'Corte de pelo' },
+      rawText,
+      resolved: { serviceId: catalog[0].id, selectedDate: null, selectedOption: null, serviceExplicit: true, expired: false },
+      dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+    });
+    assertEquals(result.next?.status, 'choosing_date');
+    assertEquals(result.next?.service_id, catalog[0].id);
+  }
+});
+
+Deno.test('Nieves regression: date windows and compound dates cannot become bare times', () => {
+  const temporal = buildTemporalContext(new Date('2026-10-09T12:00:00Z'), 'Europe/Madrid');
+  const nextWeek = resolveRequestedDate('La semana que viene', interpretation, temporal);
+  assertEquals(nextWeek.status, 'window');
+  if (nextWeek.status === 'window') {
+    assertEquals(nextWeek.startDate, '2026-10-12');
+    assertEquals(nextWeek.endDate, '2026-10-18');
+  }
+  const inconsistent = resolveRequestedDate('Martes 19', interpretation, temporal);
+  assertEquals(inconsistent.status, 'inconsistent');
+  assertEquals(deterministicDateOverride('choosing_date', 'La semana que viene', temporal)?.resolution.status, 'window');
+  assertEquals(deterministicDateOverride('choosing_date', 'Martes 19', temporal)?.resolution.status, 'inconsistent');
+  assertEquals(normalizeRequestedTime('19', interpretation, false), null);
+  assertEquals(normalizeRequestedTime('19', interpretation, true), '19:00');
+  assertEquals(normalizeRequestedTime('a las 19', interpretation, false), '19:00');
+  assertEquals(normalizeRequestedTime('19:00', interpretation, false), '19:00');
+});
+
+Deno.test('choosing date never validates a bare number against stale offered times', () => {
+  const choosingDate = { ...session, status: 'choosing_date' as const, selected_date: null, offered_times: options };
+  const result = reduceBookingState({
+    session: choosingDate,
+    interpretation: { ...interpretation, intent: 'unknown' },
+    rawText: '19',
+    resolved: {
+      serviceId: choosingDate.service_id, selectedDate: null, selectedOption: null,
+      requestedTime: normalizeRequestedTime('19', interpretation, false), expired: false,
+    },
+    dateLabel: 'ese día', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(result.next?.status, 'choosing_date');
+  assertEquals(result.errorCode, null);
+  assert(!result.reply.startsWith('Esa hora'));
 });
 
 Deno.test('raw deterministic date wins over empty, unknown or low-confidence Gemini output', () => {

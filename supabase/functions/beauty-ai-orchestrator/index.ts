@@ -322,6 +322,11 @@ Deno.serve(async (request) => {
       temporal: temporalContext,
       nowIso: new Date().toISOString(),
       sendReply: (text) => sendAiReply(client, context, text),
+      recentCustomerMessages: messages
+        .filter((message) => message.direction === 'inbound' && message.sender_type === 'customer')
+        .map((message) => message.text_content?.trim() ?? '')
+        .filter(Boolean)
+        .slice(-3),
     });
     if (booking.handled) {
       if (booking.sent.discarded) {

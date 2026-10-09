@@ -21,6 +21,20 @@ function nullableShortString(value: unknown) {
   return value === null || (typeof value === 'string' && value.length <= 160);
 }
 
+export function redactInterpreterText(value: string) {
+  return value
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '[identificador omitido]')
+    .replace(/(?:\+|00)?\d(?:[\s().-]*\d){7,}/g, '[teléfono omitido]');
+}
+
+export function boundedCustomerContext(messages: string[]) {
+  return messages
+    .map((message) => redactInterpreterText(message.trim()))
+    .filter(Boolean)
+    .slice(-3)
+    .map((message) => message.slice(0, 500));
+}
+
 export function parseBookingInterpretation(value: unknown): BookingInterpretation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('INTERPRETATION_INVALID');
@@ -66,6 +80,8 @@ export async function interpretBookingMessage(input: {
     selected_date: string | null;
     selected_time: string | null;
     offered_times: Array<{ label: string; staff: string | null }>;
+    service_catalog: Array<{ name: string; description: string | null }>;
+    recent_customer_messages: string[];
     pending_field: PendingBookingField;
     last_intent: BookingInterpretation['intent'] | null;
   };
@@ -84,6 +100,8 @@ export async function interpretBookingMessage(input: {
               `Estado actual: ${input.status ?? 'sin_sesion'}.`,
               `Fecha local actual: ${input.temporal.localDate}. Zona: ${input.temporal.timezone}.`,
               `Contexto de reserva visible: ${JSON.stringify(input.summary)}.`,
+              'service_reference debe ser exactamente uno de los nombres de service_catalog o null. Nunca inventes ni parafrasees un servicio.',
+              'Los mensajes recientes solo dan contexto lingüístico; el estado, catálogo y disponibilidad del servidor mandan.',
               'Una corrección parcial debe identificar solo el campo que cambia y conservar los demás.',
               'Si el cliente pide cancelar o anular una cita existente, usa cancel_existing; no propongas una nueva reserva.',
               'Devuelve exclusivamente el JSON solicitado.',

@@ -35,6 +35,12 @@ function validDate(value: unknown) {
   }
 }
 
+// Model-provided date strings are never authoritative. Callers may replace one
+// with a server-resolved date before an availability tool is evaluated.
+export function withNormalizedAvailabilityDate<T extends { args: Record<string, unknown> }>(call: T, date: string): T {
+  return { ...call, args: { ...call.args, date: normalizeAvailabilityDate(date) } };
+}
+
 export async function getBusinessInfo(client: SupabaseClient, businessId: string) {
   const business = await client.from('beauty_businesses')
     .select('name,address,phone,timezone,default_language')

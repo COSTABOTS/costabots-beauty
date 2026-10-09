@@ -46,7 +46,7 @@ function optionReference(rawText: string): BookingInterpretation['option_referen
   return null;
 }
 
-function timeFromText(value: string) {
+function timeFromText(value: string, allowBareHour = true) {
   const normalized = normalizeText(value);
   const numericNatural = normalized.match(/\b(?:a\s+las?|las?)?\s*(\d{1,2})\s+(y\s+(?:cuarto|media)|menos\s+cuarto)\b/);
   if (numericNatural) {
@@ -62,10 +62,12 @@ function timeFromText(value: string) {
     if (qualifier === 'menos cuarto') hour = (hour + 23) % 24;
     return canonicalTime(hour, qualifier === 'y media' ? 30 : qualifier === 'y cuarto' ? 15 : 45);
   }
-  const numeric = normalized.match(/\b(?:a\s+las?|las?)?\s*(\d{1,2})(?::([0-5]\d))?\b/);
+  const numeric = normalized.match(allowBareHour
+    ? /\b(?:a\s+las?|las?)?\s*(\d{1,2})(?::([0-5]\d))?\b/
+    : /\b(?:a\s+las?|las?)\s*(\d{1,2})(?::([0-5]\d))?\b|\b(\d{1,2}):([0-5]\d)\b/);
   if (numeric) {
-    const hour = withAfternoon(Number(numeric[1]), normalized);
-    return canonicalTime(hour, Number(numeric[2] ?? 0));
+    const hour = withAfternoon(Number(numeric[1] ?? numeric[3]), normalized);
+    return canonicalTime(hour, Number(numeric[2] ?? numeric[4] ?? 0));
   }
   const words = normalized.match(/\b(?:a\s+las?|las?)?\s*(una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/);
   if (!words) return null;
@@ -89,12 +91,15 @@ export function resolveTimeExpression(
     if (options.length === 1) return options[0];
   }
 
-  const label = timeFromText(interpretation.time_expression ?? rawText);
+  const label = timeFromText(
+    interpretation.time_expression ?? rawText,
+    session?.status === 'choosing_time' || session?.status === 'awaiting_confirmation',
+  );
   return label ? options.find((option) => option.label === label) ?? null : null;
 }
 
-export function normalizeRequestedTime(rawText: string, interpretation: BookingInterpretation) {
-  return timeFromText(interpretation.time_expression ?? rawText);
+export function normalizeRequestedTime(rawText: string, interpretation: BookingInterpretation, allowBareHour = true) {
+  return timeFromText(interpretation.time_expression ?? rawText, allowBareHour);
 }
 
 function baseInterpretation(intent: BookingInterpretation['intent']): BookingInterpretation {
@@ -156,7 +161,7 @@ export function interpretBookingDeterministically(
     return normalizedName.length > 1 && (text.includes(normalizedName) || normalizedName.includes(text));
   });
   const date = resolveDateExpression(rawText, temporal);
-  const time = timeFromText(rawText);
+  const time = timeFromText(rawText, status === 'choosing_time' || status === 'awaiting_confirmation');
   const option = optionReference(rawText);
   const staffId = resolveStaffReference(rawText, session);
   const affirmative = /^(si|sí|vale|de acuerdo|confirmo|reserva(?:la)?|reservala)(?:[\s,]+(esa|ese))?$/i.test(rawText.trim());
@@ -227,7 +232,7 @@ export function deterministicDateOverride(
 ) {
   if (status !== 'choosing_date') return null;
   const resolution = resolveDateExpression(rawText, temporal);
-  if (resolution.status !== 'resolved') return null;
+  if (!['resolved', 'window', 'inconsistent'].includes(resolution.status)) return null;
   return {
     resolution,
     interpretation: {
@@ -251,14 +256,11 @@ export function resolveServiceReference(
   const wanted = normalizeText(reference);
   const exact = services.find((service) => normalizeText(service.name) === wanted);
   if (exact) return exact.id;
-  const partial = services.filter((service) =>
-    normalizeText(service.name).includes(wanted) || wanted.includes(normalizeText(service.name))
-  );
-  return partial.length === 1 ? partial[0].id : null;
+  return null;
 }
 
 export function resolveStaffReference(reference: string | null | undefined, session: BookingSession | null) {
-  const wanted = normalizeText(reference ?? '');
+  const wanted = normalizeText(reference ?? '').replace(/^(?:con|la|el)\s+/, '');
   if (!wanted || !session) return null;
   const matches = session.offered_times.filter((option) =>
     option.staff_display_name && normalizeText(option.staff_display_name).includes(wanted)

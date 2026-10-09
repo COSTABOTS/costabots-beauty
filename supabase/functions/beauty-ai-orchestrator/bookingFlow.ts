@@ -1,6 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForService, bookingReplies, availabilityReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
-import { interpretBookingMessage } from './bookingInterpreter.ts';
+import { askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
+import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
   createBookingSession,
@@ -133,7 +133,13 @@ async function handoffConversationToHuman(
   if (result.error || !result.data) throw new Error('CANCELLATION_HANDOFF_FAILED');
 }
 
-function interpreterSummary(session: BookingSession | null, services: Array<{ id: string; name: string }>) {
+type CatalogService = { id: string; name: string; description?: string | null };
+
+function interpreterSummary(
+  session: BookingSession | null,
+  services: CatalogService[],
+  recentCustomerMessages: string[],
+) {
   const selected = session?.offered_times.find((option) => option.starts_at === session?.selected_starts_at);
   return {
     selected_service: session?.service_id ? services.find(({ id }) => id === session.service_id)?.name ?? null : null,
@@ -141,6 +147,11 @@ function interpreterSummary(session: BookingSession | null, services: Array<{ id
     selected_date: session?.selected_date ?? null,
     selected_time: selected?.label ?? null,
     offered_times: (session?.offered_times ?? []).map((option) => ({ label: option.label, staff: option.staff_display_name ?? null })),
+    service_catalog: services.slice(0, 50).map((service) => ({
+      name: service.name,
+      description: service.description ? redactInterpreterText(service.description).slice(0, 240) : null,
+    })),
+    recent_customer_messages: boundedCustomerContext(recentCustomerMessages),
     pending_field: pendingBookingField(session),
     last_intent: session?.last_interpretation_intent ?? null,
   };
@@ -153,11 +164,12 @@ export async function processBookingFlow(input: {
   temporal: TemporalContext;
   nowIso: string;
   sendReply: (text: string) => Promise<{ discarded: boolean; messageId?: string; reason?: string }>;
+  recentCustomerMessages?: string[];
 }) {
   const { client, context, temporal, nowIso } = input;
   let session = await loadActiveBookingSession(client, context.businessId, context.conversationId);
   const serviceResult = await listServices(client, context.businessId);
-  const services = (serviceResult.services ?? []) as Array<{ id: string; name: string }>;
+  const services = (serviceResult.services ?? []) as CatalogService[];
   const deterministicDate = deterministicDateOverride(session?.status ?? null, input.text, temporal);
   let interpretation = deterministicDate?.interpretation
     ?? interpretBookingDeterministically(input.text, session?.status ?? null, services, temporal, session);
@@ -166,7 +178,7 @@ export async function processBookingFlow(input: {
       text: input.text,
       status: session?.status ?? null,
       temporal,
-      summary: interpreterSummary(session, services),
+      summary: interpreterSummary(session, services, input.recentCustomerMessages ?? []),
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'INTERPRETATION_INVALID') {
@@ -316,6 +328,37 @@ export async function processBookingFlow(input: {
     ? dateResolution.isoDate
     : session?.selected_date ?? null;
 
+  const unresolvedDateReply = dateResolution.status === 'window'
+    ? dateWindowReply(dateResolution.label)
+    : dateResolution.status === 'inconsistent'
+    ? inconsistentDateReply(
+      dateResolution.day,
+      dateResolution.actualWeekday,
+      dateResolution.statedWeekday,
+      dateResolution.suggestedDate,
+    )
+    : null;
+
+  // A date window or contradictory compound date is not an availability query
+  // and must never fall through to time selection using stale offers.
+  if (session && unresolvedDateReply) {
+    const next = {
+      ...session,
+      status: 'choosing_date' as const,
+      selected_date: null,
+      staff_id: null,
+      offered_times: [],
+      selected_starts_at: null,
+      last_interpretation_intent: interpretation.intent,
+      last_error_code: null,
+    };
+    session = await saveBookingDecision(client, session, {
+      next, operation: 'none', reply: unresolvedDateReply, createSession: false, handoff: false, errorCode: null,
+    }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(unresolvedDateReply);
+    return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+  }
+
   if (!session) {
     session = await createBookingSession(client, initialSessionValues({
       businessId: context.businessId,
@@ -334,7 +377,7 @@ export async function processBookingFlow(input: {
     }
     if (!selectedDate) {
       const serviceName = services.find(({ id }) => id === serviceId)?.name ?? null;
-      const sent = await input.sendReply(askDateForService(serviceName));
+      const sent = await input.sendReply(unresolvedDateReply ?? askDateForService(serviceName));
       return { handled: true as const, sent, handoff: false };
     }
     const options = await availability(client, context, session);
@@ -369,8 +412,9 @@ export async function processBookingFlow(input: {
     return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
   }
 
-  const selectedOption = resolveTimeExpression(input.text, interpretation, session);
-  const requestedTime = normalizeRequestedTime(input.text, interpretation);
+  const allowBareHour = !dateExplicit && session.status === 'choosing_time';
+  const selectedOption = dateExplicit ? null : resolveTimeExpression(input.text, interpretation, session);
+  const requestedTime = dateExplicit ? null : normalizeRequestedTime(input.text, interpretation, allowBareHour);
   const requestedStaffId = resolveStaffReference(interpretation.staff_reference ?? input.text, session);
   const resolved: ResolvedBookingInput = {
     serviceId,

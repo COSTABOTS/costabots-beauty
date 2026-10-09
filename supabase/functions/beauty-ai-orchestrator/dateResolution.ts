@@ -13,6 +13,8 @@ export type TemporalContext = {
 
 export type DateResolution =
   | { status: 'resolved'; isoDate: string; label: string }
+  | { status: 'window'; startDate: string; endDate: string; label: string }
+  | { status: 'inconsistent'; statedWeekday: string; day: number; actualWeekday: string; suggestedDate: string }
   | { status: 'not_understood' | 'past' | 'out_of_range'; isoDate: string | null };
 
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -72,6 +74,24 @@ function nextWeekday(from: string, target: number, forceNext: boolean) {
   return addDays(from, delta);
 }
 
+function weekdayFor(value: string) {
+  return WEEKDAYS[dateAtUtcNoon(value).getUTCDay()];
+}
+
+function nextDayOfMonth(from: string, day: number) {
+  let year = Number(from.slice(0, 4));
+  let month = Number(from.slice(5, 7));
+  for (let attempt = 0; attempt < 13; attempt += 1) {
+    if (validCalendarDate(year, month, day)) {
+      const candidate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (candidate >= from) return candidate;
+    }
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return null;
+}
+
 export function buildTemporalContext(now: Date, timezone: string, maxDays = 366): TemporalContext {
   const today = localDate(now, timezone);
   return {
@@ -101,6 +121,16 @@ function validCalendarDate(year: number, month: number, day: number) {
 
 export function resolveDateExpression(text: string, context: TemporalContext): DateResolution {
   const normalized = plain(text);
+  if (/\besta\s+semana\b/.test(normalized)) {
+    const weekday = dateAtUtcNoon(context.localDate).getUTCDay();
+    const startDate = addDays(context.localDate, weekday === 0 ? -6 : 1 - weekday);
+    return { status: 'window', startDate, endDate: addDays(startDate, 6), label: 'esta semana' };
+  }
+  if (/\b(?:la\s+)?semana\s+que\s+viene\b/.test(normalized)) {
+    const weekday = dateAtUtcNoon(context.localDate).getUTCDay();
+    const startDate = addDays(context.localDate, weekday === 0 ? 1 : 8 - weekday);
+    return { status: 'window', startDate, endDate: addDays(startDate, 6), label: 'la semana que viene' };
+  }
   if (/\bpasado\s+manana\b/.test(normalized)) {
     return checked(addDays(context.localDate, 2), 'pasado mañana', context);
   }
@@ -146,6 +176,22 @@ export function resolveDateExpression(text: string, context: TemporalContext): D
     if (!namedMonthMatch[3] && monthDay < context.localDate.slice(5)) year += 1;
     if (!validCalendarDate(year, month, day)) return { status: 'not_understood', isoDate: null };
     return checked(`${year}-${monthDay}`, `${day} de ${namedMonthMatch[2]}`, context);
+  }
+
+  const weekdayDayMatch = normalized.match(/\b(?:(?:el|este|proximo)\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(\d{1,2})\b/);
+  if (weekdayDayMatch) {
+    const statedWeekday = weekdayDayMatch[1];
+    const day = Number(weekdayDayMatch[2]);
+    const candidate = nextDayOfMonth(context.localDate, day);
+    if (!candidate || candidate > context.maxDate) return { status: 'out_of_range', isoDate: candidate };
+    const actualWeekday = weekdayFor(candidate);
+    if (actualWeekday !== statedWeekday) {
+      return {
+        status: 'inconsistent', statedWeekday, day, actualWeekday,
+        suggestedDate: nextWeekday(candidate, WEEKDAY_INDEX[statedWeekday], false),
+      };
+    }
+    return checked(candidate, `${statedWeekday} ${day}`, context);
   }
 
   const dayOnlyMatch = normalized.match(/\b(?:el\s+)?dia\s+(\d{1,2})\b/);

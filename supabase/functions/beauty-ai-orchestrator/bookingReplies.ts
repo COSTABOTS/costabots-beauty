@@ -41,6 +41,14 @@ export function askDateForService(serviceName: string | null, greeting = true) {
     : bookingReplies.askDate;
 }
 
+export function dateWindowReply(label: string) {
+  return `Perfecto, ¿qué día de ${label} te viene mejor?`;
+}
+
+export function inconsistentDateReply(day: number, actualWeekday: string, statedWeekday: string, suggestedDate: string) {
+  return `El ${day} cae en ${actualWeekday}. ¿Te refieres al ${actualWeekday} ${day} o al ${statedWeekday} ${suggestedDate.slice(-2)}?`;
+}
+
 export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
   const labels = options.map((option) => option.label);
   const joined = labels.length <= 1
