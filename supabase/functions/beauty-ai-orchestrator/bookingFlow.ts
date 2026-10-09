@@ -24,7 +24,7 @@ import {
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import { getAvailability, listServices } from './tools.ts';
-import type { TemporalContext } from './dateResolution.ts';
+import { formatCustomerDate, type TemporalContext } from './dateResolution.ts';
 import type {
   BookingDecision,
   BookingSession,
@@ -327,6 +327,9 @@ export async function processBookingFlow(input: {
   const selectedDate = dateResolution.status === 'resolved'
     ? dateResolution.isoDate
     : session?.selected_date ?? null;
+  const customerDateLabel = selectedDate
+    ? formatCustomerDate(selectedDate, temporal.timezone)
+    : 'ese día';
 
   const unresolvedDateReply = dateResolution.status === 'window'
     ? dateWindowReply(dateResolution.label)
@@ -396,9 +399,9 @@ export async function processBookingFlow(input: {
       last_interpretation_intent: interpretation.intent,
     };
     const reply = selected
-      ? selectionReply(selectedDate, selected.label, selected.staff_display_name)
+      ? selectionReply(customerDateLabel, selected.label, selected.staff_display_name)
       : options.length
-      ? availabilityReply(selectedDate, options)
+      ? availabilityReply(customerDateLabel, options)
       : bookingReplies.noAvailability;
     const saved = await saveBookingDecision(client, session, {
       next,
@@ -432,7 +435,7 @@ export async function processBookingFlow(input: {
     interpretation,
     rawText: input.text,
     resolved,
-    dateLabel: selectedDate ?? 'ese día',
+    dateLabel: customerDateLabel,
     nowIso,
   });
 
@@ -452,7 +455,7 @@ export async function processBookingFlow(input: {
       interpretation,
       rawText: input.text,
       resolved: { ...resolved, availabilityOptions: options },
-      dateLabel: selectedDate ?? 'ese día',
+      dateLabel: customerDateLabel,
       nowIso,
     });
     if (!options.length) decision = { ...decision, reply: bookingReplies.noAvailability };
@@ -471,7 +474,7 @@ export async function processBookingFlow(input: {
         availabilityOptions: fresh,
         revalidation: selected && optionStillOffered(selected, fresh) ? 'available' : 'unavailable',
       },
-      dateLabel: selectedDate ?? 'ese día',
+      dateLabel: customerDateLabel,
       nowIso,
     });
   }
@@ -488,7 +491,7 @@ export async function processBookingFlow(input: {
       if (confirmed.outcome === 'unavailable') {
         const options = confirmed.offered_times ?? [];
         const reply = options.length
-          ? `${bookingReplies.unavailable} ${availabilityReply(session.selected_date ?? 'ese día', options)}`
+          ? `${bookingReplies.unavailable} ${availabilityReply(formatCustomerDate(session.selected_date ?? temporal.localDate, temporal.timezone), options)}`
           : bookingReplies.noAvailability;
         const sent = await input.sendReply(reply);
         return { handled: true as const, sent, handoff: false };
@@ -520,7 +523,7 @@ export async function processBookingFlow(input: {
     ? await saveBookingDecision(client, session, decision, context.inboundMessageId, context.runId)
     : session;
   const reply = decision.reply || (
-    saved.offered_times.length ? availabilityReply(selectedDate ?? 'ese día', saved.offered_times) : bookingReplies.clarify
+    saved.offered_times.length ? availabilityReply(customerDateLabel, saved.offered_times) : bookingReplies.clarify
   );
   const sent = await input.sendReply(reply);
   return {

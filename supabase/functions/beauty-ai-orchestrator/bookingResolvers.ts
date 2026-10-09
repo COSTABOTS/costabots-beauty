@@ -48,6 +48,15 @@ function optionReference(rawText: string): BookingInterpretation['option_referen
 
 function timeFromText(value: string, allowBareHour = true) {
   const normalized = normalizeText(value);
+  // Keep this anchored: an invalid "9 y 75" must not fall through and silently
+  // become 09:00 because the generic parser saw only its first number.
+  const numericMinutePhrase = normalized.match(/^(?:a\s+las?\s+|las?\s+)?(\d{1,2})\s+y\s+(\d{1,2})$/);
+  if (numericMinutePhrase) {
+    return canonicalTime(
+      withAfternoon(Number(numericMinutePhrase[1]), normalized),
+      Number(numericMinutePhrase[2]),
+    );
+  }
   const numericNatural = normalized.match(/\b(?:a\s+las?|las?)?\s*(\d{1,2})\s+(y\s+(?:cuarto|media)|menos\s+cuarto)\b/);
   if (numericNatural) {
     let hour = withAfternoon(Number(numericNatural[1]), normalized);

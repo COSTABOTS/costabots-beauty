@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import { boundedCustomerContext, parseBookingInterpretation, redactInterpreterText } from './bookingInterpreter.ts';
-import { askDateForService, selectionReply } from './bookingReplies.ts';
+import { askDateForService, availabilityReply, selectionReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
   interpretBookingDeterministically,
@@ -15,7 +15,7 @@ import {
   resolveTimeExpression,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
-import { buildTemporalContext } from './dateResolution.ts';
+import { buildTemporalContext, formatCustomerDate } from './dateResolution.ts';
 import { pendingBookingField, type BookingInterpretation, type BookingSession, type OfferedTime } from './bookingTypes.ts';
 
 const options: OfferedTime[] = [
@@ -125,6 +125,50 @@ Deno.test('Nieves regression: date windows and compound dates cannot become bare
   assertEquals(normalizeRequestedTime('19', interpretation, true), '19:00');
   assertEquals(normalizeRequestedTime('a las 19', interpretation, false), '19:00');
   assertEquals(normalizeRequestedTime('19:00', interpretation, false), '19:00');
+});
+
+Deno.test('natural numeric minutes select only their exact offered slot', () => {
+  const quarterOptions: OfferedTime[] = ['09:00', '09:15', '09:30', '09:45', '10:00'].map((label) => ({
+    starts_at: `2026-10-22T${label}:00+02:00`,
+    staff_id: options[0].staff_id,
+    staff_display_name: 'FRAN',
+    label,
+  }));
+  const choosingTime = { ...session, selected_date: '2026-10-22', offered_times: quarterOptions };
+  const expected: Array<[string, string]> = [
+    ['9 y 45', '09:45'], ['9 y 5', '09:05'], ['9 y 0', '09:00'], ['9:45', '09:45'],
+    ['9 y cuarto', '09:15'], ['9 y media', '09:30'], ['10 menos cuarto', '09:45'],
+  ];
+  for (const [rawText, label] of expected) {
+    assertEquals(normalizeRequestedTime(rawText, interpretation), label);
+  }
+  const selected = resolveTimeExpression('9 y 45', interpretation, choosingTime);
+  assertEquals(selected?.label, '09:45');
+  const result = reduceBookingState({
+    session: choosingTime, interpretation, rawText: '9 y 45',
+    resolved: { serviceId: choosingTime.service_id, selectedDate: choosingTime.selected_date, selectedOption: selected, requestedTime: '09:45', expired: false },
+    dateLabel: formatCustomerDate('2026-10-22', 'Europe/Madrid'), nowIso: '2026-10-21T10:00:00Z',
+  });
+  assertEquals(result.next?.selected_starts_at, quarterOptions[3].starts_at);
+  assert(result.reply.includes('09:45'));
+  assert(!result.reply.includes('09:00'));
+
+  const withoutQuarter = { ...choosingTime, offered_times: quarterOptions.filter((option) => option.label !== '09:45') };
+  const unavailable = reduceBookingState({
+    session: withoutQuarter, interpretation, rawText: '9 y 45',
+    resolved: { serviceId: withoutQuarter.service_id, selectedDate: withoutQuarter.selected_date, selectedOption: null, requestedTime: '09:45', expired: false },
+    dateLabel: formatCustomerDate('2026-10-22', 'Europe/Madrid'), nowIso: '2026-10-21T10:00:00Z',
+  });
+  assertEquals(unavailable.errorCode, 'TIME_NOT_OFFERED');
+  assertEquals(unavailable.next?.selected_starts_at, null);
+});
+
+Deno.test('customer-facing availability and selection use a human date label', () => {
+  const label = formatCustomerDate('2026-10-22', 'Europe/Madrid');
+  assertEquals(label, 'jueves 22 de octubre');
+  assert(availabilityReply(label, options).includes(label));
+  assert(selectionReply(label, '09:45', 'FRAN').includes(label));
+  assert(!availabilityReply(label, options).includes('2026-10-22'));
 });
 
 Deno.test('choosing date never validates a bare number against stale offered times', () => {

@@ -41,6 +41,14 @@ function dateAtUtcNoon(isoDate: string) {
   return new Date(`${isoDate}T12:00:00.000Z`);
 }
 
+export function formatCustomerDate(isoDate: string, timezone: string) {
+  const parts = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone,
+  }).formatToParts(dateAtUtcNoon(isoDate));
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${read('weekday')} ${read('day')} de ${read('month')}`;
+}
+
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
