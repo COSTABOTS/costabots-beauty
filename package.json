@@ -10,6 +10,8 @@
     "lint": "tsc -b --pretty false",
     "test:productization": "node --experimental-strip-types --test scripts/productization.test.ts",
     "test:demo": "node --experimental-strip-types --test scripts/barberDemo.test.ts",
+    "test:billing": "node --experimental-strip-types --test scripts/billing.test.ts",
+    "test:whatsapp-pairing": "node --experimental-strip-types --test scripts/whatsapp-pairing.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

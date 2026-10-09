@@ -104,6 +104,8 @@ export const refreshWhatsAppStatus = (businessId: string) =>
   invoke<WhatsAppConnection>('beauty-whatsapp-status', { businessId });
 export const requestWhatsAppQr = (businessId: string) =>
   invoke<{ qr: string; expiresInSeconds: number }>('beauty-whatsapp-qr', { businessId, authorizationConfirmed: true });
+export const requestWhatsAppPairingCode = (businessId: string, phoneNumber: string) =>
+  invoke<{ pairingCode: string }>('beauty-whatsapp-pairing-code', { businessId, phoneNumber, authorizationConfirmed: true });
 export const disconnectWhatsApp = (businessId: string) =>
   invoke<WhatsAppConnection>('beauty-whatsapp-disconnect', { businessId, confirmed: true });
 

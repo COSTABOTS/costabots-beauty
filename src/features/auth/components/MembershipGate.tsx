@@ -8,6 +8,7 @@ import type { BeautyMembership } from '../types';
 import { AuthLoading, AuthNotice } from './AuthShell';
 import { ConfirmEmailPage } from '../pages/ConfirmEmailPage';
 import { BusinessSetupPage } from '../pages/BusinessSetupPage';
+import { BillingGate } from '../../billing/BillingGate';
 
 type MembershipState =
   | { status: 'loading'; memberships: []; selected: null; message: null }
@@ -116,7 +117,9 @@ export function MembershipGate() {
 
   return (
     <BeautyBusinessProvider membership={state.selected}>
-      <BeautyApp initialRoute={state.provisioned ? 'onboarding' : 'today'} />
+      {beautyEnvironment.billingEnabled
+        ? <BillingGate><BeautyApp initialRoute={state.provisioned ? 'onboarding' : 'today'} /></BillingGate>
+        : <BeautyApp initialRoute={state.provisioned ? 'onboarding' : 'today'} />}
     </BeautyBusinessProvider>
   );
 }

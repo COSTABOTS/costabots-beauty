@@ -804,6 +804,18 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 .whatsapp-qr img { width:min(250px,100%); aspect-ratio:1; object-fit:contain; }
 .whatsapp-qr code { max-width:100%; overflow-wrap:anywhere; padding:15px; border-radius:12px; background:#f6f2ef; }
 .whatsapp-qr span { display:grid; gap:4px; }
+.whatsapp-connection-methods { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0; }
+.whatsapp-connection-methods button { display:grid; gap:3px; min-height:64px; padding:10px; border:1px solid #eaded7; border-radius:12px; background:#fff; color:#5f504a; text-align:left; }
+.whatsapp-connection-methods button.is-active { border-color:#bc6652; box-shadow:0 0 0 2px rgba(188,102,82,.12); color:#813f31; }
+.whatsapp-connection-methods small { color:inherit; font-size:.72rem; font-weight:400; }
+.whatsapp-pairing,.whatsapp-qr-method { display:grid; gap:12px; margin-top:12px; padding:16px; border:1px solid #eaded7; border-radius:16px; background:#fffaf8; }
+.whatsapp-pairing h3,.whatsapp-pairing p,.whatsapp-qr-method p { margin:0; }
+.whatsapp-pairing label { display:grid; gap:6px; font-weight:600; }
+.whatsapp-pairing label span { font-size:.84rem; }
+.whatsapp-pairing-code { display:grid; justify-items:center; gap:12px; padding:16px; border-radius:12px; background:#fff; text-align:center; }
+.whatsapp-pairing-code strong { font-size:clamp(1.7rem,8vw,2.6rem); letter-spacing:.12em; overflow-wrap:anywhere; }
+.whatsapp-pairing-code p,.whatsapp-pairing-code small { margin:0; color:#665852; }
+@media (max-width: 480px) { .whatsapp-connection-methods { grid-template-columns:1fr; } }
 .conversation-tabs { display:flex; gap:6px; margin-bottom:16px; padding:4px; border-radius:13px; background:var(--beauty-primary-soft); }
 .conversation-tabs button { flex:1; min-height:38px; border:0; border-radius:10px; background:transparent; color:var(--beauty-muted); font-weight:700; }
 .conversation-tabs button.is-active { background:var(--beauty-card); color:var(--beauty-primary-dark); box-shadow:0 2px 8px var(--beauty-focus-ring); }

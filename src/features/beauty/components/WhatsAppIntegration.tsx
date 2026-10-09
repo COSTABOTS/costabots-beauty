@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, MessageCircle, RefreshCw, Send, ShieldCheck, Smartphone, Unplug } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Copy, MessageCircle, RefreshCw, Send, ShieldCheck, Smartphone, Unplug } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { supabase } from '../../../lib/supabaseClient';
@@ -10,6 +10,7 @@ import {
   markConversationRead,
   provisionWhatsApp,
   refreshWhatsAppStatus,
+  requestWhatsAppPairingCode,
   releaseConversation,
   requestWhatsAppQr,
   sendWhatsAppMessage,
@@ -60,10 +61,12 @@ function findTargetConversation(conversations: WhatsAppConversation[], customers
 
 export function WhatsAppSettings({
   businessId,
+  businessPhone,
   canManage,
   enabled,
 }: {
   businessId: string;
+  businessPhone: string;
   canManage: boolean;
   enabled: boolean;
 }) {
@@ -73,6 +76,32 @@ export function WhatsAppSettings({
   const [error, setError] = useState('');
   const [qr, setQr] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  const [method, setMethod] = useState<'code' | 'qr'>(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'code' : 'qr');
+  const [phoneNumber, setPhoneNumber] = useState(businessPhone);
+  const [pairingCode, setPairingCode] = useState('');
+  const [copied, setCopied] = useState(false);
+  const connectionMethods: Array<{ value: 'code' | 'qr'; title: string; hint: string }> = isMobile
+    ? [
+      { value: 'code', title: 'Conectar con código', hint: 'Recomendado en móvil' },
+      { value: 'qr', title: 'Prefiero escanear un QR', hint: 'Para otro dispositivo' },
+    ]
+    : [
+      { value: 'qr', title: 'Escanear QR', hint: 'Recomendado en ordenador o tablet' },
+      { value: 'code', title: 'Usar código en su lugar', hint: 'Para configurar desde el móvil' },
+    ];
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => {
+      setIsMobile(media.matches);
+      setMethod(media.matches ? 'code' : 'qr');
+    };
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => { if (!phoneNumber && businessPhone) setPhoneNumber(businessPhone); }, [businessPhone, phoneNumber]);
 
   const load = useCallback(async () => {
     if (!enabled) return;
@@ -83,6 +112,22 @@ export function WhatsAppSettings({
     finally { setLoading(false); }
   }, [businessId, enabled]);
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!pairingCode || connection.status === 'connected') return undefined;
+    let active = true;
+    const poll = () => {
+      void refreshWhatsAppStatus(businessId)
+        .then((next) => {
+          if (!active) return;
+          setConnection(next);
+          if (next.status === 'connected') setPairingCode('');
+        })
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(poll, 4_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [businessId, connection.status, pairingCode]);
 
   async function run(action: () => Promise<WhatsAppConnection>) {
     setWorking(true); setError('');
@@ -102,6 +147,27 @@ export function WhatsAppSettings({
     } finally { setWorking(false); }
   }
 
+  async function generatePairingCode() {
+    setWorking(true); setError(''); setCopied(false);
+    try {
+      const result = await requestWhatsAppPairingCode(businessId, phoneNumber);
+      setPairingCode(result.pairingCode);
+      setQr('');
+      setConnection((current) => ({ ...current, status: 'connecting' }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No hemos podido generar el código.');
+    } finally { setWorking(false); }
+  }
+
+  async function copyPairingCode() {
+    try {
+      await navigator.clipboard.writeText(pairingCode);
+      setCopied(true);
+    } catch {
+      setError('No hemos podido copiar el código. Puedes seleccionarlo manualmente.');
+    }
+  }
+
   if (!enabled) return <section className="configuration-section whatsapp-settings">
     <div className="whatsapp-section-title"><MessageCircle /><span><h2>WhatsApp</h2><FeatureStateBadge state="soon" /></span></div>
     <p>La base segura está preparada, pero la integración permanece desactivada en este entorno.</p>
@@ -117,8 +183,29 @@ export function WhatsAppSettings({
       {!connection.id && <button className="form-submit" disabled={!canManage || working} onClick={() => void run(() => provisionWhatsApp(businessId))} type="button">{working ? 'Preparando…' : 'Preparar conexión'}</button>}
       {connection.id && connection.status !== 'connected' && <>
         <label className="whatsapp-consent"><input checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} type="checkbox" /><span>Confirmo que este número se utiliza para el negocio y que tengo autorización para conectarlo.</span></label>
+        <div className="whatsapp-connection-methods" role="tablist" aria-label="Método de conexión">
+          {connectionMethods.map((item) => <button aria-selected={method === item.value} className={method === item.value ? 'is-active' : ''} key={item.value} onClick={() => {
+            setMethod(item.value);
+            if (item.value === 'code') setQr(''); else setPairingCode('');
+          }} role="tab" type="button">{item.title}<small>{item.hint}</small></button>)}
+        </div>
+        {method === 'code' && <div className="whatsapp-pairing">
+          <h3>Conecta tu WhatsApp</h3>
+          <p>Es la forma más sencilla si estás configurando AURA desde este mismo teléfono.</p>
+          <label><span>Número de WhatsApp con prefijo internacional</span><input disabled={!canManage || working || Boolean(pairingCode)} inputMode="tel" onChange={(event) => setPhoneNumber(event.target.value)} placeholder="+34 600 000 000" value={phoneNumber} /></label>
+          {!pairingCode ? <button disabled={!canManage || !confirmed || working || !phoneNumber.trim()} onClick={() => void generatePairingCode()} type="button">{working ? 'Generando…' : 'Generar código'}</button> : <div className="whatsapp-pairing-code">
+            <strong>{pairingCode}</strong>
+            <button onClick={() => void copyPairingCode()} type="button"><Copy size={16} />{copied ? 'Copiado' : 'Copiar código'}</button>
+            <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo → Vincular con número de teléfono</p>
+            <small>Este código es temporal. Si deja de funcionar, genera uno nuevo.</small>
+            <button disabled={working} onClick={() => { setPairingCode(''); setCopied(false); }} type="button">Generar otro código</button>
+          </div>}
+        </div>}
+        {method === 'qr' && <div className="whatsapp-qr-method">
+          <p>{isMobile ? '¿Prefieres hacerlo desde otro dispositivo? Escanea el QR con WhatsApp.' : 'Escanea este código desde el teléfono que quieres conectar.'}</p>
+          <button disabled={!canManage || !confirmed || working} onClick={() => void generateQr()} type="button">{qr ? 'Generar otro código QR' : 'Generar código QR'}</button>
+        </div>}
         <div className="whatsapp-setting-actions">
-          <button disabled={!canManage || !confirmed || working} onClick={() => void generateQr()} type="button">{qr ? 'Generar otro código' : 'Generar código QR'}</button>
           <button disabled={working} onClick={() => void run(() => refreshWhatsAppStatus(businessId))} type="button"><RefreshCw />Actualizar estado</button>
         </div>
       </>}

@@ -16,6 +16,9 @@ verify_jwt = true
 [functions.beauty-whatsapp-qr]
 verify_jwt = true
 
+[functions.beauty-whatsapp-pairing-code]
+verify_jwt = true
+
 [functions.beauty-whatsapp-send-message]
 verify_jwt = true
 
@@ -27,3 +30,12 @@ verify_jwt = false
 
 [functions.beauty-ai-orchestrator]
 verify_jwt = true
+
+[functions.beauty-billing-checkout]
+verify_jwt = true
+
+[functions.beauty-billing-portal]
+verify_jwt = true
+
+[functions.stripe-beauty-webhook]
+verify_jwt = false

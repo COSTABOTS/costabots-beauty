@@ -15,6 +15,10 @@ function toBoolean(value: unknown) {
   return String(value ?? '').trim().toLowerCase() === 'true';
 }
 
+function commaSeparated(value: unknown) {
+  return Object.freeze(String(value ?? '').split(',').map((item) => item.trim()).filter(Boolean));
+}
+
 function projectFingerprint(value: string) {
   let hash = 2166136261;
   for (const character of value) {
@@ -74,6 +78,11 @@ function validateEnvironment() {
     dataMode: dataMode as 'mock' | 'supabase',
     publicSignupEnabled: dataMode === 'supabase'
       && toBoolean(import.meta.env.VITE_BEAUTY_PUBLIC_SIGNUP_ENABLED),
+    billingEnabled: dataMode === 'supabase'
+      && toBoolean(import.meta.env.VITE_BEAUTY_BILLING_ENABLED),
+    // Preview-only hint: this never authorizes billing, but lets the UI fail open for everyone
+    // except explicitly enrolled test subjects when the billing RPC is temporarily unreachable.
+    billingTestSubjectBusinessIds: commaSeparated(import.meta.env.VITE_BEAUTY_BILLING_TEST_SUBJECT_BUSINESS_IDS),
     whatsappEnabled: dataMode === 'supabase'
       && toBoolean(import.meta.env.VITE_BEAUTY_WHATSAPP_ENABLED),
     supabaseUrl: supabaseUrl.toString().replace(/\/$/, ''),

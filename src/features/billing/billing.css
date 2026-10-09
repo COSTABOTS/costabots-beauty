@@ -1,0 +1,8 @@
+.billing-shell { display:grid; min-height:100vh; min-height:100dvh; place-items:center; padding:20px; background:var(--cb-bg); color:var(--cb-text); }
+.billing-card { width:min(100%,430px); padding:30px; border:1px solid var(--cb-border); border-radius:28px; background:var(--cb-surface); box-shadow:0 24px 70px rgba(63,55,45,.11); }
+.billing-card h1 { margin:8px 0 12px; font-size:clamp(1.8rem,8vw,2.35rem); letter-spacing:-.045em; }
+.billing-card p { color:var(--cb-muted); line-height:1.55; }
+.billing-kicker { color:var(--cb-primary)!important; font-size:.72rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.billing-actions { display:grid; gap:10px; margin-top:24px; }
+.billing-banner { display:flex; min-height:52px; align-items:center; justify-content:space-between; gap:12px; padding:8px 16px; color:#245d57; background:#e4f0ed; font-size:.82rem; font-weight:700; }
+.billing-banner--warning { color:#754d1b; background:#fff1d7; }
