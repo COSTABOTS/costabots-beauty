@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import { boundedCustomerContext, parseBookingInterpretation, redactInterpreterText } from './bookingInterpreter.ts';
-import { askDateForService, availabilityReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, availabilityReply, selectionReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
   interpretBookingDeterministically,
@@ -117,6 +117,14 @@ Deno.test('Nieves regression: date windows and compound dates cannot become bare
     assertEquals(nextWeek.startDate, '2026-10-12');
     assertEquals(nextWeek.endDate, '2026-10-18');
   }
+  for (const synonym of ['la próxima semana', 'la semana próxima', 'la siguiente semana', 'la semana siguiente']) {
+    const window = resolveRequestedDate(synonym, interpretation, temporal);
+    assertEquals(window.status, 'window');
+    if (window.status === 'window') {
+      assertEquals(window.startDate, '2026-10-12');
+      assertEquals(window.endDate, '2026-10-18');
+    }
+  }
   const inconsistent = resolveRequestedDate('Martes 19', interpretation, temporal);
   assertEquals(inconsistent.status, 'inconsistent');
   assertEquals(deterministicDateOverride('choosing_date', 'La semana que viene', temporal)?.resolution.status, 'window');
@@ -224,6 +232,7 @@ Deno.test('greeting while choosing date preserves service and has a contextual p
   assertEquals(result.next?.status, 'choosing_date');
   assertEquals(askDateForService('corte'), 'Hola. ¿Qué día te vendría bien para el corte?');
   assertEquals(askDateForService('Corte', false), '¿Qué día te vendría bien para el corte?');
+  assertEquals(askDateForActiveSession('Corte'), '¿Qué día te vendría bien para el corte?');
 });
 
 Deno.test('repeating the selected service does not restart or replace the active session', () => {

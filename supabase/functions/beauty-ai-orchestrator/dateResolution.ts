@@ -134,7 +134,7 @@ export function resolveDateExpression(text: string, context: TemporalContext): D
     const startDate = addDays(context.localDate, weekday === 0 ? -6 : 1 - weekday);
     return { status: 'window', startDate, endDate: addDays(startDate, 6), label: 'esta semana' };
   }
-  if (/\b(?:la\s+)?semana\s+que\s+viene\b/.test(normalized)) {
+  if (/\b(?:(?:la\s+)?(?:proxima|siguiente)\s+semana|(?:la\s+)?semana\s+(?:que\s+viene|proxima|siguiente))\b/.test(normalized)) {
     const weekday = dateAtUtcNoon(context.localDate).getUTCDay();
     const startDate = addDays(context.localDate, weekday === 0 ? 1 : 8 - weekday);
     return { status: 'window', startDate, endDate: addDays(startDate, 6), label: 'la semana que viene' };

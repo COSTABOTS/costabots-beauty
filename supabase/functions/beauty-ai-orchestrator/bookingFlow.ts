@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
 import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -74,7 +74,7 @@ async function contextualDatePrompt(
   try {
     const result = await listServices(client, businessId);
     const services = (result.services ?? []) as Array<{ id: string; name: string }>;
-    return askDateForService(services.find(({ id }) => id === session.service_id)?.name ?? null);
+    return askDateForActiveSession(services.find(({ id }) => id === session.service_id)?.name ?? null);
   } catch {
     return bookingReplies.askDate;
   }

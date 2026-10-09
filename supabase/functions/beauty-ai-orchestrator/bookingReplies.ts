@@ -41,6 +41,10 @@ export function askDateForService(serviceName: string | null, greeting = true) {
     : bookingReplies.askDate;
 }
 
+export function askDateForActiveSession(serviceName: string | null) {
+  return askDateForService(serviceName, false);
+}
+
 export function dateWindowReply(label: string) {
   return `Perfecto, ¿qué día de ${label} te viene mejor?`;
 }
