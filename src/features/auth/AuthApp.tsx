@@ -14,7 +14,7 @@ type PublicScreen = 'login' | 'forgot-password' | 'signup' | 'confirm-email';
 
 function AuthRouter() {
   const auth = useAuth();
-  const [screen, setScreen] = useState<PublicScreen>('login');
+  const [screen, setScreen] = useState<PublicScreen>('signup');
   const [pendingEmail, setPendingEmail] = useState('');
 
   if (auth.status === 'loading') return <AuthLoading />;
