@@ -17,12 +17,10 @@ fase.
 ## Flujo
 
 1. La persona abre **Crear cuenta** desde la pantalla de acceso.
-2. Introduce nombre, negocio, tipo, email, teléfono y contraseña, y acepta los
-   términos y privacidad mostrados.
+2. Introduce su nombre, email y contraseña, y acepta los términos y privacidad
+   mostrados.
 3. `supabase.auth.signUp` crea la identidad y guarda únicamente metadata inicial
-   no sensible:
-   `beauty_signup_source`, `owner_display_name`, `business_name`,
-   `business_type` y `business_phone`.
+   no sensible: `beauty_signup_source` y `owner_display_name`.
 4. La contraseña solo se entrega a Supabase Auth y no se guarda en metadata,
    localStorage, tablas de Beauty ni logs.
 5. La aplicación muestra **Revisa tu correo**. El reenvío tiene una espera
@@ -31,10 +29,11 @@ fase.
    `email_confirmed_at`.
 7. Tras confirmar e iniciar sesión, `MembershipGate` busca una membresía activa.
 8. Si ya existe, entra normalmente. Si no existe y la metadata identifica un
-   alta autoservicio válida, muestra **Estamos preparando tu espacio** y llama a
-   `complete_beauty_signup`.
-9. La RPC crea el negocio, la membresía owner y el primer profesional en una
-   transacción y devuelve identificadores no sensibles.
+   alta autoservicio válida, se muestra el primer paso de configuración del
+   negocio: nombre, tipo y teléfono.
+9. Al completar ese paso, el cliente llama a `complete_beauty_signup` con esos
+   datos. La RPC crea el negocio, la membresía owner y el primer profesional en
+   una transacción y devuelve identificadores no sensibles.
 10. El Manager vuelve a cargar la membresía y abre el onboarding existente.
 
 ## Aprovisionamiento e idempotencia

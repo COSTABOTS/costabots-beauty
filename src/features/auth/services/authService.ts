@@ -43,11 +43,14 @@ export type { BeautyBusinessType } from '../../beauty/data/businessProfile';
 
 export type BeautySignUpInput = {
   ownerDisplayName: string;
+  email: string;
+  password: string;
+};
+
+export type BeautyBusinessProvisioningInput = {
   businessName: string;
   businessType: BeautyBusinessType;
-  email: string;
   businessPhone: string;
-  password: string;
 };
 
 export async function signUpBeautyAccount(input: BeautySignUpInput) {
@@ -61,9 +64,6 @@ export async function signUpBeautyAccount(input: BeautySignUpInput) {
       data: {
         beauty_signup_source: 'self_service',
         owner_display_name: input.ownerDisplayName.trim(),
-        business_name: input.businessName.trim(),
-        business_type: input.businessType,
-        business_phone: input.businessPhone.trim(),
       },
     },
   });
@@ -89,25 +89,22 @@ export async function resendSignUpConfirmation(email: string) {
 type SignupMetadata = {
   beauty_signup_source?: unknown;
   owner_display_name?: unknown;
-  business_name?: unknown;
-  business_type?: unknown;
-  business_phone?: unknown;
 };
 
 export function hasSelfServiceSignupMetadata(user: User) {
   return (user.user_metadata as SignupMetadata | null)?.beauty_signup_source === 'self_service';
 }
 
-export async function completeBeautySignup(user: User) {
+export async function completeBeautySignup(user: User, input: BeautyBusinessProvisioningInput) {
   if (!user.email_confirmed_at) throw new Error('Confirma tu correo antes de preparar el negocio.');
   const metadata = (user.user_metadata ?? {}) as SignupMetadata;
   if (metadata.beauty_signup_source !== 'self_service') {
     throw new Error('Faltan los datos iniciales del registro. Vuelve a iniciar sesión o contacta con soporte.');
   }
-  const businessName = String(metadata.business_name ?? '').trim();
   const ownerDisplayName = String(metadata.owner_display_name ?? '').trim();
-  const businessType = String(metadata.business_type ?? '').trim();
-  const businessPhone = String(metadata.business_phone ?? '').trim();
+  const businessName = input.businessName.trim();
+  const businessType = input.businessType;
+  const businessPhone = input.businessPhone.trim();
   if (!businessName || !ownerDisplayName || !businessType || !businessPhone) {
     throw new Error('Faltan datos para preparar tu espacio. Revisa el registro e inténtalo de nuevo.');
   }

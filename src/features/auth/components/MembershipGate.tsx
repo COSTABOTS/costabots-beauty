@@ -7,6 +7,7 @@ import { completeBeautySignup, hasSelfServiceSignupMetadata, loadActiveMembershi
 import type { BeautyMembership } from '../types';
 import { AuthLoading, AuthNotice } from './AuthShell';
 import { ConfirmEmailPage } from '../pages/ConfirmEmailPage';
+import { BusinessSetupPage } from '../pages/BusinessSetupPage';
 
 type MembershipState =
   | { status: 'loading'; memberships: []; selected: null; message: null }
@@ -16,7 +17,7 @@ type MembershipState =
 export function MembershipGate() {
   const auth = useAuth();
   const [attempt, setAttempt] = useState(0);
-  const [preparing, setPreparing] = useState(false);
+  const [provisioned, setProvisioned] = useState(false);
   const [state, setState] = useState<MembershipState>({
     status: 'loading',
     memberships: [],
@@ -28,25 +29,11 @@ export function MembershipGate() {
     if (auth.status !== 'authenticated') return;
     if (!auth.user.email_confirmed_at) return;
     let active = true;
-    setPreparing(false);
     setState({ status: 'loading', memberships: [], selected: null, message: null });
 
     void loadActiveMemberships(auth.user.id)
-      .then(async (initialMemberships) => {
-        let memberships = initialMemberships;
-        let provisioned = false;
-        if (
-          memberships.length === 0
-          && beautyEnvironment.publicSignupEnabled
-          && hasSelfServiceSignupMetadata(auth.user)
-        ) {
-          if (active) setPreparing(true);
-          await completeBeautySignup(auth.user);
-          memberships = await loadActiveMemberships(auth.user.id);
-          provisioned = true;
-        }
+      .then((memberships) => {
         if (!active) return;
-        setPreparing(false);
         setState({
           status: 'ready',
           memberships,
@@ -57,7 +44,6 @@ export function MembershipGate() {
       })
       .catch((error: unknown) => {
         if (!active) return;
-        setPreparing(false);
         setState({
           status: 'error',
           memberships: [],
@@ -69,13 +55,13 @@ export function MembershipGate() {
     return () => {
       active = false;
     };
-  }, [attempt, auth.status, auth.status === 'authenticated' ? auth.user.id : null, auth.status === 'authenticated' ? auth.user.email_confirmed_at : null]);
+  }, [attempt, auth.status, auth.status === 'authenticated' ? auth.user.id : null, auth.status === 'authenticated' ? auth.user.email_confirmed_at : null, provisioned]);
 
   if (auth.status === 'authenticated' && !auth.user.email_confirmed_at) {
     return <ConfirmEmailPage email={auth.user.email ?? ''} onBack={() => void signOut()} />;
   }
 
-  if (state.status === 'loading') return <AuthLoading label={preparing ? 'Estamos preparando tu espacio…' : 'Comprobando tu negocio…'} />;
+  if (state.status === 'loading') return <AuthLoading label="Comprobando tu negocio…" />;
 
   if (state.status === 'error') {
     return (
@@ -88,6 +74,22 @@ export function MembershipGate() {
   }
 
   if (state.memberships.length === 0) {
+    if (
+      auth.status === 'authenticated'
+      && beautyEnvironment.publicSignupEnabled
+      && hasSelfServiceSignupMetadata(auth.user)
+    ) {
+      return (
+        <BusinessSetupPage
+          onComplete={async (input) => {
+            await completeBeautySignup(auth.user, input);
+            setProvisioned(true);
+            setAttempt((value) => value + 1);
+          }}
+          onSignOut={() => void signOut()}
+        />
+      );
+    }
     return (
       <AuthNotice
         action={<button className="auth-primary-button" onClick={() => void signOut()} type="button">Cerrar sesión</button>}
