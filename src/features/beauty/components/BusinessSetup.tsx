@@ -1,11 +1,12 @@
 import { ArrowLeft, CalendarOff, Clock3, Copy, Plus, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Appointment, BeautyService, StaffMember } from '../types';
 import type { ImportServiceItem, ImportServicesResult, ServiceInput, StaffInput, StaffSchedule, StaffServiceAssignment, WeeklyScheduleSegmentInput } from '../data/types';
 import type { BeautyBusinessType } from '../data/businessProfile';
 import { formatMoney } from '../presentation';
 import { Avatar, FeatureStateBadge, PageHeader } from './ui';
 import { ServiceTemplateImporter } from './ServiceTemplateImporter';
+import { copiedScheduleDraft, copyServiceSelectionToDraft, staffServiceChanges, type StaffServiceDraft } from './staffConfiguration';
 
 const days = [
   { value: 1, label: 'Lunes' }, { value: 2, label: 'Martes' }, { value: 3, label: 'Miércoles' },
@@ -16,75 +17,68 @@ function ErrorText({ value }: { value: string }) {
   return value ? <p className="form-error" role="alert">{value}</p> : null;
 }
 
-export function StaffManagementPage({ appointments, canManage, mode, onBack, onCreate, onDeactivate, onOpenSchedules, onSetAssignment, onUpdate, services, staff, staffServices }: {
+export function StaffManagementPage({ appointments, canManage, mode, onBack, onCreate, onDeactivate, onSaveAssignments, onUpdate, onSaveSchedule, onCreateAbsence, services, staff, staffServices, schedules }: {
   appointments: Appointment[]; canManage: boolean; mode: 'mock' | 'supabase'; onBack: () => void;
   onCreate: (value: StaffInput) => Promise<string>; onUpdate: (value: StaffInput & { staffId: string; active: boolean }) => Promise<string>;
-  onDeactivate: (staffId: string) => Promise<string>; onSetAssignment: (value: { staffId: string; serviceId: string; durationMinutes: number | null; price: number | null; active: boolean }) => Promise<string>;
-  onOpenSchedules: (staffId: string) => void; services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[];
+  onDeactivate: (staffId: string) => Promise<string>; onSaveAssignments: (value: { staffId: string; assignments: { serviceId: string; durationMinutes: number | null; price: number | null; active: boolean }[] }) => Promise<void>;
+  onSaveSchedule: (staffId: string, segments: WeeklyScheduleSegmentInput[]) => Promise<void>; onCreateAbsence: (staffId: string) => void;
+  services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[]; schedules: StaffSchedule[];
 }) {
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [editing, setEditing] = useState<StaffMember | 'new' | null>(null);
-  const [error, setError] = useState('');
+  const [selected, setSelected] = useState<string | 'new' | null>(null);
   const visible = staff.filter((item) => (showInactive || item.active !== false) && item.name.toLowerCase().includes(query.toLowerCase()));
+  const member = typeof selected === 'string' ? staff.find((item) => item.id === selected) : undefined;
   const today = new Intl.DateTimeFormat('en-CA').format(new Date());
   const upcoming = (id: string) => appointments.filter((item) => item.staffId === id && item.date >= today && !['completed', 'cancelled', 'no_show'].includes(item.status)).length;
-
-  async function save(value: StaffInput & { active: boolean }) {
-    setError('');
-    try {
-      if (editing === 'new') await onCreate(value);
-      else if (editing) await onUpdate({ ...value, staffId: editing.id });
-      setEditing(null);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'No hemos podido guardar el profesional.'); }
-  }
-
+  if (typeof selected === 'string' && !member) return <div className="beauty-page setup-page"><PageHeader eyebrow="Equipo" title="Cargando profesional" action={<button aria-label="Volver a equipo" className="icon-button-soft" onClick={() => setSelected(null)}><ArrowLeft /></button>} /><div className="empty-state"><Clock3 /><p>Actualizando la ficha del nuevo profesional…</p></div></div>;
+  if (selected) return <StaffProfilePage canManage={canManage} member={member} mode={mode} onBack={() => setSelected(null)} onCreate={async (value) => { const id = await onCreate(value); setSelected(id); }} onCreateAbsence={onCreateAbsence} onDeactivate={onDeactivate} onSaveAssignments={onSaveAssignments} onSaveSchedule={onSaveSchedule} onUpdate={onUpdate} schedules={schedules} services={services} staff={staff} staffServices={staffServices} />;
   return <div className="beauty-page setup-page">
     <PageHeader eyebrow="Configura tu equipo" title="Equipo" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button></div>} />
-    <div className="setup-toolbar">{staff.length > 1 && <label className="beauty-search"><Search size={18} /><input onChange={(e) => setQuery(e.target.value)} placeholder="Buscar profesional" value={query} /></label>}<button disabled={!canManage} onClick={() => setEditing('new')}><Plus size={17} />Nuevo</button></div>
+    <div className="setup-toolbar">{staff.length > 1 && <label className="beauty-search"><Search size={18} /><input onChange={(e) => setQuery(e.target.value)} placeholder="Buscar profesional" value={query} /></label>}<button className="beauty-button beauty-button--secondary" disabled={!canManage} onClick={() => setSelected('new')}><Plus size={17} />Nuevo</button></div>
     {(staff.length > 1 || staff.some((item) => item.active === false)) && <label className="inactive-filter"><input checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} type="checkbox" />Mostrar inactivos</label>}
-    {visible.length === 0 && <div className="empty-state"><Plus /><h2>Añade a la primera persona del equipo</h2><p>Los profesionales determinan quién puede atender cada servicio.</p><button disabled={!canManage} onClick={() => setEditing('new')} type="button">Nuevo profesional</button></div>}
-    <div className="setup-list">{visible.map((member) => <article className={member.active === false ? 'is-inactive' : ''} key={member.id}>
-      <Avatar accent={member.accent} name={member.name} /><span><strong>{member.name}</strong><small>{member.email || member.phone || 'Sin contacto'} · {upcoming(member.id)} citas próximas</small></span>
-      <button onClick={() => setEditing(member)}>Gestionar</button>
-    </article>)}</div>
-    {editing && <div className="inline-editor"><StaffEditor member={editing === 'new' ? undefined : editing} onCancel={() => setEditing(null)} onSave={save} />
-      {editing !== 'new' && <>
-        <section><h3>Servicios asignados</h3><div className="assignment-list">{services.filter((service) => service.active !== false).map((service) => {
-          const assignment = staffServices.find((item) => item.staffId === editing.id && item.serviceId === service.id);
-          return <AssignmentEditor assignment={assignment} key={service.id} onSave={(durationMinutes, price, active) => onSetAssignment({ staffId: editing.id, serviceId: service.id, durationMinutes, price, active })} service={service} />;
-        })}</div></section>
-        <div className="detail-actions"><button onClick={() => onOpenSchedules(editing.id)}>Ver horario semanal</button><button className="danger-action" disabled={editing.active === false} onClick={() => { if (window.confirm(`¿Desactivar a ${editing.name}? Dejará de estar disponible para citas nuevas.`)) void onDeactivate(editing.id).then(() => setEditing(null)).catch((cause) => setError(cause instanceof Error ? cause.message : 'No se puede desactivar.')); }}>Desactivar</button></div>
-      </>}
-      <ErrorText value={error} />
-    </div>}
+    {visible.length === 0 && <div className="empty-state"><Plus /><h2>Añade a la primera persona del equipo</h2><p>Los profesionales determinan quién puede atender cada servicio.</p><button className="beauty-button beauty-button--primary" disabled={!canManage} onClick={() => setSelected('new')} type="button">Nuevo profesional</button></div>}
+    <div className="setup-list">{visible.map((item) => <article className={item.active === false ? 'is-inactive' : ''} key={item.id}><Avatar accent={item.accent} name={item.name} /><span><strong>{item.name}</strong><small>{item.email || item.phone || 'Sin contacto'} · {upcoming(item.id)} citas próximas</small></span><button onClick={() => setSelected(item.id)}>Gestionar</button></article>)}</div>
   </div>;
 }
 
-function StaffEditor({ member, onCancel, onSave }: { member?: StaffMember; onCancel: () => void; onSave: (value: StaffInput & { active: boolean }) => Promise<void> }) {
-  const [name, setName] = useState(member?.name ?? '');
-  const [phone, setPhone] = useState(member?.phone ?? '');
-  const [email, setEmail] = useState(member?.email ?? '');
-  const [colorKey, setColorKey] = useState<StaffInput['colorKey']>(member?.accent ?? 'coral');
-  const [sortOrder, setSortOrder] = useState(member?.sortOrder ?? 0);
-  const [active, setActive] = useState(member?.active !== false);
-  return <form className="beauty-command-form" onSubmit={(e) => { e.preventDefault(); void onSave({ name, phone, email, colorKey, sortOrder, active }); }}>
-    <h2>{member ? 'Editar profesional' : 'Nuevo profesional'}</h2>
-    <label><span>Nombre *</span><input maxLength={160} onChange={(e) => setName(e.target.value)} required value={name} /></label>
-    <details className="advanced-options"><summary>Opciones avanzadas</summary>
-      <div className="form-columns"><label><span>Teléfono</span><input onChange={(e) => setPhone(e.target.value)} value={phone} /></label><label><span>Email</span><input onChange={(e) => setEmail(e.target.value)} type="email" value={email} /></label></div>
-      <div className="form-columns"><label><span>Color</span><select onChange={(e) => setColorKey(e.target.value as StaffInput['colorKey'])} value={colorKey}><option value="coral">Coral</option><option value="sage">Verde</option><option value="sand">Arena</option></select></label><label><span>Orden</span><input min={0} max={999} onChange={(e) => setSortOrder(Number(e.target.value))} type="number" value={sortOrder} /></label></div>
-    </details>
-    {member?.active === false && <label className="check-row"><input checked={active} onChange={(e) => setActive(e.target.checked)} type="checkbox" />Reactivar profesional</label>}
-    <div className="form-actions"><button type="button" onClick={onCancel}>Cancelar</button><button type="submit">Guardar</button></div>
+function StaffProfilePage({ canManage, member, mode, onBack, onCreate, onCreateAbsence, onDeactivate, onSaveAssignments, onSaveSchedule, onUpdate, schedules, services, staff, staffServices }: {
+  canManage: boolean; member?: StaffMember; mode: 'mock' | 'supabase'; onBack: () => void; onCreate: (value: StaffInput) => Promise<void>; onCreateAbsence: (staffId: string) => void; onDeactivate: (staffId: string) => Promise<string>;
+  onSaveAssignments: (value: { staffId: string; assignments: { serviceId: string; durationMinutes: number | null; price: number | null; active: boolean }[] }) => Promise<void>; onSaveSchedule: (staffId: string, segments: WeeklyScheduleSegmentInput[]) => Promise<void>; onUpdate: (value: StaffInput & { staffId: string; active: boolean }) => Promise<string>;
+  schedules: StaffSchedule[]; services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[];
+}) {
+  const configuredServices = member ? staffServices.filter((item) => item.staffId === member.id && item.active && services.some((service) => service.id === item.serviceId && service.active !== false)).length : 0;
+  const configuredSchedule = member ? schedules.some((item) => item.staffId === member.id && item.active) : false;
+  return <div className="beauty-page setup-page staff-profile">
+    <PageHeader eyebrow="Equipo" title={member ? member.name : 'Nuevo profesional'} action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver a equipo" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button></div>} />
+    {member && <section className="staff-profile__summary"><Avatar accent={member.accent} name={member.name} /><div><strong>{configuredServices ? `${configuredServices} servicios` : 'Servicios sin configurar'}</strong><small>{configuredSchedule ? 'Horario configurado' : 'Horario sin configurar'}</small></div><span className={member.active === false ? 'status-pill is-inactive' : 'status-pill'}>{member.active === false ? 'Inactivo' : 'Activo'}</span></section>}
+    <section className="staff-profile__section"><h2>Datos</h2><StaffDetailsForm canManage={canManage} member={member} onCreate={onCreate} onUpdate={onUpdate} /></section>
+    {member && <>
+      <section className="staff-profile__section"><h2>Servicios</h2><StaffServicesEditor canManage={canManage} member={member} onSave={onSaveAssignments} services={services.filter((service) => service.active !== false)} staff={staff} staffServices={staffServices} /></section>
+      <section className="staff-profile__section"><h2>Horario</h2><StaffScheduleEditor canManage={canManage} member={member} onCreateAbsence={onCreateAbsence} onSave={onSaveSchedule} schedules={schedules} staff={staff.filter((item) => item.active !== false)} /></section>
+      <div className="staff-profile__status-actions">{member.active === false ? <button className="beauty-button beauty-button--secondary" disabled={!canManage} onClick={() => void onUpdate({ staffId: member.id, name: member.name, phone: member.phone ?? '', email: member.email ?? '', colorKey: member.accent, sortOrder: member.sortOrder ?? 0, active: true })}>Activar profesional</button> : <button className="beauty-button beauty-button--danger" disabled={!canManage} onClick={() => { if (window.confirm(`¿Desactivar a ${member.name}? Dejará de estar disponible para citas nuevas.`)) void onDeactivate(member.id).catch(() => undefined); }}>Desactivar profesional</button>}</div>
+    </>}
+  </div>;
+}
+
+function StaffDetailsForm({ canManage, member, onCreate, onUpdate }: { canManage: boolean; member?: StaffMember; onCreate: (value: StaffInput) => Promise<void>; onUpdate: (value: StaffInput & { staffId: string; active: boolean }) => Promise<string> }) {
+  const [name, setName] = useState(member?.name ?? ''); const [phone, setPhone] = useState(member?.phone ?? ''); const [email, setEmail] = useState(member?.email ?? ''); const [colorKey, setColorKey] = useState<StaffInput['colorKey']>(member?.accent ?? 'coral'); const [sortOrder, setSortOrder] = useState(member?.sortOrder ?? 0); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
+  useEffect(() => { setName(member?.name ?? ''); setPhone(member?.phone ?? ''); setEmail(member?.email ?? ''); setColorKey(member?.accent ?? 'coral'); setSortOrder(member?.sortOrder ?? 0); }, [member]);
+  return <form className="beauty-command-form" onSubmit={(event) => { event.preventDefault(); setSaving(true); setError(''); const value = { name, phone, email, colorKey, sortOrder }; const save = member ? onUpdate({ ...value, staffId: member.id, active: member.active !== false }) : onCreate(value); void save.catch((cause) => setError(cause instanceof Error ? cause.message : 'No se ha podido guardar el profesional.')).finally(() => setSaving(false)); }}>
+    <label><span>Nombre *</span><input disabled={!canManage} maxLength={160} onChange={(event) => setName(event.target.value)} required value={name} /></label><div className="form-columns"><label><span>Teléfono opcional</span><input disabled={!canManage} onChange={(event) => setPhone(event.target.value)} value={phone} /></label><label><span>Email opcional</span><input disabled={!canManage} onChange={(event) => setEmail(event.target.value)} type="email" value={email} /></label></div>
+    <details className="advanced-options"><summary>Opciones avanzadas</summary><div className="form-columns"><label><span>Color</span><select disabled={!canManage} onChange={(event) => setColorKey(event.target.value as StaffInput['colorKey'])} value={colorKey}><option value="coral">Coral</option><option value="sage">Verde</option><option value="sand">Arena</option></select></label><label><span>Orden</span><input disabled={!canManage} min={0} max={999} onChange={(event) => setSortOrder(Number(event.target.value))} type="number" value={sortOrder} /></label></div></details>
+    <ErrorText value={error} /><div className="form-actions"><button className="beauty-button beauty-button--primary" disabled={!canManage || saving} type="submit">{saving ? 'Guardando…' : member ? 'Guardar datos' : 'Crear profesional'}</button></div>
   </form>;
 }
 
-function AssignmentEditor({ assignment, onSave, service }: { assignment?: StaffServiceAssignment; onSave: (duration: number | null, price: number | null, active: boolean) => Promise<string>; service: BeautyService }) {
-  const [active, setActive] = useState(assignment?.active ?? false);
-  const [duration, setDuration] = useState(assignment?.durationMinutes ?? service.durationMinutes);
-  const [price, setPrice] = useState(assignment?.price ?? service.price);
-  return <article><label><input checked={active} onChange={(e) => setActive(e.target.checked)} type="checkbox" /><strong>{service.name}</strong></label><input aria-label={`Duración ${service.name}`} min={1} onChange={(e) => setDuration(Number(e.target.value))} type="number" value={duration} /><input aria-label={`Precio ${service.name}`} min={0} onChange={(e) => setPrice(Number(e.target.value))} step=".01" type="number" value={price} /><button onClick={() => void onSave(duration === service.durationMinutes ? null : duration, price === service.price ? null : price, active)}>Guardar</button></article>;
+function StaffServicesEditor({ canManage, member, onSave, services, staff, staffServices }: { canManage: boolean; member: StaffMember; onSave: (value: { staffId: string; assignments: { serviceId: string; durationMinutes: number | null; price: number | null; active: boolean }[] }) => Promise<void>; services: BeautyService[]; staff: StaffMember[]; staffServices: StaffServiceAssignment[] }) {
+  const initialDraft = () => new Map(services.map((service) => { const assignment = staffServices.find((item) => item.staffId === member.id && item.serviceId === service.id); return [service.id, { active: assignment?.active ?? false, durationMinutes: assignment?.durationMinutes ?? service.durationMinutes, price: assignment?.price ?? service.price }] as const; }));
+  const [draft, setDraft] = useState<Map<string, StaffServiceDraft>>(initialDraft); const [sourceId, setSourceId] = useState(''); const [saving, setSaving] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
+  useEffect(() => { setDraft(initialDraft()); setSourceId(''); }, [member.id, staffServices, services]);
+  const setAll = (active: boolean) => setDraft((current) => new Map([...current].map(([id, value]) => [id, { ...value, active }])));
+  const copyFrom = (id: string) => { setSourceId(id); if (!id) return; setDraft((current) => copyServiceSelectionToDraft(current, id, staffServices)); setMessage(`Selección copiada como borrador de ${staff.find((item) => item.id === id)?.name ?? 'otro profesional'}.`); };
+  const changes = staffServiceChanges(member.id, services, staffServices, draft);
+  return <div className="staff-services-editor"><p className="staff-profile__hint">Marca los servicios que realiza {member.name}. Los cambios no se aplican hasta guardar.</p><div className="staff-services-editor__tools"><button className="beauty-button beauty-button--secondary" disabled={!canManage} onClick={() => setAll(true)} type="button">Seleccionar todos</button><button className="beauty-button beauty-button--secondary" disabled={!canManage} onClick={() => setAll(false)} type="button">Quitar todos</button><label><span>Copiar servicios de…</span><select disabled={!canManage} onChange={(event) => copyFrom(event.target.value)} value={sourceId}><option value="">Elegir profesional</option>{staff.filter((item) => item.id !== member.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div><div className="assignment-list staff-services-editor__list">{services.map((service) => { const value = draft.get(service.id)!; return <article key={service.id}><label><input checked={value.active} disabled={!canManage} onChange={(event) => setDraft((current) => { const next = new Map(current); next.set(service.id, { ...value, active: event.target.checked }); return next; })} type="checkbox" /><strong>{service.name}</strong></label><input aria-label={`Duración ${service.name}`} disabled={!canManage} min={1} onChange={(event) => setDraft((current) => { const next = new Map(current); next.set(service.id, { ...value, durationMinutes: Number(event.target.value) }); return next; })} type="number" value={value.durationMinutes} /><input aria-label={`Precio ${service.name}`} disabled={!canManage} min={0} onChange={(event) => setDraft((current) => { const next = new Map(current); next.set(service.id, { ...value, price: Number(event.target.value) }); return next; })} step=".01" type="number" value={value.price} /></article>; })}</div><ErrorText value={error} />{message && <p className="form-success" role="status">{message}</p>}<div className="form-actions"><button className="beauty-button beauty-button--primary" disabled={!canManage || saving || !changes.length} onClick={() => { setSaving(true); setError(''); setMessage(''); void onSave({ staffId: member.id, assignments: changes }).then(() => setMessage('Servicios guardados.')).catch((cause) => setError(cause instanceof Error ? cause.message : 'No se han guardado todos los servicios. Revisa el estado y vuelve a intentarlo.')).finally(() => setSaving(false)); }} type="button">{saving ? 'Guardando…' : `Guardar servicios${changes.length ? ` (${changes.length})` : ''}`}</button></div></div>;
 }
 
 export function ServicesManagementPage({ businessCurrency, businessType, canManage, mode, onBack, onCreate, onDeactivate, onImport, onSetAssignment, onUpdate, openTemplateInitially = false, services, staff, staffServices }: {
@@ -122,15 +116,18 @@ function ServiceEditor({ businessCurrency, onCancel, onSave, service }: { busine
 }
 
 export function SchedulesManagementPage({ initialStaffId, mode, onBack, onCreateAbsence, onSave, schedules, staff }: { initialStaffId?: string; mode: 'mock' | 'supabase'; onBack: () => void; onCreateAbsence: (staffId: string) => void; onSave: (staffId: string, segments: WeeklyScheduleSegmentInput[]) => Promise<void>; schedules: StaffSchedule[]; staff: StaffMember[] }) {
-  const activeStaff = staff.filter((item) => item.active !== false); const [staffId, setStaffId] = useState(initialStaffId ?? activeStaff[0]?.id ?? ''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  const initial = useMemo(() => schedules.filter((item) => item.staffId === staffId && item.active).map((item) => ({ dayOfWeek: item.dayOfWeek, start: item.start, end: item.end })), [schedules, staffId]);
-  const [segments, setSegments] = useState<WeeklyScheduleSegmentInput[]>(initial);
-  function selectStaff(id: string) { setStaffId(id); setSegments(schedules.filter((item) => item.staffId === id && item.active).map((item) => ({ dayOfWeek: item.dayOfWeek, start: item.start, end: item.end }))); }
+  const activeStaff = staff.filter((item) => item.active !== false); const [staffId, setStaffId] = useState(initialStaffId ?? activeStaff[0]?.id ?? '');
   if (activeStaff.length === 0) return <div className="beauty-page setup-page"><PageHeader eyebrow="Semana habitual" title="Horarios" action={<button aria-label="Volver" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button>} /><div className="empty-state"><CalendarOff /><h2>Primero añade un profesional</h2><p>Necesitas una persona activa antes de configurar disponibilidad.</p><button onClick={onBack} type="button">Volver a configuración</button></div></div>;
   return <div className="beauty-page setup-page"><PageHeader eyebrow="Semana habitual" title="Horarios" action={<div className="heading-actions">{mode === 'mock' && <FeatureStateBadge state="demo" />}<button aria-label="Volver" className="icon-button-soft" onClick={onBack}><ArrowLeft /></button></div>} />
-    {activeStaff.length > 1 ? <label><span>Profesional</span><select value={staffId} onChange={(e) => selectStaff(e.target.value)}>{activeStaff.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : <p className="auto-selection-note">Horario de {activeStaff[0].name}</p>}
-    {segments.length === 0 && <div className="empty-state empty-state--compact"><Clock3 /><h2>Configura cuándo está disponible</h2><p>Añade el horario habitual. También puedes crear una jornada partida.</p></div>}
-    <div className="weekly-editor">{days.map((day) => { const daySegments = segments.filter((item) => item.dayOfWeek === day.value); return <section key={day.value}><header><strong>{day.label}</strong><button onClick={() => setSegments((current) => [...current, { dayOfWeek: day.value, start: '09:00', end: '14:00' }])}><Plus size={15} />{daySegments.length ? 'Añadir otro horario' : 'Añadir horario'}</button></header>{daySegments.length ? daySegments.map((segment, dayIndex) => { const index = segments.indexOf(segment); return <div className="schedule-segment" key={`${day.value}-${index}`}><small>{dayIndex === 0 ? 'Horario' : 'Horario adicional'}</small><input type="time" value={segment.start} onChange={(e) => setSegments((current) => current.map((item, i) => i === index ? { ...item, start: e.target.value } : item))} /><span>–</span><input type="time" value={segment.end} onChange={(e) => setSegments((current) => current.map((item, i) => i === index ? { ...item, end: e.target.value } : item))} /><button aria-label={`Eliminar horario ${day.label}`} onClick={() => setSegments((current) => current.filter((_, i) => i !== index))}><Trash2 size={16} /></button></div>; }) : <small>Día libre</small>}<button className="copy-day" disabled={!daySegments.length} onClick={() => { const source = segments.filter((item) => item.dayOfWeek === day.value); setSegments(days.flatMap((target) => source.map((item) => ({ ...item, dayOfWeek: target.value })))); }}><Copy size={14} />Copiar a otros días</button></section>; })}</div>
-    <ErrorText value={error} /><div className="form-actions"><button onClick={() => onCreateAbsence(staffId)}><CalendarOff size={16} />Tiempo no disponible</button><button disabled={saving || !staffId} onClick={() => { setSaving(true); setError(''); void onSave(staffId, segments).catch((cause) => setError(cause instanceof Error ? cause.message : 'No se puede guardar el horario.')).finally(() => setSaving(false)); }}>{saving ? 'Guardando…' : 'Guardar horario'}</button></div>
+    {activeStaff.length > 1 ? <label><span>Profesional</span><select value={staffId} onChange={(event) => setStaffId(event.target.value)}>{activeStaff.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : <p className="auto-selection-note">Horario de {activeStaff[0].name}</p>}
+    <StaffScheduleEditor canManage member={activeStaff.find((item) => item.id === staffId)!} onCreateAbsence={onCreateAbsence} onSave={onSave} schedules={schedules} staff={activeStaff} />
   </div>;
+}
+
+export function StaffScheduleEditor({ canManage, member, onCreateAbsence, onSave, schedules, staff }: { canManage: boolean; member: StaffMember; onCreateAbsence: (staffId: string) => void; onSave: (staffId: string, segments: WeeklyScheduleSegmentInput[]) => Promise<void>; schedules: StaffSchedule[]; staff: StaffMember[] }) {
+  const persisted = useMemo(() => copiedScheduleDraft(member.id, schedules), [member.id, schedules]);
+  const [segments, setSegments] = useState<WeeklyScheduleSegmentInput[]>(persisted); const [sourceId, setSourceId] = useState(''); const [copiedFrom, setCopiedFrom] = useState(''); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
+  useEffect(() => { setSegments(persisted); setSourceId(''); setCopiedFrom(''); }, [member.id, persisted]);
+  const copySchedule = (id: string) => { setSourceId(id); if (!id) return; const source = staff.find((item) => item.id === id); if (!source) return; if (persisted.length && !window.confirm(`Copiar el horario de ${source.name} sustituirá el borrador actual de ${member.name}. ¿Continuar?`)) return; setSegments(copiedScheduleDraft(id, schedules)); setCopiedFrom(source.name); setMessage(`Horario de ${source.name} copiado como borrador. Aún no se ha guardado.`); };
+  return <div className="staff-schedule-editor"><div className="staff-schedule-editor__tools"><label><span>Copiar horario de…</span><select disabled={!canManage} onChange={(event) => copySchedule(event.target.value)} value={sourceId}><option value="">Elegir profesional</option>{staff.filter((item) => item.id !== member.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{copiedFrom && <p className="form-success">Borrador copiado de {copiedFrom}.</p>}</div>{segments.length === 0 && <div className="empty-state empty-state--compact"><Clock3 /><h2>Horario sin configurar</h2><p>Añade el horario habitual. También puedes crear una jornada partida.</p></div>}<div className="weekly-editor">{days.map((day) => { const daySegments = segments.filter((item) => item.dayOfWeek === day.value); return <section key={day.value}><header><strong>{day.label}</strong><button disabled={!canManage} onClick={() => setSegments((current) => [...current, { dayOfWeek: day.value, start: '09:00', end: '14:00' }])} type="button"><Plus size={15} />{daySegments.length ? 'Añadir otro horario' : 'Añadir horario'}</button></header>{daySegments.length ? daySegments.map((segment, dayIndex) => { const index = segments.indexOf(segment); return <div className="schedule-segment" key={`${day.value}-${index}`}><small>{dayIndex === 0 ? 'Horario' : 'Horario adicional'}</small><input disabled={!canManage} type="time" value={segment.start} onChange={(event) => setSegments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, start: event.target.value } : item))} /><span>–</span><input disabled={!canManage} type="time" value={segment.end} onChange={(event) => setSegments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, end: event.target.value } : item))} /><button aria-label={`Eliminar horario ${day.label}`} disabled={!canManage} onClick={() => setSegments((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><Trash2 size={16} /></button></div>; }) : <small>Día libre</small>}<button className="copy-day" disabled={!canManage || !daySegments.length} onClick={() => { const source = segments.filter((item) => item.dayOfWeek === day.value); setSegments(days.flatMap((target) => source.map((item) => ({ ...item, dayOfWeek: target.value })))); }} type="button"><Copy size={14} />Copiar a otros días</button></section>; })}</div><ErrorText value={error} />{message && <p className="form-success" role="status">{message}</p>}<div className="form-actions"><button className="beauty-button beauty-button--secondary" disabled={!canManage} onClick={() => onCreateAbsence(member.id)} type="button"><CalendarOff size={16} />Tiempo no disponible</button><button className="beauty-button beauty-button--primary" disabled={!canManage || saving} onClick={() => { setSaving(true); setError(''); setMessage(''); void onSave(member.id, segments).then(() => setMessage('Horario guardado.')).catch((cause) => setError(cause instanceof Error ? cause.message : 'No se puede guardar el horario.')).finally(() => setSaving(false)); }} type="button">{saving ? 'Guardando…' : 'Guardar horario'}</button></div></div>;
 }

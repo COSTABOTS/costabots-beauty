@@ -688,6 +688,41 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--beauty-focu
 }
 .copy-day { width: max-content; color: var(--beauty-muted); background: var(--beauty-bg); }
 
+/* Professional profile V1: keep configuration actions inside the Beauty design system. */
+.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+.beauty-button { display: inline-flex; min-height: 45px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; font: inherit; font-size: .73rem; font-weight: 850; border: 1px solid transparent; border-radius: 13px; cursor: pointer; transition: background .16s ease, border-color .16s ease, color .16s ease, opacity .16s ease; }
+.beauty-button:focus-visible { outline: 3px solid var(--beauty-focus-ring); outline-offset: 2px; }
+.beauty-button:disabled { cursor: not-allowed; opacity: .58; }
+.beauty-button--primary { color: #fff; border-color: var(--cb-primary); background: var(--cb-primary); }
+.beauty-button--primary:hover:not(:disabled) { border-color: var(--cb-primary-hover); background: var(--cb-primary-hover); }
+.beauty-button--secondary { color: var(--beauty-primary-dark); border-color: var(--beauty-primary-border); background: var(--beauty-primary-soft); }
+.beauty-button--secondary:hover:not(:disabled) { border-color: var(--beauty-primary); background: #edf5f3; }
+.beauty-button--danger { color: var(--beauty-danger); border-color: #e3bbb7; background: var(--beauty-danger-soft); }
+.beauty-button--danger:hover:not(:disabled) { border-color: var(--beauty-danger); }
+.form-success { margin: 0; padding: 10px 12px; color: #285e58; font-size: .7rem; font-weight: 700; border-radius: 12px; background: var(--cb-primary-soft); }
+.staff-profile { display: grid; gap: 14px; }
+.staff-profile__summary { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid var(--beauty-primary-border); border-radius: 17px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
+.staff-profile__summary > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.staff-profile__summary small, .staff-profile__hint { color: var(--beauty-muted); font-size: .69rem; }
+.staff-profile__hint { margin: 0; line-height: 1.45; }
+.status-pill { padding: 5px 9px; color: #285e58; font-size: .65rem; font-weight: 850; border-radius: 999px; background: var(--cb-primary-soft); }
+.status-pill.is-inactive { color: #765f43; background: var(--beauty-sand-soft); }
+.staff-profile__section { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--beauty-line); border-radius: 18px; background: var(--beauty-card); }
+.staff-profile__section > h2 { margin: 0; font-size: .94rem; }
+.staff-profile__status-actions { display: flex; justify-content: flex-end; }
+.staff-services-editor, .staff-schedule-editor { display: grid; gap: 12px; }
+.staff-services-editor__tools, .staff-schedule-editor__tools { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
+.staff-services-editor__tools label, .staff-schedule-editor__tools label { display: grid; min-width: min(100%, 210px); gap: 5px; color: var(--beauty-muted); font-size: .67rem; font-weight: 800; }
+.staff-services-editor__tools select, .staff-schedule-editor__tools select { min-height: 42px; padding: 0 10px; border: 1px solid var(--beauty-line); border-radius: 11px; background: var(--beauty-card); }
+.staff-services-editor__list article { grid-template-columns: minmax(130px,1fr) 72px 78px; }
+@media (max-width: 520px) {
+  .form-actions, .staff-profile__status-actions { justify-content: stretch; }
+  .form-actions .beauty-button, .staff-profile__status-actions .beauty-button { width: 100%; }
+  .staff-services-editor__tools { align-items: stretch; }
+  .staff-services-editor__tools .beauty-button, .staff-services-editor__tools label { width: 100%; }
+  .staff-services-editor__list article { grid-template-columns: minmax(0,1fr) 72px 78px; }
+}
+
 .setup-reminder, .setup-status-card { display: grid; gap: 10px; padding: 15px; color: var(--beauty-ink); border: 1px solid var(--beauty-primary-border); border-radius: 18px; background: linear-gradient(135deg, var(--beauty-primary-soft), var(--beauty-card)); }
 .setup-reminder > span, .setup-status-card > span { display: grid; gap: 3px; }
 .setup-reminder strong, .setup-status-card strong { font-size: .82rem; }

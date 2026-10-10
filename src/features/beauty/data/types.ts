@@ -239,6 +239,10 @@ export type SetStaffServiceCommand = {
   price: number | null;
   active: boolean;
 };
+export type SetStaffServicesCommand = {
+  staffId: string;
+  assignments: Omit<SetStaffServiceCommand, 'staffId'>[];
+};
 export type WeeklyScheduleSegmentInput = { dayOfWeek: number; start: string; end: string };
 export type ReplaceWeeklyScheduleCommand = { staffId: string; segments: WeeklyScheduleSegmentInput[] };
 
