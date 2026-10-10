@@ -3,6 +3,7 @@ export type ServiceCatalogEntry = { id: string; name: string };
 export type ServiceTextResolution = {
   service: ServiceCatalogEntry | null;
   ambiguous: boolean;
+  candidates: ServiceCatalogEntry[];
 };
 
 function normalizeServiceText(value: string) {
@@ -34,8 +35,8 @@ const SERVICE_ALIAS_FAMILIES = [
 function singleService(matches: ServiceCatalogEntry[]): ServiceTextResolution {
   const unique = [...new Map(matches.map((service) => [service.id, service])).values()];
   return unique.length === 1
-    ? { service: unique[0], ambiguous: false }
-    : { service: null, ambiguous: unique.length > 1 };
+    ? { service: unique[0], ambiguous: false, candidates: unique }
+    : { service: null, ambiguous: unique.length > 1, candidates: unique };
 }
 
 /**
@@ -48,7 +49,7 @@ export function resolveServiceText(
   services: ServiceCatalogEntry[],
 ): ServiceTextResolution {
   const text = normalizeServiceText(rawText ?? '');
-  if (!text) return { service: null, ambiguous: false };
+  if (!text) return { service: null, ambiguous: false, candidates: [] };
 
   const exact = services.filter((service) => normalizeServiceText(service.name) === text);
   if (exact.length) return singleService(exact);
@@ -63,7 +64,7 @@ export function resolveServiceText(
   }
 
   const matchingFamilies = SERVICE_ALIAS_FAMILIES.filter((family) => family.aliases.some((alias) => hasPhrase(text, alias)));
-  if (!matchingFamilies.length) return { service: null, ambiguous: false };
+  if (!matchingFamilies.length) return { service: null, ambiguous: false, candidates: [] };
 
   const candidates = services.filter((service) => {
     const name = normalizeServiceText(service.name);

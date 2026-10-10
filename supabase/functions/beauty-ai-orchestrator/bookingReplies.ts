@@ -86,6 +86,14 @@ export function professionalReply(professionals: Array<{ staff_display_name: str
   return `${joined} están disponibles para este servicio. ¿Con quién te gustaría reservar?`;
 }
 
+export function ambiguousServiceReply(services: Array<{ name: string }>) {
+  const names = [...new Set(services.map((service) => service.name).filter(Boolean))];
+  const joined = names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
+  return joined
+    ? `Tengo varios servicios que podrían encajar: ${joined}. ¿Cuál necesitas?`
+    : bookingReplies.askService;
+}
+
 export function incompatibleProfessionalReply(name: string, serviceName: string | null, professionals: Array<{ staff_display_name: string }>) {
   const alternatives = professionals.map((professional) => professional.staff_display_name).join(' y ');
   const service = serviceName ? ` el servicio de ${serviceName.toLocaleLowerCase('es')}` : ' ese servicio';

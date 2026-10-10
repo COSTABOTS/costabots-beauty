@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import { boundedCustomerContext, parseBookingInterpretation, redactInterpreterText } from './bookingInterpreter.ts';
-import { askDateForActiveSession, askDateForService, availabilityReply, selectionReply, timeClarificationReply } from './bookingReplies.ts';
+import { ambiguousServiceReply, askDateForActiveSession, askDateForService, availabilityReply, selectionReply, timeClarificationReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
   interpretBookingDeterministically,
@@ -17,7 +17,7 @@ import {
 } from './bookingResolvers.ts';
 import { resolveServiceText } from './serviceAliases.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
-import { optionForRequestedTime, persistExactOption, visibleAvailability } from './bookingFlow.ts';
+import { optionForRequestedTime, persistExactOption, resumeAnswer, resumeReplyForSession, visibleAvailability } from './bookingFlow.ts';
 import { buildTemporalContext, formatCustomerDate } from './dateResolution.ts';
 import { pendingBookingField, type BookingInterpretation, type BookingSession, type OfferedTime } from './bookingTypes.ts';
 
@@ -170,13 +170,48 @@ Deno.test('service aliases are ambiguous safely and exact names keep priority', 
     { id: '55555555-5555-4555-8555-555555555551', name: 'Corte' },
     { id: '55555555-5555-4555-8555-555555555552', name: 'Corte infantil' },
   ];
-  assertEquals(resolveServiceText('Corte infantil', catalog), { service: catalog[1], ambiguous: false });
-  assertEquals(resolveServiceText('Quiero pelarme', catalog), { service: null, ambiguous: true });
+  assertEquals(resolveServiceText('Corte infantil', catalog), { service: catalog[1], ambiguous: false, candidates: [catalog[1]] });
+  assertEquals(resolveServiceText('Quiero pelarme', catalog), { service: null, ambiguous: true, candidates: catalog });
   assertEquals(resolveServiceReference('Quiero pelarme', catalog), null);
   const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
   const ambiguous = interpretBookingDeterministically('Quiero pelarme', 'choosing_service', catalog, temporal);
   assertEquals(ambiguous?.intent, 'choose_service');
   assertEquals(ambiguous?.service_reference, null);
+});
+
+Deno.test('resume confirmation is consumed before booking parsing and restores each pending prompt', () => {
+  const temporal = buildTemporalContext(new Date('2026-08-02T10:00:00Z'), 'Europe/Madrid');
+  const catalog = [{ id: session.service_id!, name: 'Corte' }];
+  const professionals = [
+    { staff_id: options[0].staff_id, staff_display_name: 'Ana' },
+    { staff_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', staff_display_name: 'Bea' },
+  ];
+  const cases: Array<[BookingSession, string]> = [
+    [{ ...session, status: 'choosing_service', service_id: null, selected_date: null, offered_times: [] }, '¿Qué servicio te gustaría reservar?'],
+    [{ ...session, status: 'choosing_professional', offered_professionals: professionals, selected_date: null, offered_times: [] }, 'Ana y Bea están disponibles para este servicio. ¿Con quién te gustaría reservar?'],
+    [{ ...session, status: 'choosing_date', selected_date: null, offered_times: [] }, '¿Qué día te vendría bien para el corte?'],
+    [{ ...session, status: 'choosing_time' }, '¿A qué hora te vendría bien?'],
+    [{ ...session, status: 'awaiting_confirmation', staff_id: options[0].staff_id, selected_starts_at: options[0].starts_at }, 'Has elegido lunes 3 de agosto a las 09:00 con Ana. ¿Quieres confirmar la cita?'],
+  ];
+  assertEquals(resumeAnswer('Sí'), 'yes');
+  assertEquals(resumeAnswer('No'), 'no');
+  assertEquals(resumeAnswer('mañana'), null);
+  assertEquals(interpretBookingDeterministically('Sí', 'choosing_date', catalog, temporal), null);
+  for (const [pending, expected] of cases) {
+    assertEquals(resumeReplyForSession(pending, catalog, temporal.timezone), expected);
+  }
+});
+
+Deno.test('ambiguous aliases show only their real catalog candidates', () => {
+  const matches = [
+    { id: '55555555-5555-4555-8555-555555555551', name: 'Corte' },
+    { id: '55555555-5555-4555-8555-555555555552', name: 'Corte hombre' },
+    { id: '55555555-5555-4555-8555-555555555553', name: 'Corte infantil' },
+  ];
+  assertEquals(
+    ambiguousServiceReply(matches),
+    'Tengo varios servicios que podrían encajar: Corte, Corte hombre y Corte infantil. ¿Cuál necesitas?',
+  );
 });
 
 Deno.test('Nieves regression: date windows and compound dates cannot become bare times', () => {

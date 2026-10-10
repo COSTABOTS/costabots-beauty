@@ -186,6 +186,46 @@ export async function saveBookingDecision(
   return result.data as BookingSession;
 }
 
+// A re-entry greeting is a small, explicit conversational sub-state. Reuse
+// the existing response reference rather than adding a schema column: on the
+// next inbound turn it is checked against the stored outbound copy and cleared.
+export async function recordBookingResumePrompt(
+  client: SupabaseClient,
+  session: BookingSession,
+  responseMessageId: string,
+) {
+  const result = await client.from('beauty_booking_sessions').update({
+    last_response_message_id: responseMessageId,
+    version: session.version + 1,
+  }).eq('id', session.id)
+    .eq('business_id', session.business_id)
+    .eq('conversation_id', session.conversation_id)
+    .eq('version', session.version)
+    .select('*').maybeSingle();
+  if (!result.data) throw new BookingSessionConflict();
+  return result.data as BookingSession;
+}
+
+export async function clearBookingResumePrompt(
+  client: SupabaseClient,
+  session: BookingSession,
+  inboundMessageId: string,
+  runId: string,
+) {
+  const result = await client.from('beauty_booking_sessions').update({
+    last_response_message_id: null,
+    last_processed_inbound_message_id: inboundMessageId,
+    source_ai_run_id: runId,
+    version: session.version + 1,
+  }).eq('id', session.id)
+    .eq('business_id', session.business_id)
+    .eq('conversation_id', session.conversation_id)
+    .eq('version', session.version)
+    .select('*').maybeSingle();
+  if (!result.data) throw new BookingSessionConflict();
+  return result.data as BookingSession;
+}
+
 export async function completeHandoff(
   client: SupabaseClient,
   session: BookingSession,

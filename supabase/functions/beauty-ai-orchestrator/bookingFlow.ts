@@ -1,13 +1,15 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, clarifyProfessionalReply, dateWindowReply, incompatibleProfessionalReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply, unavailableTimeReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, ambiguousServiceReply, bookingReplies, availabilityReply, clarifyProfessionalReply, dateWindowReply, incompatibleProfessionalReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply, unavailableTimeReply } from './bookingReplies.ts';
 import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
+  clearBookingResumePrompt,
   createBookingSession,
   initialSessionValues,
   loadActiveBookingSession,
   loadLatestCompletedBookingSession,
   recordBookingConfirmationResponse,
+  recordBookingResumePrompt,
   saveBookingDecision,
 } from './bookingSessionRepository.ts';
 import {
@@ -42,6 +44,7 @@ import type {
 } from './bookingTypes.ts';
 import { pendingBookingField } from './bookingTypes.ts';
 import { professionalClarificationGate, professionalGate as professionalGateState } from './professionalSelection.ts';
+import { resolveServiceText } from './serviceAliases.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -81,6 +84,43 @@ function pendingConfirmationReply(session: BookingSession, timezone: string) {
   const selected = selectedOffer(session);
   if (!selected || !session.selected_date) return bookingReplies.pendingBookingStatus;
   return `Todavía no está confirmada. Tienes pendiente ${formatCustomerDate(session.selected_date, timezone)} a las ${selected.label} con ${selected.staff_display_name ?? 'el profesional seleccionado'}.`;
+}
+
+export function resumeAnswer(text: string) {
+  const normalized = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  if (/^(si|vale|de acuerdo|claro|continua|continuar)$/u.test(normalized)) return 'yes' as const;
+  if (/^(no|cancelar|cancela|dejalo)$/u.test(normalized)) return 'no' as const;
+  return null;
+}
+
+export function resumeReplyForSession(session: BookingSession, services: CatalogService[], timezone: string) {
+  if (session.status === 'choosing_service') return bookingReplies.askService;
+  if (session.status === 'choosing_professional') return professionalReply(session.offered_professionals ?? []);
+  if (session.status === 'choosing_date') {
+    return askDateForActiveSession(services.find(({ id }) => id === session.service_id)?.name ?? null);
+  }
+  if (session.status === 'choosing_time') return bookingReplies.askTime;
+  if (session.status === 'awaiting_confirmation') {
+    const selected = selectedOffer(session);
+    if (selected && session.selected_date) {
+      return selectionReply(formatCustomerDate(session.selected_date, timezone), selected.label, selected.staff_display_name);
+    }
+  }
+  return pendingFieldReply(pendingBookingField(session), session.offered_times);
+}
+
+async function isPendingResumePrompt(client: SupabaseClient, session: BookingSession) {
+  if (!session.last_response_message_id) return false;
+  const result = await client.from('beauty_messages')
+    .select('direction,sender_type,text_content')
+    .eq('id', session.last_response_message_id)
+    .eq('business_id', session.business_id)
+    .eq('conversation_id', session.conversation_id)
+    .maybeSingle();
+  return !result.error
+    && result.data?.direction === 'outbound'
+    && result.data?.sender_type === 'ai'
+    && result.data?.text_content === bookingReplies.pendingBookingGreeting;
 }
 
 function confirmedStatusReply(session: BookingSession, services: CatalogService[], timezone: string) {
@@ -290,6 +330,33 @@ export async function processBookingFlow(input: {
   let session = await loadActiveBookingSession(client, context.businessId, context.conversationId);
   const serviceResult = await listServices(client, context.businessId);
   const services = (serviceResult.services ?? []) as CatalogService[];
+  // The response to the explicit re-entry question is not booking input. It
+  // must be handled before date/time/professional parsing and consumed once.
+  if (session && await isPendingResumePrompt(client, session)) {
+    const answer = resumeAnswer(input.text);
+    session = await clearBookingResumePrompt(client, session, context.inboundMessageId, context.runId);
+    if (answer === 'yes') {
+      const reply = resumeReplyForSession(session, services, temporal.timezone);
+      const sent = await input.sendReply(reply);
+      return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+    }
+    if (answer === 'no') {
+      const next = {
+        ...session,
+        status: 'cancelled' as const,
+        offered_times: [],
+        selected_starts_at: null,
+        last_interpretation_intent: 'reject' as const,
+        last_error_code: null,
+      };
+      session = await saveBookingDecision(client, session, {
+        next, operation: 'none', reply: bookingReplies.cancelled,
+        createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(bookingReplies.cancelled);
+      return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+    }
+  }
   const deterministicDate = deterministicDateOverride(session?.status ?? null, input.text, temporal);
   let interpretation: BookingInterpretation | null = deterministicDate?.interpretation
     ?? interpretBookingDeterministically(input.text, session?.status ?? null, services, temporal, session);
@@ -362,6 +429,14 @@ export async function processBookingFlow(input: {
         ? pendingConfirmationReply(session, temporal.timezone)
         : bookingReplies.pendingBookingGreeting,
     );
+    if (sent.messageId && session.status !== 'awaiting_confirmation') {
+      try {
+        await recordBookingResumePrompt(client, session, sent.messageId);
+      } catch {
+        // The greeting was already delivered. A concurrent update merely means
+        // the next turn follows the normal safe parser rather than resuming.
+      }
+    }
     return { handled: true as const, sent, handoff: false };
   }
 
@@ -411,6 +486,19 @@ export async function processBookingFlow(input: {
 
   const serviceExplicit = Boolean(interpretation.service_reference?.trim());
   const requestedServiceId = resolveServiceReference(interpretation.service_reference, services);
+  const serviceTextResolution = resolveServiceText(input.text, services);
+
+  if (serviceTextResolution.ambiguous) {
+    const reply = ambiguousServiceReply(serviceTextResolution.candidates);
+    if (session) {
+      const next = { ...session, last_interpretation_intent: interpretation.intent, last_error_code: null };
+      session = await saveBookingDecision(client, session, {
+        next, operation: 'none', reply, createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+    }
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session: session ?? undefined, handoffReason: null };
+  }
 
   // Selecting a service is a complete turn. Do not reuse the same text as a
   // date expression or availability request, even when model confidence is low.
