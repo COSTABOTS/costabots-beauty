@@ -64,12 +64,14 @@ export function inconsistentDateReply(day: number, actualWeekday: string, stated
   return `El ${day} cae en ${actualWeekday}. ¿Te refieres al ${actualWeekday} ${day} o al ${statedWeekday} ${suggestedDate.slice(-2)}?`;
 }
 
-export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
+export function availabilityReply(dateLabel: string, options: OfferedTime[], hasMore = false) {
   const labels = offeredTimeLabels(options);
   const joined = labels.length <= 1
     ? labels[0] ?? ''
     : `${labels.slice(0, -1).join(', ')} y ${labels.at(-1)}`;
-  return `Para ${dateLabel} tengo estos horarios disponibles: ${joined}. ¿Cuál te viene mejor?`;
+  return hasMore
+    ? `Para ${dateLabel} tengo estos primeros horarios disponibles: ${joined}. También hay más disponibilidad durante el día. ¿Cuál te viene mejor?`
+    : `Para ${dateLabel} tengo estos horarios disponibles: ${joined}. ¿Cuál te viene mejor?`;
 }
 
 export function professionalReply(professionals: Array<{ staff_display_name: string }>) {

@@ -112,7 +112,9 @@ async function contextualDatePrompt(
   }
 }
 
-function offeredOptions(value: Record<string, unknown>): OfferedTime[] {
+const MAX_VISIBLE_OFFERS = 5;
+
+function availableOptions(value: Record<string, unknown>): OfferedTime[] {
   const rows = Array.isArray(value.slots) ? value.slots as Array<Record<string, unknown>> : [];
   const seen = new Set<string>();
   return rows.flatMap((row) => {
@@ -126,7 +128,14 @@ function offeredOptions(value: Record<string, unknown>): OfferedTime[] {
     if (!option.starts_at || !option.staff_id || !option.staff_display_name || !/^\d{2}:\d{2}$/.test(option.label) || seen.has(key)) return [];
     seen.add(key);
     return [option];
-  }).slice(0, 5);
+  });
+}
+
+export function visibleAvailability(options: OfferedTime[]) {
+  return {
+    options: options.slice(0, MAX_VISIBLE_OFFERS),
+    hasMore: options.length > MAX_VISIBLE_OFFERS,
+  };
 }
 
 async function availability(
@@ -134,13 +143,30 @@ async function availability(
   context: FlowContext,
   session: BookingSession,
 ) {
-  if (!session.service_id || !session.selected_date) return [];
+  if (!session.service_id || !session.selected_date) return { options: [], allOptions: [], hasMore: false };
   const result = await getAvailability(client, context.businessId, {
     service_id: session.service_id,
     date: session.selected_date,
     staff_id: session.staff_id,
   });
-  return offeredOptions(result);
+  const allOptions = availableOptions(result);
+  return { ...visibleAvailability(allOptions), allOptions };
+}
+
+export function optionForRequestedTime(options: OfferedTime[], requestedTime: string) {
+  // The availability RPC sorts its real slots. With an indifferent preference,
+  // the first exact match is deterministic and its professional is named in
+  // the confirmation copy.
+  return options.find((option) => option.label === requestedTime) ?? null;
+}
+
+export function persistExactOption(visibleOptions: OfferedTime[], option: OfferedTime | null) {
+  if (!option || visibleOptions.some((visible) => visible.starts_at === option.starts_at && visible.staff_id === option.staff_id)) {
+    return visibleOptions;
+  }
+  // An explicitly selected off-list slot is persisted with the visible sample
+  // so the confirmation RPC remains bound to the exact staff+instant pair.
+  return [...visibleOptions, option];
 }
 
 function initialStatus(serviceId: string | null, date: string | null) {
@@ -623,25 +649,27 @@ export async function processBookingFlow(input: {
       const sent = await input.sendReply(unresolvedDateReply ?? askDateForService(serviceName, false));
       return { handled: true as const, sent, handoff: false, session, handoffReason: null };
     }
-    const options = await availability(client, context, session);
+    const availabilityResult = await availability(client, context, session);
+    const options = availabilityResult.options;
     const requestedTime = normalizeRequestedTime(input.text, interpretation);
-    const selected = requestedTime ? options.find(({ label }) => label === requestedTime) : null;
+    const selected = requestedTime ? optionForRequestedTime(availabilityResult.allOptions, requestedTime) : null;
+    const persistedOptions = persistExactOption(options, selected);
     const next = {
       ...session,
-      offered_times: options,
+      offered_times: persistedOptions,
       selected_starts_at: selected?.starts_at ?? null,
-      staff_id: selected?.staff_id ?? null,
-      selected_date: options.length ? selectedDate : null,
+      staff_id: selected?.staff_id ?? session.staff_id,
+      selected_date: availabilityResult.allOptions.length ? selectedDate : null,
       status: selected
         ? 'awaiting_confirmation' as const
-        : options.length ? 'choosing_time' as const : 'choosing_date' as const,
+        : availabilityResult.allOptions.length ? 'choosing_time' as const : 'choosing_date' as const,
       availability_checked_at: nowIso,
       last_interpretation_intent: interpretation.intent,
     };
     const reply = selected
       ? selectionReply(customerDateLabel, selected.label, selected.staff_display_name)
       : options.length
-      ? availabilityReply(customerDateLabel, options)
+      ? availabilityReply(customerDateLabel, options, availabilityResult.hasMore)
       : bookingReplies.noAvailability;
     const saved = await saveBookingDecision(client, session, {
       next,
@@ -649,7 +677,7 @@ export async function processBookingFlow(input: {
       reply,
       createSession: false,
       handoff: false,
-      errorCode: options.length ? null : 'AVAILABILITY_UNAVAILABLE',
+      errorCode: availabilityResult.allOptions.length ? null : 'AVAILABILITY_UNAVAILABLE',
     }, context.inboundMessageId, context.runId);
     const sent = await input.sendReply(reply);
     return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
@@ -666,6 +694,19 @@ export async function processBookingFlow(input: {
   const requestedTime = dateExplicit ? null
     : normalizeRequestedTime(input.text, rawTimeInterpretation, allowBareHour)
       ?? normalizeRequestedTime(input.text, interpretation, allowBareHour);
+  let exactRequestedOption: OfferedTime | null = null;
+  if (!dateExplicit && !selectedOption && requestedTime) {
+    // offered_times is deliberately only the customer-visible sample. A named
+    // time outside that sample must be found again in the authoritative RPC.
+    const exactAvailability = await availability(client, context, session);
+    exactRequestedOption = optionForRequestedTime(exactAvailability.allOptions, requestedTime);
+    if (exactRequestedOption) {
+      session = {
+        ...session,
+        offered_times: persistExactOption(session.offered_times, exactRequestedOption),
+      };
+    }
+  }
   const confirmationExplicit = awaitingConfirmation && isAffirmative(input.text, interpretation);
   const rejectionExplicit = awaitingConfirmation
     && (interpretation.intent === 'reject' || /^(?:no|cancelar|cancela|dejalo|déjalo)[!.\s]*$/i.test(input.text));
@@ -678,7 +719,8 @@ export async function processBookingFlow(input: {
     : requestedStaffId
     ? extractStaffReference(input.text)
     : extractStaffReference(interpretation.staff_reference);
-  const timeExplicit = Boolean(selectedOption || requestedTime);
+  const resolvedSelectedOption = selectedOption ?? exactRequestedOption;
+  const timeExplicit = Boolean(resolvedSelectedOption || requestedTime);
   let effectiveInterpretation = interpretation;
   let effectiveStaffId = requestedStaffId;
   if (awaitingConfirmation && confirmationExplicit) {
@@ -702,8 +744,13 @@ export async function processBookingFlow(input: {
     && effectiveStaffId && effectiveStaffId === session.staff_id) {
     const selected = selectedOffer(session);
     const fresh = await availability(client, context, session);
-    if (selected && optionStillOffered(selected, fresh)) {
-      const next = { ...session, offered_times: fresh, last_interpretation_intent: effectiveInterpretation.intent, last_error_code: null };
+    if (selected && optionStillOffered(selected, fresh.allOptions)) {
+      const next = {
+        ...session,
+        offered_times: persistExactOption(fresh.options, selected),
+        last_interpretation_intent: effectiveInterpretation.intent,
+        last_error_code: null,
+      };
       const saved = await saveBookingDecision(client, session, {
         next, operation: 'none', reply: selectionReply(customerDateLabel, selected.label, selected.staff_display_name),
         createSession: false, handoff: false, errorCode: null,
@@ -744,7 +791,7 @@ export async function processBookingFlow(input: {
   const resolved: ResolvedBookingInput = {
     serviceId,
     selectedDate,
-    selectedOption,
+    selectedOption: resolvedSelectedOption,
     requestedTime,
     serviceExplicit,
     dateExplicit,
@@ -771,7 +818,8 @@ export async function processBookingFlow(input: {
   }
 
   if (decision.operation === 'query_availability') {
-    const options = await availability(client, context, decision.next ?? session);
+    const availabilityResult = await availability(client, context, decision.next ?? session);
+    const options = availabilityResult.options;
     decision = reduceBookingState({
       session: decision.next ?? session,
       interpretation: effectiveInterpretation,
@@ -780,7 +828,7 @@ export async function processBookingFlow(input: {
       dateLabel: customerDateLabel,
       nowIso,
     });
-    if (!options.length) {
+    if (!availabilityResult.allOptions.length) {
       const chosenProfessional = staffExplicit
         ? (session.offered_professionals ?? []).find((staff) => staff.staff_id === effectiveStaffId)?.staff_display_name
         : null;
@@ -790,6 +838,8 @@ export async function processBookingFlow(input: {
           ? `No encuentro huecos con ${chosenProfessional} para ese día. ¿Quieres que pruebe otra fecha?`
           : bookingReplies.noAvailability,
       };
+    } else if (decision.next?.status === 'choosing_time') {
+      decision = { ...decision, reply: availabilityReply(customerDateLabel, options, availabilityResult.hasMore) };
     }
   }
 
@@ -803,8 +853,8 @@ export async function processBookingFlow(input: {
       rawText: input.text,
       resolved: {
         ...resolved,
-        availabilityOptions: fresh,
-        revalidation: selected && optionStillOffered(selected, fresh) ? 'available' : 'unavailable',
+        availabilityOptions: fresh.options,
+        revalidation: selected && optionStillOffered(selected, fresh.allOptions) ? 'available' : 'unavailable',
       },
       dateLabel: customerDateLabel,
       nowIso,
