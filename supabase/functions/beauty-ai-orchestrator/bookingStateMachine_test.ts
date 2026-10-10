@@ -222,6 +222,51 @@ Deno.test('natural numeric minutes select only their exact offered slot', () => 
   assertEquals(unavailable.next?.selected_starts_at, null);
 });
 
+Deno.test('explicit minute separators never degrade to an hour in point', () => {
+  const minuteOptions: OfferedTime[] = ['10:00', '10:30'].map((label) => ({
+    starts_at: `2026-10-26T${label}:00+01:00`, staff_id: options[0].staff_id,
+    staff_display_name: 'FRAN', label,
+  }));
+  const choosingTime = { ...session, status: 'choosing_time' as const, selected_date: '2026-10-26', offered_times: minuteOptions };
+  for (const rawText of ['10:30', '10,30', '10.30', '10,30 podría ser', 'Quiero a las 10:30', 'Mejor a las 10:30']) {
+    assertEquals(normalizeRequestedTime(rawText, interpretation), '10:30');
+    assertEquals(resolveTimeExpression(rawText, interpretation, choosingTime)?.label, '10:30');
+  }
+  assertEquals(normalizeRequestedTime('A las 9 y 45', interpretation), '09:45');
+  assertEquals(normalizeRequestedTime('Diez y media', interpretation), '10:30');
+  assertEquals(normalizeRequestedTime('Las 10', interpretation), '10:00');
+  for (const invalid of ['10:75', '10:300', '10,75 podría ser']) {
+    assertEquals(normalizeRequestedTime(invalid, interpretation), null);
+  }
+
+  const awaiting = {
+    ...choosingTime,
+    status: 'awaiting_confirmation' as const,
+    staff_id: minuteOptions[0].staff_id,
+    staff_preference: 'selected' as const,
+    selected_starts_at: minuteOptions[0].starts_at,
+  };
+  const changed = reduceBookingState({
+    session: awaiting, interpretation: { ...interpretation, intent: 'choose_time' }, rawText: 'Quiero a las 10:30',
+    dateLabel: 'lunes 26 de octubre', nowIso: '2026-10-25T10:00:00Z',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: minuteOptions[1], requestedTime: '10:30', expired: false },
+  });
+  assertEquals(changed.next?.selected_starts_at, minuteOptions[1].starts_at);
+  assertEquals(changed.next?.staff_id, awaiting.staff_id);
+  assertEquals(changed.next?.selected_date, awaiting.selected_date);
+
+  const unavailable = reduceBookingState({
+    session: awaiting, interpretation: { ...interpretation, intent: 'choose_time' }, rawText: 'Quiero a las 10:30',
+    dateLabel: 'lunes 26 de octubre', nowIso: '2026-10-25T10:00:00Z',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: null, requestedTime: '10:30', expired: false },
+  });
+  assertEquals(unavailable.errorCode, 'TIME_NOT_OFFERED');
+  assertEquals(unavailable.next?.status, 'choosing_time');
+  assertEquals(unavailable.next?.selected_starts_at, null);
+  assertEquals(unavailable.next?.staff_id, awaiting.staff_id);
+  assertEquals(unavailable.next?.selected_date, awaiting.selected_date);
+});
+
 Deno.test('customer-facing availability and selection use a human date label', () => {
   const label = formatCustomerDate('2026-10-22', 'Europe/Madrid');
   assertEquals(label, 'jueves 22 de octubre');

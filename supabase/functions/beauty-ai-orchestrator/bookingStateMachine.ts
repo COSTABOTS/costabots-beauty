@@ -250,10 +250,22 @@ export function reduceBookingState(input: {
   }
 
   if (session.status === 'awaiting_confirmation') {
-    if (interpretation.intent === 'choose_time' && resolved.selectedOption) {
-      session.selected_starts_at = resolved.selectedOption.starts_at;
-      session.staff_id = resolved.selectedOption.staff_id;
-      return decision(session, selectionReply(dateLabel, resolved.selectedOption.label, resolved.selectedOption.staff_display_name));
+    if (interpretation.intent === 'choose_time') {
+      if (resolved.selectedOption) {
+        session.selected_starts_at = resolved.selectedOption.starts_at;
+        session.staff_id = resolved.selectedOption.staff_id;
+        return decision(session, selectionReply(dateLabel, resolved.selectedOption.label, resolved.selectedOption.staff_display_name));
+      }
+      if (resolved.requestedTime) {
+        // A named time that is no longer among the persisted offers is a
+        // correction attempt, not confirmation of the old provisional slot.
+        session.status = 'choosing_time';
+        session.selected_starts_at = null;
+        session.last_error_code = 'TIME_NOT_OFFERED';
+        return decision(session, unavailableTimeReply(session.offered_times), 'none', {
+          errorCode: 'TIME_NOT_OFFERED',
+        });
+      }
     }
     if (!isAffirmative(rawText, interpretation)) {
       const selected = session.offered_times.find((option) => option.starts_at === session.selected_starts_at);
