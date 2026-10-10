@@ -1,6 +1,7 @@
 export const BOOKING_STATUSES = [
   'idle',
   'choosing_service',
+  'choosing_professional',
   'choosing_date',
   'choosing_time',
   'awaiting_confirmation',
@@ -49,6 +50,13 @@ export type OfferedTime = {
   label: string;
 };
 
+export type OfferedProfessional = {
+  staff_id: string;
+  staff_display_name: string;
+};
+
+export type StaffPreference = 'unasked' | 'selected' | 'indifferent';
+
 export type BookingErrorCode =
   | 'INTERPRETATION_INVALID'
   | 'INTERPRETATION_LOW_CONFIDENCE'
@@ -79,6 +87,8 @@ export type BookingSession = {
   status: BookingStatus;
   service_id: string | null;
   staff_id: string | null;
+  staff_preference?: StaffPreference;
+  offered_professionals?: OfferedProfessional[];
   selected_date: string | null;
   offered_times: OfferedTime[];
   selected_starts_at: string | null;
@@ -95,12 +105,13 @@ export type BookingSession = {
   expires_at: string;
 };
 
-export type PendingBookingField = 'service' | 'date' | 'time' | null;
+export type PendingBookingField = 'service' | 'professional' | 'date' | 'time' | null;
 
 // Derived only: it deliberately does not add persistence requirements to the
 // existing booking-session schema.
 export function pendingBookingField(session: Pick<BookingSession, 'status' | 'service_id' | 'selected_date' | 'selected_starts_at'> | null): PendingBookingField {
   if (!session || session.status === 'choosing_service' || !session.service_id) return 'service';
+  if (session.status === 'choosing_professional') return 'professional';
   if (session.status === 'choosing_date' || !session.selected_date) return 'date';
   if (session.status === 'choosing_time' || !session.selected_starts_at) return 'time';
   return null;

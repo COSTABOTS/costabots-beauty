@@ -130,7 +130,14 @@ export function reduceBookingState(input: {
     if (serviceExplicit) session.service_id = resolved.serviceId;
     if (dateExplicit) session.selected_date = resolved.selectedDate;
     else if (serviceChanged) session.selected_date = null;
-    session.staff_id = staffExplicit ? resolved.staffId ?? null : null;
+    if (staffExplicit) {
+      session.staff_id = resolved.staffId ?? null;
+      session.staff_preference = 'selected';
+    } else if (serviceChanged) {
+      session.staff_id = null;
+      session.staff_preference = 'unasked';
+      session.offered_professionals = [];
+    }
     session.offered_times = [];
     session.selected_starts_at = null;
 
@@ -157,7 +164,8 @@ export function reduceBookingState(input: {
         });
       }
       if (resolved.requestedTime) {
-        const option = resolved.availabilityOptions.find(({ label }) => label === resolved.requestedTime);
+        const timeMatches = resolved.availabilityOptions.filter(({ label }) => label === resolved.requestedTime);
+        const option = timeMatches.length === 1 ? timeMatches[0] : null;
         if (option) {
           session.selected_starts_at = option.starts_at;
           session.staff_id = option.staff_id;
@@ -168,6 +176,13 @@ export function reduceBookingState(input: {
         return decision(session, unavailableTimeReply(session.offered_times), 'none', {
           errorCode: 'TIME_NOT_OFFERED',
         });
+      }
+      if (session.staff_preference === 'indifferent' && resolved.availabilityOptions[0]) {
+        const option = resolved.availabilityOptions[0];
+        session.selected_starts_at = option.starts_at;
+        session.staff_id = option.staff_id;
+        session.status = 'awaiting_confirmation';
+        return decision(session, selectionReply(dateLabel, option.label, option.staff_display_name));
       }
       return decision(
         session,
@@ -181,6 +196,9 @@ export function reduceBookingState(input: {
 
   if (session.status === 'choosing_service') {
     return decision(session, bookingReplies.askService, 'list_services');
+  }
+  if (session.status === 'choosing_professional') {
+    return decision(session, bookingReplies.askProfessional);
   }
   if (session.status === 'choosing_date') {
     return decision(session, bookingReplies.askDate);
@@ -198,6 +216,13 @@ export function reduceBookingState(input: {
         return decision(session, bookingReplies.noAvailability, 'none', {
           errorCode: 'AVAILABILITY_UNAVAILABLE',
         });
+      }
+      if (session.staff_preference === 'indifferent' && resolved.availabilityOptions[0]) {
+        const option = resolved.availabilityOptions[0];
+        session.selected_starts_at = option.starts_at;
+        session.staff_id = option.staff_id;
+        session.status = 'awaiting_confirmation';
+        return decision(session, selectionReply(dateLabel, option.label, option.staff_display_name));
       }
       return decision(
         session,

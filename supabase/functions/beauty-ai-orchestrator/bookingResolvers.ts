@@ -3,6 +3,7 @@ import type {
   BookingSession,
   BookingStatus,
   OfferedTime,
+  OfferedProfessional,
 } from './bookingTypes.ts';
 import { resolveDateExpression } from './dateResolution.ts';
 import type { TemporalContext } from './dateResolution.ts';
@@ -104,7 +105,10 @@ export function resolveTimeExpression(
     interpretation.time_expression ?? rawText,
     session?.status === 'choosing_time' || session?.status === 'awaiting_confirmation',
   );
-  return label ? options.find((option) => option.label === label) ?? null : null;
+  if (!label) return null;
+  const matches = options.filter((option) => option.label === label);
+  // A clock label alone must never silently select one of two professionals.
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function normalizeRequestedTime(rawText: string, interpretation: BookingInterpretation, allowBareHour = true) {
@@ -271,11 +275,19 @@ export function resolveServiceReference(
 export function resolveStaffReference(reference: string | null | undefined, session: BookingSession | null) {
   const wanted = normalizeText(reference ?? '').replace(/^(?:con|la|el)\s+/, '');
   if (!wanted || !session) return null;
-  const matches = session.offered_times.filter((option) =>
-    option.staff_display_name && normalizeText(option.staff_display_name).includes(wanted)
-  );
-  const staffIds = [...new Set(matches.map((option) => option.staff_id))];
+  const catalog: OfferedProfessional[] = session.offered_professionals?.length
+    ? session.offered_professionals
+    : session.offered_times.flatMap((option) => option.staff_display_name
+      ? [{ staff_id: option.staff_id, staff_display_name: option.staff_display_name }]
+      : []);
+  const matches = catalog.filter((staff) => normalizeText(staff.staff_display_name).includes(wanted));
+  const staffIds = [...new Set(matches.map((staff) => staff.staff_id))];
   return staffIds.length === 1 ? staffIds[0] : null;
+}
+
+export function isIndifferentStaffPreference(reference: string | null | undefined) {
+  const value = normalizeText(reference ?? '').replace(/[.!?]+$/, '').trim();
+  return /^(?:me\s+da\s+igual|cualquiera|quien\s+tenga\s+antes|el\s+primero\s+disponible)$/.test(value);
 }
 
 export function optionStillOffered(selected: OfferedTime, options: OfferedTime[]) {

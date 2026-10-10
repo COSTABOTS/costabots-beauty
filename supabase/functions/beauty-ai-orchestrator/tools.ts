@@ -90,6 +90,29 @@ export async function listServices(client: SupabaseClient, businessId: string) {
   };
 }
 
+// This is only a catalog lookup for the conversational gate. Availability is
+// still calculated and revalidated by get_beauty_ai_availability and the final
+// confirmation RPC.
+export async function listCompatibleStaff(client: SupabaseClient, businessId: string, serviceId: string) {
+  const validServiceId = validUuid(serviceId);
+  const result = await client.from('staff_services')
+    .select('staff_member_id,staff_members!inner(id,display_name,active,sort_order)')
+    .eq('business_id', businessId)
+    .eq('service_id', validServiceId)
+    .eq('active', true)
+    .eq('staff_members.active', true);
+  if (result.error) throw new Error('AI_TOOL_FAILED');
+  return (result.data ?? []).flatMap((row) => {
+    const staff = row.staff_members as unknown as {
+      id: string; display_name: string; active: boolean; sort_order: number | null;
+    } | null;
+    if (!staff?.active || !UUID_PATTERN.test(staff.id) || !staff.display_name?.trim()) return [];
+    return [{ staff_id: staff.id, staff_display_name: staff.display_name.trim(), sort_order: staff.sort_order ?? 0 }];
+  }).sort((left, right) => left.sort_order - right.sort_order
+    || left.staff_display_name.localeCompare(right.staff_display_name, 'es'))
+    .map(({ staff_id, staff_display_name }) => ({ staff_id, staff_display_name }));
+}
+
 export async function getAvailability(
   client: SupabaseClient,
   businessId: string,

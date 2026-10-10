@@ -53,7 +53,9 @@ function localDateTime(value: string, timezone: string) {
 
 export function availabilityRowsToSlots(rows: AvailabilityRow[], timezone: string) {
   return rows.filter((row) => row.available === true)
-    .sort((left, right) => left.starts_at.localeCompare(right.starts_at))
+    .sort((left, right) => left.starts_at.localeCompare(right.starts_at)
+      || left.staff_display_name.localeCompare(right.staff_display_name, 'es')
+      || left.staff_member_id.localeCompare(right.staff_member_id))
     .flatMap((row) => {
       if (!UUID_PATTERN.test(row.staff_member_id) || Number.isNaN(Date.parse(row.starts_at))) return [];
       return [{

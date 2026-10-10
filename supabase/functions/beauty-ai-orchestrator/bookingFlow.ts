@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply } from './bookingReplies.ts';
 import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -21,17 +21,20 @@ import {
   resolveServiceReference,
   resolveStaffReference,
   resolveTimeExpression,
+  isIndifferentStaffPreference,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
-import { getAvailability, listServices } from './tools.ts';
+import { getAvailability, listCompatibleStaff, listServices } from './tools.ts';
 import { formatCustomerDate, type TemporalContext } from './dateResolution.ts';
 import type {
   BookingDecision,
   BookingSession,
   OfferedTime,
+  OfferedProfessional,
   ResolvedBookingInput,
 } from './bookingTypes.ts';
 import { pendingBookingField } from './bookingTypes.ts';
+import { professionalGate as professionalGateState } from './professionalSelection.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -117,6 +120,23 @@ function initialStatus(serviceId: string | null, date: string | null) {
   return 'choosing_time' as const;
 }
 
+async function compatibleProfessionals(
+  client: SupabaseClient,
+  businessId: string,
+  serviceId: string,
+): Promise<OfferedProfessional[]> {
+  return await listCompatibleStaff(client, businessId, serviceId);
+}
+
+function professionalGate(session: BookingSession, professionals: OfferedProfessional[]) {
+  return {
+    ...session,
+    ...professionalGateState(professionals),
+    offered_times: [],
+    selected_starts_at: null,
+  };
+}
+
 async function handoffConversationToHuman(
   client: SupabaseClient,
   context: FlowContext,
@@ -147,6 +167,7 @@ function interpreterSummary(
     selected_date: session?.selected_date ?? null,
     selected_time: selected?.label ?? null,
     offered_times: (session?.offered_times ?? []).map((option) => ({ label: option.label, staff: option.staff_display_name ?? null })),
+    offered_professionals: (session?.offered_professionals ?? []).map((professional) => professional.staff_display_name),
     service_catalog: services.slice(0, 50).map((service) => ({
       name: service.name,
       description: service.description ? redactInterpreterText(service.description).slice(0, 240) : null,
@@ -253,18 +274,24 @@ export async function processBookingFlow(input: {
   // date expression or availability request, even when model confidence is low.
   if (session?.status === 'choosing_service' && serviceExplicit && requestedServiceId) {
     const serviceName = services.find(({ id }) => id === requestedServiceId)?.name ?? null;
-    const reply = askDateForService(serviceName, false);
-    const next = {
+    const professionals = await compatibleProfessionals(client, context.businessId, requestedServiceId);
+    const gated = professionalGate({
       ...session,
-      status: 'choosing_date' as const,
       service_id: requestedServiceId,
-      staff_id: null,
       selected_date: null,
       offered_times: [],
       selected_starts_at: null,
       last_interpretation_intent: 'choose_service' as const,
       last_error_code: null,
-    };
+    }, professionals);
+    const next = professionals.length
+      ? gated
+      : { ...gated, status: 'choosing_service' as const, staff_preference: 'unasked' as const };
+    const reply = professionals.length === 1
+      ? askDateForService(serviceName, false)
+      : professionals.length > 1
+      ? professionalReply(professionals)
+      : bookingReplies.askService;
     session = await saveBookingDecision(client, session, {
       next,
       operation: 'none',
@@ -273,6 +300,70 @@ export async function processBookingFlow(input: {
       handoff: false,
       errorCode: null,
     }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+  }
+
+  // A service change invalidates a previous professional choice. Re-enter the
+  // same server-side gate instead of carrying a possibly incompatible staff id.
+  if (session && serviceExplicit && requestedServiceId && requestedServiceId !== session.service_id) {
+    const professionals = await compatibleProfessionals(client, context.businessId, requestedServiceId);
+    const serviceName = services.find(({ id }) => id === requestedServiceId)?.name ?? null;
+    const gated = professionalGate({
+      ...session,
+      service_id: requestedServiceId,
+      selected_date: null,
+      offered_times: [],
+      selected_starts_at: null,
+      last_interpretation_intent: 'choose_service' as const,
+      last_error_code: null,
+    }, professionals);
+    const next = professionals.length
+      ? gated
+      : { ...gated, status: 'choosing_service' as const, staff_preference: 'unasked' as const };
+    const reply = professionals.length === 1
+      ? askDateForService(serviceName, false)
+      : professionals.length > 1
+      ? professionalReply(professionals)
+      : bookingReplies.askService;
+    session = await saveBookingDecision(client, session, {
+      next, operation: 'none', reply, createSession: false, handoff: false,
+      errorCode: professionals.length ? null : 'SERVICE_NOT_RESOLVED',
+    }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+  }
+
+  // The selection list comes exclusively from the server-side compatibility
+  // lookup saved on this session. Gemini may identify a name, but cannot add a
+  // professional or decide whether a name is unambiguous.
+  if (session?.status === 'choosing_professional') {
+    const staffId = resolveStaffReference(interpretation.staff_reference ?? input.text, session);
+    const indifferent = isIndifferentStaffPreference(input.text);
+    if (!staffId && !indifferent) {
+      const next = { ...session, last_interpretation_intent: interpretation.intent, last_error_code: null };
+      session = await saveBookingDecision(client, session, {
+        next, operation: 'none', reply: professionalReply(session.offered_professionals ?? []),
+        createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(professionalReply(session.offered_professionals ?? []));
+      return { handled: true as const, sent, handoff: false, session, handoffReason: null };
+    }
+    const next = {
+      ...session,
+      status: 'choosing_date' as const,
+      staff_id: staffId ?? null,
+      staff_preference: indifferent ? 'indifferent' as const : 'selected' as const,
+      offered_times: [],
+      selected_starts_at: null,
+      last_interpretation_intent: interpretation.intent,
+      last_error_code: null,
+    };
+    session = await saveBookingDecision(client, session, {
+      next, operation: 'none', reply: askDateForActiveSession(services.find(({ id }) => id === session!.service_id)?.name ?? null),
+      createSession: false, handoff: false, errorCode: null,
+    }, context.inboundMessageId, context.runId);
+    const reply = askDateForActiveSession(services.find(({ id }) => id === session.service_id)?.name ?? null);
     const sent = await input.sendReply(reply);
     return { handled: true as const, sent, handoff: false, session, handoffReason: null };
   }
@@ -378,10 +469,43 @@ export async function processBookingFlow(input: {
       const sent = await input.sendReply(bookingReplies.askService);
       return { handled: true as const, sent, handoff: false };
     }
+    const professionals = await compatibleProfessionals(client, context.businessId, serviceId);
+    const serviceName = services.find(({ id }) => id === serviceId)?.name ?? null;
+    if (!professionals.length) {
+      const next = {
+        ...session,
+        status: 'choosing_service' as const,
+        staff_id: null,
+        staff_preference: 'unasked' as const,
+        offered_professionals: [],
+        selected_date: null,
+        offered_times: [],
+        selected_starts_at: null,
+      };
+      const saved = await saveBookingDecision(client, session, {
+        next, operation: 'none', reply: bookingReplies.askService,
+        createSession: false, handoff: false, errorCode: 'SERVICE_NOT_RESOLVED',
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(bookingReplies.askService);
+      return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
+    }
+    const gated = professionalGate(session, professionals);
+    if (gated.status === 'choosing_professional') {
+      const saved = await saveBookingDecision(client, session, {
+        next: gated, operation: 'none', reply: professionalReply(professionals),
+        createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(professionalReply(professionals));
+      return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
+    }
+    if (gated !== session) {
+      session = await saveBookingDecision(client, session, {
+        next: gated, operation: 'none', reply: '', createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+    }
     if (!selectedDate) {
-      const serviceName = services.find(({ id }) => id === serviceId)?.name ?? null;
       const sent = await input.sendReply(unresolvedDateReply ?? askDateForService(serviceName));
-      return { handled: true as const, sent, handoff: false };
+      return { handled: true as const, sent, handoff: false, session, handoffReason: null };
     }
     const options = await availability(client, context, session);
     const requestedTime = normalizeRequestedTime(input.text, interpretation);

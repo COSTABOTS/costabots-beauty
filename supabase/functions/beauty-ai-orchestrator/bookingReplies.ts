@@ -5,6 +5,7 @@ export const bookingReplies = {
   greeting: 'Hola. ¿En qué puedo ayudarte?',
   askService: '¿Qué servicio te gustaría reservar?',
   askDate: '¿Qué día te vendría bien?',
+  askProfessional: '¿Con quién prefieres reservar?',
   clarifyDate: 'No he podido reconocer el día. Puedes decirme lunes, mañana o una fecha como 5 de agosto.',
   clarify: 'No lo he entendido del todo. ¿Puedes decírmelo de otra forma?',
   lowConfidence: 'Quiero asegurarme de entenderte bien. ¿Qué servicio, día u hora prefieres?',
@@ -54,11 +55,20 @@ export function inconsistentDateReply(day: number, actualWeekday: string, stated
 }
 
 export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
-  const labels = options.map((option) => option.label);
+  const multipleProfessionals = new Set(options.map((option) => option.staff_id)).size > 1;
+  const labels = options.map((option) => multipleProfessionals && option.staff_display_name
+    ? `${option.label} con ${option.staff_display_name}`
+    : option.label);
   const joined = labels.length <= 1
     ? labels[0] ?? ''
     : `${labels.slice(0, -1).join(', ')} y ${labels.at(-1)}`;
   return `Para ${dateLabel} tengo estos horarios disponibles: ${joined}. ¿Cuál te viene mejor?`;
+}
+
+export function professionalReply(professionals: Array<{ staff_display_name: string }>) {
+  const names = professionals.map((professional) => professional.staff_display_name);
+  const joined = names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
+  return `${bookingReplies.askProfessional} Puedes elegir: ${joined}, o decir "me da igual".`;
 }
 
 export function selectionReply(dateLabel: string, time: string, staffName?: string) {
@@ -68,6 +78,7 @@ export function selectionReply(dateLabel: string, time: string, staffName?: stri
 
 export function pendingFieldReply(field: PendingBookingField, options: OfferedTime[] = []) {
   if (field === 'service') return bookingReplies.askService;
+  if (field === 'professional') return bookingReplies.askProfessional;
   if (field === 'date') return bookingReplies.clarifyDate;
   if (field === 'time') return timeClarificationReply(options);
   return bookingReplies.clarify;

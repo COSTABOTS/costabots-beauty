@@ -80,6 +80,7 @@ export async function interpretBookingMessage(input: {
     selected_date: string | null;
     selected_time: string | null;
     offered_times: Array<{ label: string; staff: string | null }>;
+    offered_professionals: string[];
     service_catalog: Array<{ name: string; description: string | null }>;
     recent_customer_messages: string[];
     pending_field: PendingBookingField;
