@@ -24,16 +24,26 @@ export const bookingReplies = {
   outOfDomain: 'Puedo ayudarte con citas, servicios, precios, horarios y temas del negocio. ¿Qué necesitas?',
   handoff: 'Perfecto. La cita todavía no está confirmada. Una persona del negocio la finalizará contigo.',
   humanRequested: 'De acuerdo. Te atenderá una persona del negocio en cuanto sea posible.',
+  pendingBookingGreeting: 'Tienes una reserva pendiente. ¿Quieres continuar donde lo dejamos?',
+  pendingBookingStatus: 'Todavía no está confirmada. Puedes continuar con la reserva pendiente o indicarme un cambio.',
+  noConfirmedBooking: 'No consta una reserva confirmada en esta conversación.',
 };
+
+function offeredTimeLabels(options: OfferedTime[]) {
+  const multipleProfessionals = new Set(options.map((option) => option.staff_id)).size > 1;
+  return options.map((option) => multipleProfessionals && option.staff_display_name
+    ? `${option.label} con ${option.staff_display_name}`
+    : option.label);
+}
 
 export function timeClarificationReply(options: OfferedTime[]) {
   if (!options.length) return bookingReplies.chooseAnotherDate;
-  return `${bookingReplies.clarifyTime} Puedes elegir: ${options.map((option) => option.label).join(', ')}.`;
+  return `${bookingReplies.clarifyTime} Puedes elegir: ${offeredTimeLabels(options).join(', ')}.`;
 }
 
 export function unavailableTimeReply(options: OfferedTime[]) {
   if (!options.length) return bookingReplies.chooseAnotherDate;
-  return `Esa hora no está entre las opciones disponibles. Puedes elegir: ${options.map((option) => option.label).join(', ')}.`;
+  return `Esa hora no está entre las opciones disponibles. Puedes elegir: ${offeredTimeLabels(options).join(', ')}.`;
 }
 
 export function askDateForService(serviceName: string | null, greeting = true) {
@@ -55,10 +65,7 @@ export function inconsistentDateReply(day: number, actualWeekday: string, stated
 }
 
 export function availabilityReply(dateLabel: string, options: OfferedTime[]) {
-  const multipleProfessionals = new Set(options.map((option) => option.staff_id)).size > 1;
-  const labels = options.map((option) => multipleProfessionals && option.staff_display_name
-    ? `${option.label} con ${option.staff_display_name}`
-    : option.label);
+  const labels = offeredTimeLabels(options);
   const joined = labels.length <= 1
     ? labels[0] ?? ''
     : `${labels.slice(0, -1).join(', ')} y ${labels.at(-1)}`;

@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply } from './bookingReplies.ts';
+import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply, selectionReply } from './bookingReplies.ts';
 import { extractStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveTimeExpression } from './bookingResolvers.ts';
 import { professionalGate } from './professionalSelection.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
@@ -183,6 +183,25 @@ Deno.test('an incompatible professional is detectable without accepting the stal
   assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', professionals), null);
   assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', activeBusinessStaff), nico);
   assert(incompatibleProfessionalReply('Nico', 'Corte', professionals).includes('Nico no realiza'));
+});
+
+Deno.test('an incompatible professional leaves the valid provisional selection recoverable', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: ana,
+    staff_preference: 'selected' as const,
+    selected_date: '2026-10-13',
+    selected_starts_at: duplicatedHour[0].starts_at,
+    offered_times: duplicatedHour.filter((option) => option.staff_id === ana),
+  };
+  // The incompatible branch in the coordinator persists this same state; it
+  // only sends the explanatory copy. A later "Sigo con Ana" revalidates this
+  // exact staff+instant pair rather than creating a new choice.
+  assertEquals(awaiting.status, 'awaiting_confirmation');
+  assertEquals(awaiting.staff_id, ana);
+  assertEquals(awaiting.selected_starts_at, duplicatedHour[0].starts_at);
+  assert(selectionReply('martes 13 de octubre', '09:00', 'Ana').includes('¿Quieres confirmar'));
 });
 
 Deno.test('selected professional survives no availability and filters the next date', () => {

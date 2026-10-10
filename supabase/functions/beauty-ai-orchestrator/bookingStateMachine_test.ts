@@ -1,11 +1,12 @@
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1';
 import { boundedCustomerContext, parseBookingInterpretation, redactInterpreterText } from './bookingInterpreter.ts';
-import { askDateForActiveSession, askDateForService, availabilityReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, availabilityReply, selectionReply, timeClarificationReply } from './bookingReplies.ts';
 import {
   deterministicDateOverride,
   interpretBookingDeterministically,
   isExistingAppointmentCancellation,
   isExistingAppointmentReschedule,
+  isBookingStatusQuestion,
   isOutOfDomainMessage,
   isSocialMessage,
   normalizeRequestedTime,
@@ -56,6 +57,56 @@ const session: BookingSession = {
 Deno.test('strict interpretation rejects extra fields and invalid confidence', () => {
   assertThrows(() => parseBookingInterpretation({ ...interpretation, extra: true }));
   assertThrows(() => parseBookingInterpretation({ ...interpretation, confidence: 2 }));
+});
+
+Deno.test('awaiting confirmation prioritizes yes and a time correction over staff resolution', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: options[0].staff_id,
+    staff_preference: 'selected' as const,
+    selected_starts_at: options[0].starts_at,
+  };
+  const temporal = buildTemporalContext(new Date('2026-08-02T10:00:00Z'), 'Europe/Madrid');
+  assertEquals(interpretBookingDeterministically('Si', 'awaiting_confirmation', [], temporal, awaiting)?.intent, 'confirm');
+  const time = interpretBookingDeterministically('Mejor a las nueve', 'awaiting_confirmation', [], temporal, awaiting);
+  assertEquals(time?.intent, 'choose_time');
+  assertEquals(time?.time_expression, '09:00');
+  assertEquals(isBookingStatusQuestion('¿Pero tengo la reserva?'), true);
+  assertEquals(isBookingStatusQuestion('¿Qué horarios tenéis?'), false);
+});
+
+Deno.test('awaiting confirmation confirms yes, while no never confirms', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: options[0].staff_id,
+    staff_preference: 'selected' as const,
+    selected_starts_at: options[0].starts_at,
+  };
+  const confirmed = reduceBookingState({
+    session: awaiting, interpretation: { ...interpretation, intent: 'confirm', confirmation: true }, rawText: 'Si',
+    dateLabel: 'domingo 3 de agosto', nowIso: '2026-08-02T10:00:00Z',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: null, staffExplicit: false, expired: false, revalidation: 'available', availabilityOptions: options },
+  });
+  assertEquals(confirmed.operation, 'confirm_booking');
+  const rejected = reduceBookingState({
+    session: awaiting, interpretation: { ...interpretation, intent: 'reject', confirmation: false }, rawText: 'No',
+    dateLabel: 'domingo 3 de agosto', nowIso: '2026-08-02T10:00:00Z',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: null, expired: false },
+  });
+  assertEquals(rejected.operation, 'none');
+  assertEquals(rejected.next?.status, 'cancelled');
+});
+
+Deno.test('duplicate times always keep their professional in every clarification copy', () => {
+  const duplicate = [
+    { ...options[0], staff_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', staff_display_name: 'Ana' },
+    { ...options[0], staff_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', staff_display_name: 'Bea' },
+  ];
+  const copy = timeClarificationReply(duplicate);
+  assert(copy.includes('09:00 con Ana'));
+  assert(copy.includes('09:00 con Bea'));
 });
 
 Deno.test('short customer context is bounded and has no session metadata', () => {

@@ -24,12 +24,15 @@ import {
   resolveTimeExpression,
   isIndifferentStaffPreference,
   extractStaffReference,
+  isAffirmative,
+  isBookingStatusQuestion,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import { getAvailability, listActiveBusinessStaff, listCompatibleStaff, listServices } from './tools.ts';
 import { formatCustomerDate, type TemporalContext } from './dateResolution.ts';
 import type {
   BookingDecision,
+  BookingInterpretation,
   BookingSession,
   OfferedTime,
   OfferedProfessional,
@@ -61,6 +64,28 @@ function confirmationReply(result: {
 function isGreeting(text: string) {
   const normalized = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
   return /^(hola|buenas|buenos dias|buenas tardes|buenas noches)\b/.test(normalized);
+}
+
+function isGreetingOnly(text: string) {
+  const normalized = text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  return /^(hola|buenas|buenos dias|buenas tardes|buenas noches)[!.]*$/.test(normalized);
+}
+
+function selectedOffer(session: BookingSession) {
+  return session.offered_times.find((option) => option.starts_at === session.selected_starts_at) ?? null;
+}
+
+function pendingConfirmationReply(session: BookingSession, timezone: string) {
+  const selected = selectedOffer(session);
+  if (!selected || !session.selected_date) return bookingReplies.pendingBookingStatus;
+  return `Todavía no está confirmada. Tienes pendiente ${formatCustomerDate(session.selected_date, timezone)} a las ${selected.label} con ${selected.staff_display_name ?? 'el profesional seleccionado'}.`;
+}
+
+function confirmedStatusReply(session: BookingSession, services: CatalogService[], timezone: string) {
+  const selected = selectedOffer(session);
+  if (!selected || !session.selected_date) return 'Sí, tu cita está confirmada.';
+  const service = services.find(({ id }) => id === session.service_id)?.name;
+  return `Sí, tu cita${service ? ` de ${service.toLocaleLowerCase('es')}` : ''} está confirmada para ${formatCustomerDate(session.selected_date, timezone)} a las ${selected.label} con ${selected.staff_display_name ?? 'el profesional asignado'}.`;
 }
 
 type FlowContext = {
@@ -194,7 +219,7 @@ export async function processBookingFlow(input: {
   const serviceResult = await listServices(client, context.businessId);
   const services = (serviceResult.services ?? []) as CatalogService[];
   const deterministicDate = deterministicDateOverride(session?.status ?? null, input.text, temporal);
-  let interpretation = deterministicDate?.interpretation
+  let interpretation: BookingInterpretation | null = deterministicDate?.interpretation
     ?? interpretBookingDeterministically(input.text, session?.status ?? null, services, temporal, session);
   if (!interpretation) try {
     interpretation = await interpretBookingMessage({
@@ -223,6 +248,49 @@ export async function processBookingFlow(input: {
       return { handled: true as const, sent, handoff: false };
     }
     throw error;
+  }
+  if (!interpretation) throw new Error('INTERPRETATION_INVALID');
+
+  // A booking-status question must never reach the general-information
+  // generator: the session and completed appointment records are authoritative.
+  if (isBookingStatusQuestion(input.text)) {
+    const completed = session ? null : await loadLatestCompletedBookingSession(client, context.businessId, context.conversationId);
+    const reply = session
+      ? session.status === 'awaiting_confirmation'
+        ? pendingConfirmationReply(session, temporal.timezone)
+        : bookingReplies.pendingBookingStatus
+      : completed?.appointment_id
+      ? confirmedStatusReply(completed, services, temporal.timezone)
+      : bookingReplies.noConfirmedBooking;
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false };
+  }
+
+  // A greeting alone must not be parsed as a time choice. Expire only offers
+  // that have actually elapsed; a live reservation remains intact and explicit.
+  if (session && isGreetingOnly(input.text)) {
+    if (Date.parse(session.expires_at) <= Date.parse(nowIso)) {
+      const next = {
+        ...session,
+        status: 'expired' as const,
+        offered_times: [],
+        selected_starts_at: null,
+        last_interpretation_intent: interpretation.intent,
+        last_error_code: 'OFFER_EXPIRED' as const,
+      };
+      await saveBookingDecision(client, session, {
+        next, operation: 'none', reply: bookingReplies.greeting,
+        createSession: false, handoff: false, errorCode: 'OFFER_EXPIRED',
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(bookingReplies.greeting);
+      return { handled: true as const, sent, handoff: false };
+    }
+    const sent = await input.sendReply(
+      session.status === 'awaiting_confirmation'
+        ? pendingConfirmationReply(session, temporal.timezone)
+        : bookingReplies.pendingBookingGreeting,
+    );
+    return { handled: true as const, sent, handoff: false };
   }
 
   if (!session && interpretation.intent === 'ask_information') return { handled: false as const };
@@ -253,7 +321,7 @@ export async function processBookingFlow(input: {
   }
 
   if (interpretation.intent === 'social') {
-    const sent = await input.sendReply(bookingReplies.thanks);
+    const sent = await input.sendReply(session ? `${bookingReplies.thanks} ${bookingReplies.pendingBookingGreeting}` : bookingReplies.thanks);
     return { handled: true as const, sent, handoff: false };
   }
 
@@ -365,7 +433,7 @@ export async function processBookingFlow(input: {
       next, operation: 'none', reply: askDateForActiveSession(services.find(({ id }) => id === session!.service_id)?.name ?? null),
       createSession: false, handoff: false, errorCode: null,
     }, context.inboundMessageId, context.runId);
-    const reply = askDateForActiveSession(services.find(({ id }) => id === session.service_id)?.name ?? null);
+    const reply = askDateForActiveSession(services.find(({ id }) => id === session!.service_id)?.name ?? null);
     const sent = await input.sendReply(reply);
     return { handled: true as const, sent, handoff: false, session, handoffReason: null };
   }
@@ -541,31 +609,80 @@ export async function processBookingFlow(input: {
     return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
   }
 
-  const allowBareHour = !dateExplicit && session.status === 'choosing_time';
-  const selectedOption = dateExplicit ? null : resolveTimeExpression(input.text, interpretation, session);
-  const requestedTime = dateExplicit ? null : normalizeRequestedTime(input.text, interpretation, allowBareHour);
-  const requestedStaffId = resolveStaffReference(interpretation.staff_reference ?? input.text, session);
+  const awaitingConfirmation = session.status === 'awaiting_confirmation';
+  const allowBareHour = !dateExplicit && (session.status === 'choosing_time' || awaitingConfirmation);
+  // Raw text is deterministic and wins over a model field that might mistake
+  // a time phrase (for example, "mejor a las nueve") for a staff reference.
+  const rawTimeInterpretation = { ...interpretation, time_expression: null };
+  const selectedOption = dateExplicit ? null
+    : resolveTimeExpression(input.text, rawTimeInterpretation, session)
+      ?? resolveTimeExpression(input.text, interpretation, session);
+  const requestedTime = dateExplicit ? null
+    : normalizeRequestedTime(input.text, rawTimeInterpretation, allowBareHour)
+      ?? normalizeRequestedTime(input.text, interpretation, allowBareHour);
+  const confirmationExplicit = awaitingConfirmation && isAffirmative(input.text, interpretation);
+  const rejectionExplicit = awaitingConfirmation
+    && (interpretation.intent === 'reject' || /^(?:no|cancelar|cancela|dejalo|déjalo)[!.\s]*$/i.test(input.text));
+  const requestedStaffId = resolveStaffReference(interpretation.staff_reference, session)
+    ?? resolveStaffReference(input.text, session);
+  const rawHasWithProfessional = /\bcon\s+[\p{L}]/iu.test(input.text);
+  const requestedStaffReference = rawHasWithProfessional
+    ? extractStaffReference(input.text)
+    : requestedStaffId
+    ? extractStaffReference(input.text)
+    : extractStaffReference(interpretation.staff_reference);
+  const timeExplicit = Boolean(selectedOption || requestedTime);
+  let effectiveInterpretation = interpretation;
+  let effectiveStaffId = requestedStaffId;
+  if (awaitingConfirmation && confirmationExplicit) {
+    effectiveInterpretation = { ...interpretation, intent: 'confirm', confirmation: true, staff_reference: null };
+    effectiveStaffId = null;
+  } else if (awaitingConfirmation && rejectionExplicit) {
+    effectiveInterpretation = { ...interpretation, intent: 'reject', confirmation: false, staff_reference: null };
+    effectiveStaffId = null;
+  } else if (awaitingConfirmation && timeExplicit) {
+    effectiveInterpretation = { ...interpretation, intent: 'choose_time', staff_reference: null };
+    effectiveStaffId = null;
+  } else if (awaitingConfirmation && dateExplicit) {
+    effectiveInterpretation = { ...interpretation, intent: 'choose_date', staff_reference: null };
+    effectiveStaffId = null;
+  }
 
-  // Prevent a named professional request from falling through to the generic
-  // awaiting-confirmation fallback, which would otherwise repeat the stale
-  // selection. Compatibility remains server-authoritative.
-  const requestedStaffReference = extractStaffReference(interpretation.staff_reference ?? input.text);
-  if (session.status === 'awaiting_confirmation' && requestedStaffReference && !requestedStaffId) {
+  // "Sigo con FRAN" after an incompatible-professional question restores the
+  // existing provisional choice by revalidating it, not by asking for a time
+  // again. The exact staff+instant pair remains server-authoritative.
+  if (awaitingConfirmation && !confirmationExplicit && !rejectionExplicit && !timeExplicit && !dateExplicit
+    && effectiveStaffId && effectiveStaffId === session.staff_id) {
+    const selected = selectedOffer(session);
+    const fresh = await availability(client, context, session);
+    if (selected && optionStillOffered(selected, fresh)) {
+      const next = { ...session, offered_times: fresh, last_interpretation_intent: effectiveInterpretation.intent, last_error_code: null };
+      const saved = await saveBookingDecision(client, session, {
+        next, operation: 'none', reply: selectionReply(customerDateLabel, selected.label, selected.staff_display_name),
+        createSession: false, handoff: false, errorCode: null,
+      }, context.inboundMessageId, context.runId);
+      const sent = await input.sendReply(selectionReply(customerDateLabel, selected.label, selected.staff_display_name));
+      return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
+    }
+  }
+
+  // Prevent an actual named incompatible professional from falling through to
+  // the generic awaiting-confirmation fallback. Keep the valid provisional
+  // selection intact so the customer can continue with it after revalidation.
+  if (awaitingConfirmation && !confirmationExplicit && !rejectionExplicit && !timeExplicit && !dateExplicit
+    && requestedStaffReference && !effectiveStaffId) {
     const activeStaff = await listActiveBusinessStaff(client, context.businessId);
     const activeStaffId = resolveStaffFromCatalog(requestedStaffReference, activeStaff);
     const compatibleProfessionals = session.offered_professionals ?? [];
     const serviceName = services.find(({ id }) => id === session!.service_id)?.name ?? null;
     const next = {
       ...session,
-      status: 'choosing_time' as const,
-      staff_id: null,
-      staff_preference: 'unasked' as const,
-      selected_starts_at: null,
-      last_interpretation_intent: interpretation.intent,
+      last_interpretation_intent: effectiveInterpretation.intent,
       last_error_code: null,
     };
+    const activeStaffName = activeStaff.find((staff) => staff.staff_id === activeStaffId)?.staff_display_name ?? requestedStaffReference;
     const reply = activeStaffId
-      ? incompatibleProfessionalReply(requestedStaffReference, serviceName, compatibleProfessionals)
+      ? incompatibleProfessionalReply(activeStaffName, serviceName, compatibleProfessionals)
       : clarifyProfessionalReply();
     const saved = await saveBookingDecision(client, session, {
       next, operation: 'none', reply, createSession: false, handoff: false, errorCode: null,
@@ -580,13 +697,13 @@ export async function processBookingFlow(input: {
     requestedTime,
     serviceExplicit,
     dateExplicit,
-    staffId: requestedStaffId,
-    staffExplicit: Boolean(requestedStaffId),
+    staffId: effectiveStaffId,
+    staffExplicit: Boolean(effectiveStaffId),
     expired: Date.parse(session.expires_at) <= Date.parse(nowIso),
   };
   let decision = reduceBookingState({
     session,
-    interpretation,
+    interpretation: effectiveInterpretation,
     rawText: input.text,
     resolved,
     dateLabel: customerDateLabel,
@@ -606,7 +723,7 @@ export async function processBookingFlow(input: {
     const options = await availability(client, context, decision.next ?? session);
     decision = reduceBookingState({
       session: decision.next ?? session,
-      interpretation,
+      interpretation: effectiveInterpretation,
       rawText: input.text,
       resolved: { ...resolved, availabilityOptions: options },
       dateLabel: customerDateLabel,
@@ -621,7 +738,7 @@ export async function processBookingFlow(input: {
     const fresh = await availability(client, context, current);
     decision = reduceBookingState({
       session: current,
-      interpretation,
+      interpretation: effectiveInterpretation,
       rawText: input.text,
       resolved: {
         ...resolved,

@@ -151,6 +151,12 @@ export function isSocialMessage(rawText: string) {
   return /^(?:muchas\s+)?gracias[!.\s]*$/i.test(normalizeText(rawText));
 }
 
+export function isBookingStatusQuestion(rawText: string) {
+  const text = normalizeText(rawText);
+  return /\b(?:tengo|esta|está|confirmad[ao]|confirmaste|confirmar)\b/.test(text)
+    && /\b(?:reserva|cita|turno)\b/.test(text);
+}
+
 export function isOutOfDomainMessage(rawText: string) {
   const text = normalizeText(rawText);
   return /\b(playa|viaje|viajar|futbol|pelicula|receta|meteorologico|clima)\b/.test(text);
@@ -187,6 +193,29 @@ export function interpretBookingDeterministically(
   const affirmative = /^(si|sí|vale|de acuerdo|confirmo|reserva(?:la)?|reservala)(?:[\s,]+(esa|ese))?$/i.test(rawText.trim());
   const reject = /^(no|cancelar|cancela|dejalo|déjalo)$/i.test(rawText.trim());
 
+  // In the confirmation step, an explicit answer or a time/date correction
+  // must not be reclassified as a professional name by the model context.
+  if (status === 'awaiting_confirmation' && affirmative) {
+    return { ...baseInterpretation('confirm'), confirmation: true };
+  }
+  if (status === 'awaiting_confirmation' && reject) {
+    return { ...baseInterpretation('reject'), confirmation: false };
+  }
+  if (status === 'awaiting_confirmation' && (time || option)) {
+    return {
+      ...baseInterpretation('choose_time'),
+      time_expression: time,
+      option_reference: option,
+    };
+  }
+  if (status === 'awaiting_confirmation' && date.status === 'resolved') {
+    return { ...baseInterpretation('choose_date'), date_expression: rawText };
+  }
+  if (status === 'awaiting_confirmation' && staffId) {
+    const staff = session?.offered_times.find((option) => option.staff_id === staffId);
+    return { ...baseInterpretation('change_selection'), staff_reference: staff?.staff_display_name ?? rawText };
+  }
+
   if (service) {
     return {
       ...baseInterpretation('choose_service'),
@@ -210,9 +239,6 @@ export function interpretBookingDeterministically(
       time_expression: time,
       option_reference: option,
     };
-  }
-  if (status === 'awaiting_confirmation' && affirmative) {
-    return { ...baseInterpretation('confirm'), confirmation: true };
   }
   if (status === 'choosing_time' || status === 'awaiting_confirmation') {
     if (time || option) {
