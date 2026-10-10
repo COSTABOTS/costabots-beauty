@@ -16,8 +16,8 @@ function normalizeText(value: string) {
 export function extractStaffReference(reference: string | null | undefined) {
   const normalized = normalizeText(reference ?? '');
   if (!normalized) return null;
-  const withProfessional = normalized.match(/\bcon\s+([\p{L}][\p{L}' -]{0,78})[?!.]*$/u);
-  return (withProfessional?.[1] ?? normalized.replace(/^(?:con|la|el)\s+/, '').replace(/[?!.]+$/, '').trim()) || null;
+  const withProfessional = normalized.match(/\b(?:con|para|a)\s+([\p{L}][\p{L}' -]{0,78})[?!.]*$/u);
+  return (withProfessional?.[1] ?? normalized.replace(/^(?:con|para|a|la|el)\s+/, '').replace(/[?!.]+$/, '').trim()) || null;
 }
 
 function canonicalTime(hour: number, minute: number) {
@@ -221,7 +221,8 @@ export function interpretBookingDeterministically(
     return { ...baseInterpretation('choose_date'), date_expression: rawText };
   }
   if (status === 'awaiting_confirmation' && staffId) {
-    const staff = session?.offered_times.find((option) => option.staff_id === staffId);
+    const staff = session?.offered_professionals?.find((option) => option.staff_id === staffId)
+      ?? session?.offered_times.find((option) => option.staff_id === staffId);
     return { ...baseInterpretation('change_selection'), staff_reference: staff?.staff_display_name ?? rawText };
   }
 
@@ -344,7 +345,7 @@ export function resolveStaffReferenceInText(reference: string | null | undefined
     const name = normalizeText(staff.staff_display_name);
     if (!name) return false;
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(?:^|\\s)(?:con|para)\\s+${escaped}(?=$|[\\s,?.!])`, 'u').test(text);
+    return new RegExp(`(?:^|\\s)(?:con|para|a)\\s+${escaped}(?=$|[\\s,?.!])`, 'u').test(text);
   });
   const staffIds = [...new Set(matches.map((staff) => staff.staff_id))];
   return staffIds.length === 1 ? staffIds[0] : null;
@@ -352,11 +353,11 @@ export function resolveStaffReferenceInText(reference: string | null | undefined
 
 export function hasExplicitStaffReference(reference: string | null | undefined) {
   const text = normalizeText(reference ?? '');
-  const candidate = text.match(/(?:^|\s)(?:con|para)\s+([\p{L}][\p{L}'-]*)/u)?.[1] ?? null;
+  const candidate = text.match(/(?:^|\s)(?:con|para|a)\s+([\p{L}][\p{L}'-]*)/u)?.[1] ?? null;
   // "para mañana" and "para el miércoles" are date phrases, not a request
   // to change professional.
   return Boolean(candidate && !new Set([
-    'hoy', 'manana', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'el', 'la',
+    'hoy', 'manana', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'el', 'la', 'las',
   ]).has(candidate));
 }
 

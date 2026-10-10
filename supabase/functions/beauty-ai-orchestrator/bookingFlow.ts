@@ -801,7 +801,7 @@ export async function processBookingFlow(input: {
   const selectedOption = dateExplicit ? null
     : resolveTimeExpression(input.text, rawTimeInterpretation, session)
       ?? resolveTimeExpression(input.text, interpretation, session);
-  const requestedTime = dateExplicit ? null
+  let requestedTime = dateExplicit ? null
     : normalizeRequestedTime(input.text, rawTimeInterpretation, allowBareHour)
       ?? normalizeRequestedTime(input.text, interpretation, allowBareHour);
   let exactRequestedOption: OfferedTime | null = null;
@@ -886,6 +886,13 @@ export async function processBookingFlow(input: {
     return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
   }
   const professionalChanged = Boolean(effectiveStaffId && effectiveStaffId !== session.staff_id);
+  // A professional-only correction in the confirmation step keeps the
+  // customer's provisional hour as the requested hour for the new person.
+  // It is never reused blindly: the exact availability check below validates
+  // the new staff+time pair or returns that professional's real alternatives.
+  if (awaitingConfirmation && professionalChanged && !requestedTime) {
+    requestedTime = selectedOffer(session)?.label ?? null;
+  }
   if (!dateExplicit && requestedTime && (!selectedOption || professionalChanged)) {
     // Resolve a requested professional before checking the requested time. A
     // combined correction such as "con Fran a las 13" must never reuse the

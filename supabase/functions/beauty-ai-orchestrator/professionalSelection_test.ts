@@ -1,8 +1,9 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply, selectionReply } from './bookingReplies.ts';
-import { extractStaffReference, hasExplicitStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveStaffReferenceInText, resolveTimeExpression } from './bookingResolvers.ts';
+import { extractStaffReference, hasExplicitStaffReference, interpretBookingDeterministically, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveStaffReferenceInText, resolveTimeExpression } from './bookingResolvers.ts';
 import { professionalClarificationGate, professionalGate } from './professionalSelection.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
+import { buildTemporalContext } from './dateResolution.ts';
 import type { BookingInterpretation, BookingSession, OfferedProfessional, OfferedTime } from './bookingTypes.ts';
 
 const ana = '11111111-1111-4111-8111-111111111111';
@@ -193,6 +194,79 @@ Deno.test('a compatible professional request from awaiting confirmation invalida
   assertEquals(result.next?.offered_times, []);
   assertEquals(result.next?.status, 'choosing_time');
   assertEquals(result.operation, 'query_availability');
+});
+
+Deno.test('awaiting confirmation resolves natural professional-only corrections deterministically', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: ana,
+    staff_preference: 'selected' as const,
+    selected_date: '2026-10-17',
+    selected_starts_at: '2026-10-17T11:00:00+02:00',
+    offered_times: [{ starts_at: '2026-10-17T11:00:00+02:00', staff_id: ana, staff_display_name: 'FRAN', label: '11:00' }],
+    offered_professionals: [{ staff_id: ana, staff_display_name: 'FRAN' }, { staff_id: bea, staff_display_name: 'Nico' }],
+  };
+  const temporal = buildTemporalContext(new Date('2026-10-10T10:00:00Z'), 'Europe/Madrid');
+  for (const phrase of ['Quiero cambiar a Nico', 'Mejor con Nico', 'Prefiero a Nico']) {
+    assertEquals(extractStaffReference(phrase), 'nico');
+    assertEquals(hasExplicitStaffReference(phrase), true);
+    assertEquals(resolveStaffReference(phrase, awaiting), bea);
+    const interpreted = interpretBookingDeterministically(phrase, 'awaiting_confirmation', [], temporal, awaiting);
+    assertEquals(interpreted?.intent, 'change_selection');
+    assertEquals(interpreted?.staff_reference, 'Nico');
+  }
+});
+
+Deno.test('awaiting confirmation keeps the provisional hour only after validating it for the new professional', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: ana,
+    staff_preference: 'selected' as const,
+    selected_date: '2026-10-17',
+    selected_starts_at: '2026-10-17T11:00:00+02:00',
+    offered_times: [{ starts_at: '2026-10-17T11:00:00+02:00', staff_id: ana, staff_display_name: 'FRAN', label: '11:00' }],
+    offered_professionals: [{ staff_id: ana, staff_display_name: 'FRAN' }, { staff_id: bea, staff_display_name: 'Nico' }],
+  };
+  const nicoAtEleven: OfferedTime = {
+    starts_at: '2026-10-17T11:00:00+02:00', staff_id: bea, staff_display_name: 'Nico', label: '11:00',
+  };
+  const sameHour = reduceBookingState({
+    session: awaiting, interpretation, rawText: 'Quiero cambiar a Nico',
+    dateLabel: 'sábado 17 de octubre', nowIso: '2026-10-10T10:00:00Z',
+    resolved: {
+      serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: nicoAtEleven,
+      requestedTime: '11:00', staffId: bea, staffExplicit: true, availabilityOptions: [nicoAtEleven], expired: false,
+    },
+  });
+  assertEquals(sameHour.operation, 'none');
+  assertEquals(sameHour.handoff, false);
+  assertEquals(sameHour.next?.status, 'awaiting_confirmation');
+  assertEquals(sameHour.next?.staff_id, bea);
+  assertEquals(sameHour.next?.selected_starts_at, nicoAtEleven.starts_at);
+  assert(sameHour.reply.includes('11:00 con Nico'));
+
+  const alternatives: OfferedTime[] = [
+    { starts_at: '2026-10-17T10:45:00+02:00', staff_id: bea, staff_display_name: 'Nico', label: '10:45' },
+    { starts_at: '2026-10-17T11:15:00+02:00', staff_id: bea, staff_display_name: 'Nico', label: '11:15' },
+  ];
+  const unavailable = reduceBookingState({
+    session: awaiting, interpretation, rawText: 'Mejor con Nico',
+    dateLabel: 'sábado 17 de octubre', nowIso: '2026-10-10T10:00:00Z',
+    resolved: {
+      serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: null,
+      requestedTime: '11:00', staffId: bea, staffExplicit: true, availabilityOptions: alternatives, expired: false,
+    },
+  });
+  assertEquals(unavailable.operation, 'none');
+  assertEquals(unavailable.handoff, false);
+  assertEquals(unavailable.next?.status, 'choosing_time');
+  assertEquals(unavailable.next?.staff_id, bea);
+  assertEquals(unavailable.next?.selected_starts_at, null);
+  assertEquals(unavailable.next?.offered_times, alternatives);
+  assert(unavailable.reply.includes('10:45'));
+  assert(unavailable.reply.includes('11:15'));
 });
 
 Deno.test('a professional and hour correction together uses the new professional availability', () => {
