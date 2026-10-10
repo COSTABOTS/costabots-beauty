@@ -324,6 +324,33 @@ export function resolveStaffFromCatalog(reference: string | null | undefined, ca
   return staffIds.length === 1 ? staffIds[0] : null;
 }
 
+// A date-oriented message can still explicitly change the professional, for
+// example "y para Fran mañana". Do not rely on a generic substring here: the
+// name must be one of the server-provided professionals and must appear after
+// an explicit professional cue. This also keeps homonyms ambiguous.
+export function resolveStaffReferenceInText(reference: string | null | undefined, catalog: OfferedProfessional[]) {
+  const text = normalizeText(reference ?? '');
+  if (!text) return null;
+  const matches = catalog.filter((staff) => {
+    const name = normalizeText(staff.staff_display_name);
+    if (!name) return false;
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:^|\\s)(?:con|para)\\s+${escaped}(?=$|[\\s,?.!])`, 'u').test(text);
+  });
+  const staffIds = [...new Set(matches.map((staff) => staff.staff_id))];
+  return staffIds.length === 1 ? staffIds[0] : null;
+}
+
+export function hasExplicitStaffReference(reference: string | null | undefined) {
+  const text = normalizeText(reference ?? '');
+  const candidate = text.match(/(?:^|\s)(?:con|para)\s+([\p{L}][\p{L}'-]*)/u)?.[1] ?? null;
+  // "para mañana" and "para el miércoles" are date phrases, not a request
+  // to change professional.
+  return Boolean(candidate && !new Set([
+    'hoy', 'manana', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'el', 'la',
+  ]).has(candidate));
+}
+
 export function isIndifferentStaffPreference(reference: string | null | undefined) {
   const value = normalizeText(reference ?? '').replace(/[.!?]+$/, '').trim();
   return /^(?:me\s+da\s+igual|cualquiera|quien\s+tenga\s+antes|el\s+primero\s+disponible)$/.test(value);

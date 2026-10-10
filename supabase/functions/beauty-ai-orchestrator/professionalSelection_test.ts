@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply, selectionReply } from './bookingReplies.ts';
-import { extractStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveTimeExpression } from './bookingResolvers.ts';
+import { extractStaffReference, hasExplicitStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveStaffReferenceInText, resolveTimeExpression } from './bookingResolvers.ts';
 import { professionalClarificationGate, professionalGate } from './professionalSelection.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import type { BookingInterpretation, BookingSession, OfferedProfessional, OfferedTime } from './bookingTypes.ts';
@@ -200,6 +200,8 @@ Deno.test('an incompatible professional is detectable without accepting the stal
   assertEquals(extractStaffReference('Puede ser con Nico?'), 'nico');
   assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', professionals), null);
   assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', activeBusinessStaff), nico);
+  assert(hasExplicitStaffReference('Y para Nico mañana?'));
+  assertEquals(resolveStaffReferenceInText('Y para Nico mañana?', activeBusinessStaff), nico);
   assert(incompatibleProfessionalReply('Nico', 'Corte', professionals).includes('Nico no realiza'));
 });
 
@@ -248,6 +250,47 @@ Deno.test('selected professional survives no availability and filters the next d
   assertEquals(thursday.next?.staff_id, bea);
   assertEquals(thursday.next?.staff_preference, 'selected');
   assertEquals(thursday.operation, 'query_availability');
+});
+
+Deno.test('a professional plus date after no availability replaces the selected professional and persists it', () => {
+  const nico = bea;
+  const fran = ana;
+  const franAndNico: OfferedProfessional[] = [
+    { staff_id: fran, staff_display_name: 'FRAN' },
+    { staff_id: nico, staff_display_name: 'Nico' },
+  ];
+  assertEquals(resolveStaffReferenceInText('Y para Fran mañana?', franAndNico), fran);
+  const selectedNico = {
+    ...session,
+    status: 'choosing_date' as const,
+    staff_id: nico,
+    staff_preference: 'selected' as const,
+    offered_professionals: franAndNico,
+    selected_date: null,
+    offered_times: [],
+  };
+  const nicoNoSlots = reduceBookingState({
+    session: selectedNico, interpretation: { ...interpretation, intent: 'choose_date' }, rawText: 'mañana',
+    dateLabel: 'mañana', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: selectedNico.service_id, selectedDate: '2026-10-13', selectedOption: null, dateExplicit: true, availabilityOptions: [], expired: false },
+  });
+  const franTomorrow = reduceBookingState({
+    session: nicoNoSlots.next!, interpretation: { ...interpretation, intent: 'choose_date', staff_reference: 'FRAN' }, rawText: 'Y para Fran mañana?',
+    dateLabel: 'mañana', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: selectedNico.service_id, selectedDate: '2026-10-13', selectedOption: null, dateExplicit: true, staffId: fran, staffExplicit: true, availabilityOptions: [], expired: false },
+  });
+  assertEquals(franTomorrow.next?.status, 'choosing_date');
+  assertEquals(franTomorrow.next?.staff_preference, 'selected');
+  assertEquals(franTomorrow.next?.staff_id, fran);
+  assertEquals(franTomorrow.next?.selected_date, null);
+  const wednesday = reduceBookingState({
+    session: franTomorrow.next!, interpretation: { ...interpretation, intent: 'choose_date' }, rawText: 'el miércoles',
+    dateLabel: 'miércoles 14 de octubre', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: selectedNico.service_id, selectedDate: '2026-10-14', selectedOption: null, dateExplicit: true, expired: false },
+  });
+  assertEquals(wednesday.next?.staff_id, fran);
+  assertEquals(wednesday.next?.staff_preference, 'selected');
+  assertEquals(wednesday.operation, 'query_availability');
 });
 
 Deno.test('a service resolved in the first customer message uses the no-greeting date prompt', () => {

@@ -20,10 +20,12 @@ import {
   resolveRequestedDate,
   resolveServiceReference,
   resolveStaffReference,
+  resolveStaffReferenceInText,
   resolveStaffFromCatalog,
   resolveTimeExpression,
   isIndifferentStaffPreference,
   extractStaffReference,
+  hasExplicitStaffReference,
   isAffirmative,
   isBookingStatusQuestion,
 } from './bookingResolvers.ts';
@@ -668,9 +670,10 @@ export async function processBookingFlow(input: {
   const rejectionExplicit = awaitingConfirmation
     && (interpretation.intent === 'reject' || /^(?:no|cancelar|cancela|dejalo|déjalo)[!.\s]*$/i.test(input.text));
   const requestedStaffId = resolveStaffReference(interpretation.staff_reference, session)
-    ?? resolveStaffReference(input.text, session);
-  const rawHasWithProfessional = /\bcon\s+[\p{L}]/iu.test(input.text);
-  const requestedStaffReference = rawHasWithProfessional
+    ?? resolveStaffReference(input.text, session)
+    ?? resolveStaffReferenceInText(input.text, session?.offered_professionals ?? []);
+  const rawHasProfessionalReference = hasExplicitStaffReference(input.text);
+  const requestedStaffReference = rawHasProfessionalReference
     ? extractStaffReference(input.text)
     : requestedStaffId
     ? extractStaffReference(input.text)
@@ -710,13 +713,15 @@ export async function processBookingFlow(input: {
     }
   }
 
-  // Prevent an actual named incompatible professional from falling through to
-  // the generic awaiting-confirmation fallback. Keep the valid provisional
-  // selection intact so the customer can continue with it after revalidation.
-  if (awaitingConfirmation && !confirmationExplicit && !rejectionExplicit && !timeExplicit && !dateExplicit
-    && requestedStaffReference && !effectiveStaffId) {
+  // A named professional is a correction even when the same sentence also
+  // contains a date. Resolve it against the active business catalog only to
+  // explain incompatibility; compatibility itself remains server-authoritative
+  // through the session's compatible-professional catalog.
+  if (!confirmationExplicit && !rejectionExplicit && !timeExplicit
+    && rawHasProfessionalReference && !effectiveStaffId) {
     const activeStaff = await listActiveBusinessStaff(client, context.businessId);
-    const activeStaffId = resolveStaffFromCatalog(requestedStaffReference, activeStaff);
+    const activeStaffId = resolveStaffReferenceInText(input.text, activeStaff)
+      ?? resolveStaffFromCatalog(requestedStaffReference, activeStaff);
     const compatibleProfessionals = session.offered_professionals ?? [];
     const serviceName = services.find(({ id }) => id === session!.service_id)?.name ?? null;
     const next = {
@@ -724,7 +729,9 @@ export async function processBookingFlow(input: {
       last_interpretation_intent: effectiveInterpretation.intent,
       last_error_code: null,
     };
-    const activeStaffName = activeStaff.find((staff) => staff.staff_id === activeStaffId)?.staff_display_name ?? requestedStaffReference;
+    const activeStaffName = activeStaff.find((staff) => staff.staff_id === activeStaffId)?.staff_display_name
+      ?? requestedStaffReference
+      ?? 'Ese profesional';
     const reply = activeStaffId
       ? incompatibleProfessionalReply(activeStaffName, serviceName, compatibleProfessionals)
       : clarifyProfessionalReply();
@@ -773,7 +780,17 @@ export async function processBookingFlow(input: {
       dateLabel: customerDateLabel,
       nowIso,
     });
-    if (!options.length) decision = { ...decision, reply: bookingReplies.noAvailability };
+    if (!options.length) {
+      const chosenProfessional = staffExplicit
+        ? (session.offered_professionals ?? []).find((staff) => staff.staff_id === effectiveStaffId)?.staff_display_name
+        : null;
+      decision = {
+        ...decision,
+        reply: chosenProfessional
+          ? `No encuentro huecos con ${chosenProfessional} para ese día. ¿Quieres que pruebe otra fecha?`
+          : bookingReplies.noAvailability,
+      };
+    }
   }
 
   if (decision.operation === 'revalidate_selected') {
