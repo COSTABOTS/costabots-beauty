@@ -667,6 +667,26 @@ Deno.test('choosing time distinguishes clarification from a valid unavailable ti
   assert(unavailable.reply.includes('10:00'));
 });
 
+Deno.test('availability asks for a natural time before listing slots, unless the customer is indifferent', () => {
+  const awaitingTime = { ...session, status: 'choosing_time' as const, offered_times: [] };
+  const afterDate = reduceBookingState({
+    session: awaitingTime, interpretation: { ...interpretation, intent: 'choose_date' }, rawText: 'lunes',
+    resolved: { serviceId: awaitingTime.service_id, selectedDate: awaitingTime.selected_date, selectedOption: null, availabilityOptions: options, expired: false },
+    dateLabel: 'lunes 3 de agosto', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assertEquals(afterDate.next?.status, 'choosing_time');
+  assertEquals(afterDate.reply, '¿A qué hora te vendría bien?');
+  assert(!afterDate.reply.includes('09:00'));
+
+  const indifferent = reduceBookingState({
+    session: { ...afterDate.next!, offered_times: options }, interpretation, rawText: 'me da igual la hora',
+    resolved: { serviceId: awaitingTime.service_id, selectedDate: awaitingTime.selected_date, selectedOption: null, expired: false },
+    dateLabel: 'lunes 3 de agosto', nowIso: '2026-08-02T10:01:00Z',
+  });
+  assert(indifferent.reply.includes('09:00'));
+  assert(indifferent.reply.includes('10:00'));
+});
+
 Deno.test('empty offers never claim that options were already shown', () => {
   const result = reduceBookingState({
     session: { ...session, offered_times: [] },

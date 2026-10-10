@@ -1,11 +1,12 @@
 import {
   availabilityReply,
+  availableTimeReply,
   bookingReplies,
   selectionReply,
   timeClarificationReply,
   unavailableTimeReply,
 } from './bookingReplies.ts';
-import { isAffirmative } from './bookingResolvers.ts';
+import { isAffirmative, isIndifferentTimePreference } from './bookingResolvers.ts';
 import type {
   BookingDecision,
   BookingInterpretation,
@@ -177,19 +178,7 @@ export function reduceBookingState(input: {
           errorCode: 'TIME_NOT_OFFERED',
         });
       }
-      if (session.staff_preference === 'indifferent' && resolved.availabilityOptions[0]) {
-        const option = resolved.availabilityOptions[0];
-        session.selected_starts_at = option.starts_at;
-        session.staff_id = option.staff_id;
-        session.status = 'awaiting_confirmation';
-        return decision(session, selectionReply(dateLabel, option.label, option.staff_display_name));
-      }
-      return decision(
-        session,
-        resolved.availabilityOptions.length
-          ? availabilityReply(dateLabel, resolved.availabilityOptions)
-          : bookingReplies.noAvailability,
-      );
+      return decision(session, bookingReplies.askTime);
     }
     return decision(session, '', 'query_availability');
   }
@@ -217,19 +206,7 @@ export function reduceBookingState(input: {
           errorCode: 'AVAILABILITY_UNAVAILABLE',
         });
       }
-      if (session.staff_preference === 'indifferent' && resolved.availabilityOptions[0]) {
-        const option = resolved.availabilityOptions[0];
-        session.selected_starts_at = option.starts_at;
-        session.staff_id = option.staff_id;
-        session.status = 'awaiting_confirmation';
-        return decision(session, selectionReply(dateLabel, option.label, option.staff_display_name));
-      }
-      return decision(
-        session,
-        resolved.availabilityOptions.length
-          ? availabilityReply(dateLabel, resolved.availabilityOptions)
-          : bookingReplies.noAvailability,
-      );
+      return decision(session, bookingReplies.askTime);
     }
     if (resolved.selectedOption) {
       session.selected_starts_at = resolved.selectedOption.starts_at;
@@ -240,6 +217,7 @@ export function reduceBookingState(input: {
     if (isAffirmative(rawText, interpretation)) {
       return decision(session, bookingReplies.chooseTimeBeforeConfirming);
     }
+    if (isIndifferentTimePreference(rawText)) return decision(session, availableTimeReply(session.offered_times));
     if (resolved.requestedTime) {
       session.last_error_code = 'TIME_NOT_OFFERED';
       return decision(session, unavailableTimeReply(session.offered_times), 'none', {

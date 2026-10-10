@@ -6,6 +6,7 @@ export const bookingReplies = {
   askService: '¿Qué servicio te gustaría reservar?',
   askDate: '¿Qué día te vendría bien?',
   askProfessional: '¿Con quién prefieres reservar?',
+  askTime: '¿A qué hora te vendría bien?',
   clarifyDate: 'No he podido reconocer el día. Puedes decirme lunes, mañana o una fecha como 5 de agosto.',
   clarify: 'No lo he entendido del todo. ¿Puedes decírmelo de otra forma?',
   lowConfidence: 'Quiero asegurarme de entenderte bien. ¿Qué servicio, día u hora prefieres?',
@@ -39,6 +40,11 @@ function offeredTimeLabels(options: OfferedTime[]) {
 export function timeClarificationReply(options: OfferedTime[]) {
   if (!options.length) return bookingReplies.chooseAnotherDate;
   return `${bookingReplies.clarifyTime} Puedes elegir: ${offeredTimeLabels(options).join(', ')}.`;
+}
+
+export function availableTimeReply(options: OfferedTime[]) {
+  if (!options.length) return bookingReplies.chooseAnotherDate;
+  return `Tengo estos horarios disponibles: ${offeredTimeLabels(options).join(', ')}. ¿Cuál te viene mejor?`;
 }
 
 export function unavailableTimeReply(options: OfferedTime[]) {
@@ -77,7 +83,7 @@ export function availabilityReply(dateLabel: string, options: OfferedTime[], has
 export function professionalReply(professionals: Array<{ staff_display_name: string }>) {
   const names = professionals.map((professional) => professional.staff_display_name);
   const joined = names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
-  return `${bookingReplies.askProfessional} Puedes elegir: ${joined}, o decir "me da igual".`;
+  return `${joined} están disponibles para este servicio. ¿Con quién te gustaría reservar?`;
 }
 
 export function incompatibleProfessionalReply(name: string, serviceName: string | null, professionals: Array<{ staff_display_name: string }>) {

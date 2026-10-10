@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, clarifyProfessionalReply, dateWindowReply, incompatibleProfessionalReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, clarifyProfessionalReply, dateWindowReply, incompatibleProfessionalReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply, unavailableTimeReply } from './bookingReplies.ts';
 import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -167,6 +167,22 @@ export function persistExactOption(visibleOptions: OfferedTime[], option: Offere
   // An explicitly selected off-list slot is persisted with the visible sample
   // so the confirmation RPC remains bound to the exact staff+instant pair.
   return [...visibleOptions, option];
+}
+
+function minutesFromLabel(label: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(label);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+export function nearbyAvailabilityOptions(options: OfferedTime[], requestedTime: string, fallback: OfferedTime[]) {
+  const requestedMinutes = minutesFromLabel(requestedTime);
+  if (requestedMinutes === null) return fallback;
+  const nearby = [...options].sort((left, right) => {
+    const leftDistance = Math.abs((minutesFromLabel(left.label) ?? requestedMinutes) - requestedMinutes);
+    const rightDistance = Math.abs((minutesFromLabel(right.label) ?? requestedMinutes) - requestedMinutes);
+    return leftDistance - rightDistance || left.starts_at.localeCompare(right.starts_at) || left.staff_id.localeCompare(right.staff_id);
+  }).slice(0, 3);
+  return nearby.length ? nearby : fallback;
 }
 
 function initialStatus(serviceId: string | null, date: string | null) {
@@ -653,7 +669,11 @@ export async function processBookingFlow(input: {
     const options = availabilityResult.options;
     const requestedTime = normalizeRequestedTime(input.text, interpretation);
     const selected = requestedTime ? optionForRequestedTime(availabilityResult.allOptions, requestedTime) : null;
-    const persistedOptions = persistExactOption(options, selected);
+    const persistedOptions = selected
+      ? persistExactOption(options, selected)
+      : requestedTime
+      ? nearbyAvailabilityOptions(availabilityResult.allOptions, requestedTime, options)
+      : options;
     const next = {
       ...session,
       offered_times: persistedOptions,
@@ -668,8 +688,10 @@ export async function processBookingFlow(input: {
     };
     const reply = selected
       ? selectionReply(customerDateLabel, selected.label, selected.staff_display_name)
+      : requestedTime
+      ? unavailableTimeReply(persistedOptions)
       : options.length
-      ? availabilityReply(customerDateLabel, options, availabilityResult.hasMore)
+      ? bookingReplies.askTime
       : bookingReplies.noAvailability;
     const saved = await saveBookingDecision(client, session, {
       next,
@@ -695,18 +717,7 @@ export async function processBookingFlow(input: {
     : normalizeRequestedTime(input.text, rawTimeInterpretation, allowBareHour)
       ?? normalizeRequestedTime(input.text, interpretation, allowBareHour);
   let exactRequestedOption: OfferedTime | null = null;
-  if (!dateExplicit && !selectedOption && requestedTime) {
-    // offered_times is deliberately only the customer-visible sample. A named
-    // time outside that sample must be found again in the authoritative RPC.
-    const exactAvailability = await availability(client, context, session);
-    exactRequestedOption = optionForRequestedTime(exactAvailability.allOptions, requestedTime);
-    if (exactRequestedOption) {
-      session = {
-        ...session,
-        offered_times: persistExactOption(session.offered_times, exactRequestedOption),
-      };
-    }
-  }
+  let exactAvailabilityOptions: OfferedTime[] | undefined;
   const confirmationExplicit = awaitingConfirmation && isAffirmative(input.text, interpretation);
   const rejectionExplicit = awaitingConfirmation
     && (interpretation.intent === 'reject' || /^(?:no|cancelar|cancela|dejalo|déjalo)[!.\s]*$/i.test(input.text));
@@ -719,8 +730,7 @@ export async function processBookingFlow(input: {
     : requestedStaffId
     ? extractStaffReference(input.text)
     : extractStaffReference(interpretation.staff_reference);
-  const resolvedSelectedOption = selectedOption ?? exactRequestedOption;
-  const timeExplicit = Boolean(resolvedSelectedOption || requestedTime);
+  const timeExplicit = Boolean(selectedOption || requestedTime);
   let effectiveInterpretation = interpretation;
   let effectiveStaffId = requestedStaffId;
   if (awaitingConfirmation && confirmationExplicit) {
@@ -731,7 +741,6 @@ export async function processBookingFlow(input: {
     effectiveStaffId = null;
   } else if (awaitingConfirmation && timeExplicit) {
     effectiveInterpretation = { ...interpretation, intent: 'choose_time', staff_reference: null };
-    effectiveStaffId = null;
   } else if (awaitingConfirmation && dateExplicit) {
     effectiveInterpretation = { ...interpretation, intent: 'choose_date', staff_reference: null };
     effectiveStaffId = null;
@@ -764,7 +773,7 @@ export async function processBookingFlow(input: {
   // contains a date. Resolve it against the active business catalog only to
   // explain incompatibility; compatibility itself remains server-authoritative
   // through the session's compatible-professional catalog.
-  if (!confirmationExplicit && !rejectionExplicit && !timeExplicit
+  if (!confirmationExplicit && !rejectionExplicit
     && rawHasProfessionalReference && !effectiveStaffId) {
     const activeStaff = await listActiveBusinessStaff(client, context.businessId);
     const activeStaffId = resolveStaffReferenceInText(input.text, activeStaff)
@@ -788,15 +797,36 @@ export async function processBookingFlow(input: {
     const sent = await input.sendReply(reply);
     return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
   }
+  const professionalChanged = Boolean(effectiveStaffId && effectiveStaffId !== session.staff_id);
+  if (!dateExplicit && requestedTime && (!selectedOption || professionalChanged)) {
+    // Resolve a requested professional before checking the requested time. A
+    // combined correction such as "con Fran a las 13" must never reuse the
+    // old professional's availability.
+    const availabilitySession = professionalChanged
+      ? { ...session, staff_id: effectiveStaffId, staff_preference: 'selected' as const }
+      : session;
+    const exactAvailability = await availability(client, context, availabilitySession);
+    exactRequestedOption = optionForRequestedTime(exactAvailability.allOptions, requestedTime);
+    const timeOptions = exactRequestedOption
+      ? persistExactOption(exactAvailability.options, exactRequestedOption)
+      : nearbyAvailabilityOptions(exactAvailability.allOptions, requestedTime, exactAvailability.options);
+    if (professionalChanged) {
+      exactAvailabilityOptions = timeOptions;
+    } else {
+      session = { ...session, offered_times: timeOptions };
+    }
+  }
+  const finalSelectedOption = professionalChanged ? exactRequestedOption : selectedOption ?? exactRequestedOption;
   const resolved: ResolvedBookingInput = {
     serviceId,
     selectedDate,
-    selectedOption: resolvedSelectedOption,
+    selectedOption: finalSelectedOption,
     requestedTime,
     serviceExplicit,
     dateExplicit,
     staffId: effectiveStaffId,
     staffExplicit: Boolean(effectiveStaffId),
+    availabilityOptions: exactAvailabilityOptions,
     expired: Date.parse(session.expires_at) <= Date.parse(nowIso),
   };
   let decision = reduceBookingState({
@@ -839,7 +869,7 @@ export async function processBookingFlow(input: {
           : bookingReplies.noAvailability,
       };
     } else if (decision.next?.status === 'choosing_time') {
-      decision = { ...decision, reply: availabilityReply(customerDateLabel, options, availabilityResult.hasMore) };
+      decision = { ...decision, reply: bookingReplies.askTime };
     }
   }
 

@@ -44,6 +44,7 @@ Deno.test('two compatible professionals require an explicit real-professional se
   assertEquals(gate.staff_preference, 'unasked');
   assert(professionalReply(professionals).includes('Ana'));
   assert(professionalReply(professionals).includes('Bea'));
+  assert(!professionalReply(professionals).includes('me da igual'));
 });
 
 Deno.test('a compound service plus compatible professional selection skips the redundant professional question', () => {
@@ -78,7 +79,7 @@ Deno.test('homonymous professional references require clarification', () => {
   assertEquals(resolveStaffReference('Ana', homonyms), null);
 });
 
-Deno.test('all explicit no-preference phrases select the earliest real option only after the preference', () => {
+Deno.test('all explicit no-preference phrases remain supported without auto-selecting a time', () => {
   for (const phrase of ['me da igual', 'cualquiera', 'quien tenga antes', 'el primero disponible', 'cualquiera.']) {
     assertEquals(isIndifferentStaffPreference(phrase), true);
   }
@@ -88,10 +89,10 @@ Deno.test('all explicit no-preference phrases select the earliest real option on
     session: indifferent, interpretation, rawText: 'martes', dateLabel: 'martes 13 de octubre', nowIso: '2026-10-12T09:00:00Z',
     resolved: { serviceId: indifferent.service_id, selectedDate: indifferent.selected_date, selectedOption: null, availabilityOptions: duplicatedHour, expired: false },
   });
-  assertEquals(result.next?.status, 'awaiting_confirmation');
-  assertEquals(result.next?.staff_id, ana);
-  assertEquals(result.next?.selected_starts_at, duplicatedHour[0].starts_at);
-  assert(result.reply.includes('09:00 con Ana'));
+  assertEquals(result.next?.status, 'choosing_time');
+  assertEquals(result.next?.staff_id, null);
+  assertEquals(result.next?.selected_starts_at, null);
+  assertEquals(result.reply, '¿A qué hora te vendría bien?');
 });
 
 Deno.test('a duplicated clock label never implicitly chooses one professional', () => {
@@ -192,6 +193,35 @@ Deno.test('a compatible professional request from awaiting confirmation invalida
   assertEquals(result.next?.offered_times, []);
   assertEquals(result.next?.status, 'choosing_time');
   assertEquals(result.operation, 'query_availability');
+});
+
+Deno.test('a professional and hour correction together uses the new professional availability', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: bea,
+    staff_preference: 'selected' as const,
+    selected_date: '2026-10-15',
+    selected_starts_at: duplicatedHour[0].starts_at,
+    offered_times: duplicatedHour.filter((option) => option.staff_id === bea),
+  };
+  const franAtThirteen: OfferedTime[] = [{
+    starts_at: '2026-10-15T13:00:00+02:00', staff_id: ana, staff_display_name: 'Ana', label: '13:00',
+  }];
+  const result = reduceBookingState({
+    session: awaiting, interpretation: { ...interpretation, intent: 'choose_time', staff_reference: 'Ana' }, rawText: 'Mejor con Ana a las 13',
+    dateLabel: 'jueves 15 de octubre', nowIso: '2026-10-14T10:00:00Z',
+    resolved: {
+      serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: franAtThirteen[0], requestedTime: '13:00',
+      staffId: ana, staffExplicit: true, availabilityOptions: franAtThirteen, expired: false,
+    },
+  });
+  assertEquals(result.next?.status, 'awaiting_confirmation');
+  assertEquals(result.next?.staff_id, ana);
+  assertEquals(result.next?.selected_starts_at, franAtThirteen[0].starts_at);
+  assertEquals(result.next?.selected_date, awaiting.selected_date);
+  assertEquals(result.next?.service_id, awaiting.service_id);
+  assert(result.reply.includes('13:00 con Ana'));
 });
 
 Deno.test('an incompatible professional is detectable without accepting the stale confirmation', () => {

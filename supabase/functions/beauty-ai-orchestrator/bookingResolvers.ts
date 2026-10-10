@@ -366,6 +366,11 @@ export function isIndifferentStaffPreference(reference: string | null | undefine
   return /^(?:me\s+da\s+igual|cualquiera|quien\s+tenga\s+antes|el\s+primero\s+disponible)$/.test(value);
 }
 
+export function isIndifferentTimePreference(reference: string | null | undefined) {
+  const value = normalizeText(reference ?? '').replace(/[.!?]+$/, '').trim();
+  return /^(?:me\s+da\s+igual(?:\s+la\s+hora)?|cualquiera|la\s+primera\s+que\s+tengas)$/.test(value);
+}
+
 export function optionStillOffered(selected: OfferedTime, options: OfferedTime[]) {
   return options.some((option) =>
     option.starts_at === selected.starts_at && option.staff_id === selected.staff_id
