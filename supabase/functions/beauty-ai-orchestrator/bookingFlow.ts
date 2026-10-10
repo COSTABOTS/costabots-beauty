@@ -39,7 +39,7 @@ import type {
   ResolvedBookingInput,
 } from './bookingTypes.ts';
 import { pendingBookingField } from './bookingTypes.ts';
-import { professionalGate as professionalGateState } from './professionalSelection.ts';
+import { professionalClarificationGate, professionalGate as professionalGateState } from './professionalSelection.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -155,12 +155,40 @@ async function compatibleProfessionals(
   return await listCompatibleStaff(client, businessId, serviceId);
 }
 
-function professionalGate(session: BookingSession, professionals: OfferedProfessional[]) {
+function professionalGate(session: BookingSession, professionals: OfferedProfessional[], selectedStaffId: string | null = null) {
   return {
     ...session,
-    ...professionalGateState(professionals),
+    ...professionalGateState(professionals, selectedStaffId),
     offered_times: [],
     selected_starts_at: null,
+  };
+}
+
+async function professionalGateForReference(input: {
+  client: SupabaseClient;
+  businessId: string;
+  session: BookingSession;
+  professionals: OfferedProfessional[];
+  staffReference: string | null | undefined;
+  serviceName: string | null;
+}) {
+  const requestedName = extractStaffReference(input.staffReference);
+  if (!requestedName) return { gate: professionalGate(input.session, input.professionals), reply: null };
+  const compatibleStaffId = resolveStaffFromCatalog(requestedName, input.professionals);
+  if (compatibleStaffId) {
+    return { gate: professionalGate(input.session, input.professionals, compatibleStaffId), reply: null };
+  }
+  // The wider active-staff lookup is used only to distinguish a real but
+  // incompatible name from an unknown or homonymous reference. It never
+  // supplies a selectable professional to the booking session.
+  const activeStaff = await listActiveBusinessStaff(input.client, input.businessId);
+  const activeStaffId = resolveStaffFromCatalog(requestedName, activeStaff);
+  const activeStaffName = activeStaff.find((staff) => staff.staff_id === activeStaffId)?.staff_display_name ?? requestedName;
+  return {
+    gate: { ...input.session, ...professionalClarificationGate(input.professionals), offered_times: [], selected_starts_at: null },
+    reply: activeStaffId
+      ? incompatibleProfessionalReply(activeStaffName, input.serviceName, input.professionals)
+      : clarifyProfessionalReply(),
   };
 }
 
@@ -345,7 +373,7 @@ export async function processBookingFlow(input: {
   if (session?.status === 'choosing_service' && serviceExplicit && requestedServiceId) {
     const serviceName = services.find(({ id }) => id === requestedServiceId)?.name ?? null;
     const professionals = await compatibleProfessionals(client, context.businessId, requestedServiceId);
-    const gated = professionalGate({
+    const gatedInput = {
       ...session,
       service_id: requestedServiceId,
       selected_date: null,
@@ -353,15 +381,19 @@ export async function processBookingFlow(input: {
       selected_starts_at: null,
       last_interpretation_intent: 'choose_service' as const,
       last_error_code: null,
-    }, professionals);
+    };
+    const professionalResolution = professionals.length
+      ? await professionalGateForReference({ client, businessId: context.businessId, session: gatedInput, professionals, staffReference: interpretation.staff_reference, serviceName })
+      : { gate: professionalGate(gatedInput, professionals), reply: null };
+    const gated = professionalResolution.gate;
     const next = professionals.length
       ? gated
       : { ...gated, status: 'choosing_service' as const, staff_preference: 'unasked' as const };
-    const reply = professionals.length === 1
+    const reply = professionalResolution.reply ?? (professionals.length === 1
       ? askDateForService(serviceName, false)
       : professionals.length > 1
       ? professionalReply(professionals)
-      : bookingReplies.askService;
+      : bookingReplies.askService);
     session = await saveBookingDecision(client, session, {
       next,
       operation: 'none',
@@ -379,7 +411,7 @@ export async function processBookingFlow(input: {
   if (session && serviceExplicit && requestedServiceId && requestedServiceId !== session.service_id) {
     const professionals = await compatibleProfessionals(client, context.businessId, requestedServiceId);
     const serviceName = services.find(({ id }) => id === requestedServiceId)?.name ?? null;
-    const gated = professionalGate({
+    const gatedInput = {
       ...session,
       service_id: requestedServiceId,
       selected_date: null,
@@ -387,15 +419,19 @@ export async function processBookingFlow(input: {
       selected_starts_at: null,
       last_interpretation_intent: 'choose_service' as const,
       last_error_code: null,
-    }, professionals);
+    };
+    const professionalResolution = professionals.length
+      ? await professionalGateForReference({ client, businessId: context.businessId, session: gatedInput, professionals, staffReference: interpretation.staff_reference, serviceName })
+      : { gate: professionalGate(gatedInput, professionals), reply: null };
+    const gated = professionalResolution.gate;
     const next = professionals.length
       ? gated
       : { ...gated, status: 'choosing_service' as const, staff_preference: 'unasked' as const };
-    const reply = professionals.length === 1
+    const reply = professionalResolution.reply ?? (professionals.length === 1
       ? askDateForService(serviceName, false)
       : professionals.length > 1
       ? professionalReply(professionals)
-      : bookingReplies.askService;
+      : bookingReplies.askService);
     session = await saveBookingDecision(client, session, {
       next, operation: 'none', reply, createSession: false, handoff: false,
       errorCode: professionals.length ? null : 'SERVICE_NOT_RESOLVED',
@@ -559,13 +595,21 @@ export async function processBookingFlow(input: {
       const sent = await input.sendReply(bookingReplies.askService);
       return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
     }
-    const gated = professionalGate(session, professionals);
+    const professionalResolution = await professionalGateForReference({
+      client,
+      businessId: context.businessId,
+      session,
+      professionals,
+      staffReference: interpretation.staff_reference,
+      serviceName,
+    });
+    const gated = professionalResolution.gate;
     if (gated.status === 'choosing_professional') {
       const saved = await saveBookingDecision(client, session, {
-        next: gated, operation: 'none', reply: professionalReply(professionals),
+        next: gated, operation: 'none', reply: professionalResolution.reply ?? professionalReply(professionals),
         createSession: false, handoff: false, errorCode: null,
       }, context.inboundMessageId, context.runId);
-      const sent = await input.sendReply(professionalReply(professionals));
+      const sent = await input.sendReply(professionalResolution.reply ?? professionalReply(professionals));
       return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
     }
     if (gated !== session) {

@@ -1,7 +1,7 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply, selectionReply } from './bookingReplies.ts';
 import { extractStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveTimeExpression } from './bookingResolvers.ts';
-import { professionalGate } from './professionalSelection.ts';
+import { professionalClarificationGate, professionalGate } from './professionalSelection.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import type { BookingInterpretation, BookingSession, OfferedProfessional, OfferedTime } from './bookingTypes.ts';
 
@@ -44,6 +44,24 @@ Deno.test('two compatible professionals require an explicit real-professional se
   assertEquals(gate.staff_preference, 'unasked');
   assert(professionalReply(professionals).includes('Ana'));
   assert(professionalReply(professionals).includes('Bea'));
+});
+
+Deno.test('a compound service plus compatible professional selection skips the redundant professional question', () => {
+  // Booking flow resolves "Quiero cita con Bea para tinte" against this
+  // server-sourced compatibility list before persisting the professional gate.
+  const gate = professionalGate(professionals, bea);
+  assertEquals(gate.status, 'choosing_date');
+  assertEquals(gate.staff_id, bea);
+  assertEquals(gate.staff_preference, 'selected');
+});
+
+Deno.test('an incompatible, unknown or ambiguous compound reference remains pending clarification', () => {
+  const incompatible = professionalClarificationGate(professionals);
+  assertEquals(incompatible.status, 'choosing_professional');
+  assertEquals(incompatible.staff_id, null);
+  assertEquals(incompatible.staff_preference, 'unasked');
+  // An id outside the compatible list cannot be used to bypass the gate.
+  assertEquals(professionalGate(professionals, '99999999-9999-4999-8999-999999999999').status, 'choosing_professional');
 });
 
 Deno.test('named professionals resolve only from the persisted compatible catalog', () => {
