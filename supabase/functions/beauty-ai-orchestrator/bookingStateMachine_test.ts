@@ -15,6 +15,7 @@ import {
   resolveStaffReference,
   resolveTimeExpression,
 } from './bookingResolvers.ts';
+import { resolveServiceText } from './serviceAliases.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import { optionForRequestedTime, persistExactOption, visibleAvailability } from './bookingFlow.ts';
 import { buildTemporalContext, formatCustomerDate } from './dateResolution.ts';
@@ -138,15 +139,18 @@ Deno.test('choosing date deterministically recognizes relative dates and bare we
   assertEquals(deterministicDateOverride('choosing_date', '5 de agosto', temporal)?.resolution.isoDate, '2026-08-05');
 });
 
-Deno.test('Nieves regression: natural service language resolves only to the real catalog service', () => {
+Deno.test('natural service aliases resolve only to one real catalog service', () => {
   const catalog = [{ id: '55555555-5555-4555-8555-555555555555', name: 'Corte de pelo' }];
-  // Gemini must return this exact real name after receiving the catalog; the
-  // deterministic fallback still produces the canonical name for literal input.
   assertEquals(resolveServiceReference('Corte de pelo', catalog), catalog[0].id);
-  assertEquals(resolveServiceReference('Cortarme el pelo', catalog), null);
+  for (const alias of ['Quiero pelarme', 'Quiero cortarme el pelo', 'Quiero corte de pelo', 'Quiero recortarme el pelo', 'Quiero arreglarme el pelo']) {
+    assertEquals(resolveServiceReference(alias, catalog), catalog[0].id);
+  }
   assertEquals(resolveServiceReference('Servicio inventado', catalog), null);
   const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
   assertEquals(interpretBookingDeterministically('Corte de pelo', 'choosing_service', catalog, temporal)?.service_reference, 'Corte de pelo');
+  for (const alias of ['Quiero pelarme', 'Quiero cortarme el pelo']) {
+    assertEquals(interpretBookingDeterministically(alias, 'choosing_service', catalog, temporal)?.service_reference, 'Corte de pelo');
+  }
   const choosingService = { ...session, status: 'choosing_service' as const, service_id: null, selected_date: null, offered_times: [] };
   for (const rawText of ['Quiero cortarme el pelo', 'Cortarme el pelo', 'Quiero un corte', 'Ya te lo he dicho']) {
     const result = reduceBookingState({
@@ -159,6 +163,20 @@ Deno.test('Nieves regression: natural service language resolves only to the real
     assertEquals(result.next?.status, 'choosing_date');
     assertEquals(result.next?.service_id, catalog[0].id);
   }
+});
+
+Deno.test('service aliases are ambiguous safely and exact names keep priority', () => {
+  const catalog = [
+    { id: '55555555-5555-4555-8555-555555555551', name: 'Corte' },
+    { id: '55555555-5555-4555-8555-555555555552', name: 'Corte infantil' },
+  ];
+  assertEquals(resolveServiceText('Corte infantil', catalog), { service: catalog[1], ambiguous: false });
+  assertEquals(resolveServiceText('Quiero pelarme', catalog), { service: null, ambiguous: true });
+  assertEquals(resolveServiceReference('Quiero pelarme', catalog), null);
+  const temporal = buildTemporalContext(new Date('2026-07-31T08:00:00Z'), 'Europe/Madrid');
+  const ambiguous = interpretBookingDeterministically('Quiero pelarme', 'choosing_service', catalog, temporal);
+  assertEquals(ambiguous?.intent, 'choose_service');
+  assertEquals(ambiguous?.service_reference, null);
 });
 
 Deno.test('Nieves regression: date windows and compound dates cannot become bare times', () => {

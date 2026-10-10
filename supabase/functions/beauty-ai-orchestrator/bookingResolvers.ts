@@ -7,6 +7,7 @@ import type {
 } from './bookingTypes.ts';
 import { resolveDateExpression } from './dateResolution.ts';
 import type { TemporalContext } from './dateResolution.ts';
+import { resolveServiceText } from './serviceAliases.ts';
 
 function normalizeText(value: string) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -192,10 +193,8 @@ export function interpretBookingDeterministically(
   if (isSocialMessage(rawText)) return baseInterpretation('social');
   if (isOutOfDomainMessage(rawText)) return baseInterpretation('out_of_domain');
 
-  const service = services.find(({ name }) => {
-    const normalizedName = normalizeText(name);
-    return normalizedName.length > 1 && (text.includes(normalizedName) || normalizedName.includes(text));
-  });
+  const serviceResolution = resolveServiceText(rawText, services);
+  const service = serviceResolution.service;
   const date = resolveDateExpression(rawText, temporal);
   const time = timeFromText(rawText, status === 'choosing_time' || status === 'awaiting_confirmation');
   const option = optionReference(rawText);
@@ -235,6 +234,9 @@ export function interpretBookingDeterministically(
       option_reference: option,
     };
   }
+  // Do not delegate an alias that identifies several catalog services to the
+  // model: it must be clarified instead of guessed.
+  if (serviceResolution.ambiguous) return baseInterpretation('choose_service');
   if (staffId) {
     const staff = session?.offered_times.find((option) => option.staff_id === staffId);
     return {
@@ -309,10 +311,7 @@ export function resolveServiceReference(
   services: Array<{ id: string; name: string }>,
 ) {
   if (!reference) return null;
-  const wanted = normalizeText(reference);
-  const exact = services.find((service) => normalizeText(service.name) === wanted);
-  if (exact) return exact.id;
-  return null;
+  return resolveServiceText(reference, services).service?.id ?? null;
 }
 
 export function resolveStaffReference(reference: string | null | undefined, session: BookingSession | null) {
