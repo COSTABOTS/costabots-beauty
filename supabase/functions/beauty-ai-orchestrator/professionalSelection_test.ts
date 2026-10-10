@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { availabilityReply, professionalReply } from './bookingReplies.ts';
-import { isIndifferentStaffPreference, resolveStaffReference, resolveTimeExpression } from './bookingResolvers.ts';
+import { askDateForService, availabilityReply, incompatibleProfessionalReply, professionalReply } from './bookingReplies.ts';
+import { extractStaffReference, isIndifferentStaffPreference, resolveStaffFromCatalog, resolveStaffReference, resolveTimeExpression } from './bookingResolvers.ts';
 import { professionalGate } from './professionalSelection.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
 import type { BookingInterpretation, BookingSession, OfferedProfessional, OfferedTime } from './bookingTypes.ts';
@@ -151,4 +151,68 @@ Deno.test('a service change clears the former professional preference and offers
   assertEquals(result.next?.offered_professionals, []);
   assertEquals(result.next?.selected_date, null);
   assertEquals(result.next?.offered_times, []);
+});
+
+Deno.test('a compatible professional request from awaiting confirmation invalidates the provisional selection', () => {
+  const awaiting = {
+    ...session,
+    status: 'awaiting_confirmation' as const,
+    staff_id: ana,
+    staff_preference: 'selected' as const,
+    selected_date: '2026-10-13',
+    selected_starts_at: duplicatedHour[0].starts_at,
+    offered_times: duplicatedHour,
+  };
+  const result = reduceBookingState({
+    session: awaiting, interpretation, rawText: 'Puede ser con Bea?',
+    dateLabel: 'martes 13 de octubre', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: awaiting.service_id, selectedDate: awaiting.selected_date, selectedOption: null, staffId: bea, staffExplicit: true, expired: false },
+  });
+  assertEquals(result.next?.staff_id, bea);
+  assertEquals(result.next?.staff_preference, 'selected');
+  assertEquals(result.next?.selected_starts_at, null);
+  assertEquals(result.next?.offered_times, []);
+  assertEquals(result.next?.status, 'choosing_time');
+  assertEquals(result.operation, 'query_availability');
+});
+
+Deno.test('an incompatible professional is detectable without accepting the stale confirmation', () => {
+  const nico = '77777777-7777-4777-8777-777777777777';
+  const activeBusinessStaff: OfferedProfessional[] = [...professionals, { staff_id: nico, staff_display_name: 'Nico' }];
+  assertEquals(extractStaffReference('Puede ser con Nico?'), 'nico');
+  assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', professionals), null);
+  assertEquals(resolveStaffFromCatalog('Puede ser con Nico?', activeBusinessStaff), nico);
+  assert(incompatibleProfessionalReply('Nico', 'Corte', professionals).includes('Nico no realiza'));
+});
+
+Deno.test('selected professional survives no availability and filters the next date', () => {
+  const chosenNico = {
+    ...session,
+    status: 'choosing_date' as const,
+    staff_id: bea,
+    staff_preference: 'selected' as const,
+    selected_date: null,
+    offered_times: [],
+  };
+  const noSlots = reduceBookingState({
+    session: chosenNico, interpretation: { ...interpretation, intent: 'choose_date' }, rawText: 'mañana',
+    dateLabel: 'mañana', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: chosenNico.service_id, selectedDate: '2026-10-13', selectedOption: null, dateExplicit: true, availabilityOptions: [], expired: false },
+  });
+  assertEquals(noSlots.next?.status, 'choosing_date');
+  assertEquals(noSlots.next?.selected_date, null);
+  assertEquals(noSlots.next?.staff_preference, 'selected');
+  assertEquals(noSlots.next?.staff_id, bea);
+  const thursday = reduceBookingState({
+    session: noSlots.next!, interpretation: { ...interpretation, intent: 'choose_date' }, rawText: 'jueves',
+    dateLabel: 'jueves 15 de octubre', nowIso: '2026-10-12T09:00:00Z',
+    resolved: { serviceId: chosenNico.service_id, selectedDate: '2026-10-15', selectedOption: null, dateExplicit: true, expired: false },
+  });
+  assertEquals(thursday.next?.staff_id, bea);
+  assertEquals(thursday.next?.staff_preference, 'selected');
+  assertEquals(thursday.operation, 'query_availability');
+});
+
+Deno.test('a service resolved in the first customer message uses the no-greeting date prompt', () => {
+  assert(!askDateForService('Corte', false).startsWith('Hola.'));
 });

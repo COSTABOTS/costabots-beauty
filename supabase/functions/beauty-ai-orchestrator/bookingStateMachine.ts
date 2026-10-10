@@ -157,7 +157,7 @@ export function reduceBookingState(input: {
       if (!resolved.availabilityOptions.length) {
         session.status = 'choosing_date';
         session.selected_date = null;
-        session.staff_id = null;
+        if (session.staff_preference !== 'selected') session.staff_id = null;
         session.selected_starts_at = null;
         return decision(session, bookingReplies.noAvailability, 'none', {
           errorCode: 'AVAILABILITY_UNAVAILABLE',
@@ -212,7 +212,7 @@ export function reduceBookingState(input: {
       if (!resolved.availabilityOptions.length) {
         session.status = 'choosing_date';
         session.selected_date = null;
-        session.staff_id = null;
+        if (session.staff_preference !== 'selected') session.staff_id = null;
         return decision(session, bookingReplies.noAvailability, 'none', {
           errorCode: 'AVAILABILITY_UNAVAILABLE',
         });

@@ -71,6 +71,16 @@ export function professionalReply(professionals: Array<{ staff_display_name: str
   return `${bookingReplies.askProfessional} Puedes elegir: ${joined}, o decir "me da igual".`;
 }
 
+export function incompatibleProfessionalReply(name: string, serviceName: string | null, professionals: Array<{ staff_display_name: string }>) {
+  const alternatives = professionals.map((professional) => professional.staff_display_name).join(' y ');
+  const service = serviceName ? ` el servicio de ${serviceName.toLocaleLowerCase('es')}` : ' ese servicio';
+  return `${name} no realiza${service}. ${alternatives ? `Puedes continuar con ${alternatives} o elegir otro servicio.` : '¿Quieres elegir otro servicio?'}`;
+}
+
+export function clarifyProfessionalReply() {
+  return 'No he podido identificar al profesional. ¿Con quién prefieres reservar?';
+}
+
 export function selectionReply(dateLabel: string, time: string, staffName?: string) {
   const staff = staffName ? ` con ${staffName}` : '';
   return `Has elegido ${dateLabel} a las ${time}${staff}. ¿Quieres confirmar la cita?`;

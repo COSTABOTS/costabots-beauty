@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, dateWindowReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply } from './bookingReplies.ts';
+import { askDateForActiveSession, askDateForService, bookingReplies, availabilityReply, clarifyProfessionalReply, dateWindowReply, incompatibleProfessionalReply, inconsistentDateReply, pendingFieldReply, professionalReply, selectionReply } from './bookingReplies.ts';
 import { boundedCustomerContext, interpretBookingMessage, redactInterpreterText } from './bookingInterpreter.ts';
 import {
   confirmBookingSession,
@@ -20,11 +20,13 @@ import {
   resolveRequestedDate,
   resolveServiceReference,
   resolveStaffReference,
+  resolveStaffFromCatalog,
   resolveTimeExpression,
   isIndifferentStaffPreference,
+  extractStaffReference,
 } from './bookingResolvers.ts';
 import { reduceBookingState } from './bookingStateMachine.ts';
-import { getAvailability, listCompatibleStaff, listServices } from './tools.ts';
+import { getAvailability, listActiveBusinessStaff, listCompatibleStaff, listServices } from './tools.ts';
 import { formatCustomerDate, type TemporalContext } from './dateResolution.ts';
 import type {
   BookingDecision,
@@ -504,7 +506,7 @@ export async function processBookingFlow(input: {
       }, context.inboundMessageId, context.runId);
     }
     if (!selectedDate) {
-      const sent = await input.sendReply(unresolvedDateReply ?? askDateForService(serviceName));
+      const sent = await input.sendReply(unresolvedDateReply ?? askDateForService(serviceName, false));
       return { handled: true as const, sent, handoff: false, session, handoffReason: null };
     }
     const options = await availability(client, context, session);
@@ -543,6 +545,34 @@ export async function processBookingFlow(input: {
   const selectedOption = dateExplicit ? null : resolveTimeExpression(input.text, interpretation, session);
   const requestedTime = dateExplicit ? null : normalizeRequestedTime(input.text, interpretation, allowBareHour);
   const requestedStaffId = resolveStaffReference(interpretation.staff_reference ?? input.text, session);
+
+  // Prevent a named professional request from falling through to the generic
+  // awaiting-confirmation fallback, which would otherwise repeat the stale
+  // selection. Compatibility remains server-authoritative.
+  const requestedStaffReference = extractStaffReference(interpretation.staff_reference ?? input.text);
+  if (session.status === 'awaiting_confirmation' && requestedStaffReference && !requestedStaffId) {
+    const activeStaff = await listActiveBusinessStaff(client, context.businessId);
+    const activeStaffId = resolveStaffFromCatalog(requestedStaffReference, activeStaff);
+    const compatibleProfessionals = session.offered_professionals ?? [];
+    const serviceName = services.find(({ id }) => id === session!.service_id)?.name ?? null;
+    const next = {
+      ...session,
+      status: 'choosing_time' as const,
+      staff_id: null,
+      staff_preference: 'unasked' as const,
+      selected_starts_at: null,
+      last_interpretation_intent: interpretation.intent,
+      last_error_code: null,
+    };
+    const reply = activeStaffId
+      ? incompatibleProfessionalReply(requestedStaffReference, serviceName, compatibleProfessionals)
+      : clarifyProfessionalReply();
+    const saved = await saveBookingDecision(client, session, {
+      next, operation: 'none', reply, createSession: false, handoff: false, errorCode: null,
+    }, context.inboundMessageId, context.runId);
+    const sent = await input.sendReply(reply);
+    return { handled: true as const, sent, handoff: false, session: saved, handoffReason: null };
+  }
   const resolved: ResolvedBookingInput = {
     serviceId,
     selectedDate,

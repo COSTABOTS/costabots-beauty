@@ -113,6 +113,22 @@ export async function listCompatibleStaff(client: SupabaseClient, businessId: st
     .map(({ staff_id, staff_display_name }) => ({ staff_id, staff_display_name }));
 }
 
+export async function listActiveBusinessStaff(client: SupabaseClient, businessId: string) {
+  const result = await client.from('staff_members')
+    .select('id,display_name,active,sort_order')
+    .eq('business_id', businessId)
+    .eq('active', true)
+    .order('sort_order')
+    .order('display_name')
+    .limit(50);
+  if (result.error) throw new Error('AI_TOOL_FAILED');
+  return (result.data ?? []).flatMap((staff) => {
+    const id = String(staff.id ?? '');
+    const name = String(staff.display_name ?? '').trim();
+    return UUID_PATTERN.test(id) && name ? [{ staff_id: id, staff_display_name: name }] : [];
+  });
+}
+
 export async function getAvailability(
   client: SupabaseClient,
   businessId: string,

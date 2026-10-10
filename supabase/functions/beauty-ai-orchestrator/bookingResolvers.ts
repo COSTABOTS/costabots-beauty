@@ -12,6 +12,13 @@ function normalizeText(value: string) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 }
 
+export function extractStaffReference(reference: string | null | undefined) {
+  const normalized = normalizeText(reference ?? '');
+  if (!normalized) return null;
+  const withProfessional = normalized.match(/\bcon\s+([\p{L}][\p{L}' -]{0,78})[?!.]*$/u);
+  return (withProfessional?.[1] ?? normalized.replace(/^(?:con|la|el)\s+/, '').replace(/[?!.]+$/, '').trim()) || null;
+}
+
 function canonicalTime(hour: number, minute: number) {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -273,13 +280,19 @@ export function resolveServiceReference(
 }
 
 export function resolveStaffReference(reference: string | null | undefined, session: BookingSession | null) {
-  const wanted = normalizeText(reference ?? '').replace(/^(?:con|la|el)\s+/, '');
+  const wanted = extractStaffReference(reference);
   if (!wanted || !session) return null;
   const catalog: OfferedProfessional[] = session.offered_professionals?.length
     ? session.offered_professionals
     : session.offered_times.flatMap((option) => option.staff_display_name
       ? [{ staff_id: option.staff_id, staff_display_name: option.staff_display_name }]
       : []);
+  return resolveStaffFromCatalog(wanted, catalog);
+}
+
+export function resolveStaffFromCatalog(reference: string | null | undefined, catalog: OfferedProfessional[]) {
+  const wanted = extractStaffReference(reference);
+  if (!wanted) return null;
   const matches = catalog.filter((staff) => normalizeText(staff.staff_display_name).includes(wanted));
   const staffIds = [...new Set(matches.map((staff) => staff.staff_id))];
   return staffIds.length === 1 ? staffIds[0] : null;
