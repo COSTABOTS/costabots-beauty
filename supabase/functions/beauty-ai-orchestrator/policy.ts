@@ -36,18 +36,28 @@ export function safeHandoffReason(value: unknown) {
   return allowed.has(normalized) ? normalized : 'unsupported';
 }
 
+export const aiMessagePurposes = ['default', 'confirmation', 'reminder-consent'] as const;
+export type AiMessagePurpose = typeof aiMessagePurposes[number];
+
+function aiMessagePurposeSuffix(purpose: AiMessagePurpose) {
+  if (!aiMessagePurposes.includes(purpose)) throw new Error('AI_MESSAGE_PURPOSE_INVALID');
+  return purpose === 'default' ? '' : `-${purpose}`;
+}
+
 export function aiMessageReservation(
   runId: string,
   businessId: string,
   conversationId: string,
   text: string,
   now: string,
+  purpose: AiMessagePurpose = 'default',
 ) {
+  const suffix = aiMessagePurposeSuffix(purpose);
   return {
     business_id: businessId,
     conversation_id: conversationId,
-    provider_message_id: `ai:${runId}`,
-    client_request_id: `ai-run-${runId}`,
+    provider_message_id: `ai:${runId}${suffix}`,
+    client_request_id: `ai-run-${runId}${suffix}`,
     direction: 'outbound' as const,
     sender_type: 'ai' as const,
     message_type: 'text' as const,

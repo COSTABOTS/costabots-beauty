@@ -23,6 +23,7 @@ import {
   shouldProcessInbound,
 } from './policy.ts';
 import { executeTool } from './tools.ts';
+import type { AiMessagePurpose } from './policy.ts';
 import type { AiConversationContext, RecentMessage } from './types.ts';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -83,6 +84,7 @@ async function sendAiReply(
   client: ReturnType<typeof serverClient>,
   context: AiConversationContext,
   text: string,
+  purpose: AiMessagePurpose = 'default',
 ) {
   const latestBeforeReservation = await newestInbound(client, context);
   if (!runMatchesLatestInbound(context.inboundMessageId, latestBeforeReservation.data?.id ?? null)) {
@@ -104,6 +106,7 @@ async function sendAiReply(
     context.conversationId,
     text,
     new Date().toISOString(),
+    purpose,
   );
   const reserved = await client.from('beauty_messages').insert(reservation).select('id,status').single();
   if (reserved.error?.message?.includes('AI_RESPONSE_SUPERSEDED')) {
@@ -117,7 +120,8 @@ async function sendAiReply(
   if (reserved.error?.code === '23505') {
     const existing = await client.from('beauty_messages').select('id,status')
       .eq('conversation_id', context.conversationId)
-      .eq('client_request_id', reservation.client_request_id).maybeSingle();
+    .eq('business_id', context.businessId)
+    .eq('client_request_id', reservation.client_request_id).maybeSingle();
     if (existing.data && ['sent', 'delivered', 'read'].includes(existing.data.status)) {
       return { discarded: false as const, messageId: existing.data.id, duplicate: true };
     }
@@ -321,7 +325,7 @@ Deno.serve(async (request) => {
       text: inbound.data.text_content ?? '',
       temporal: temporalContext,
       nowIso: new Date().toISOString(),
-      sendReply: (text) => sendAiReply(client, context, text),
+      sendReply: (text, purpose) => sendAiReply(client, context, text, purpose),
       recentCustomerMessages: messages
         .filter((message) => message.direction === 'inbound' && message.sender_type === 'customer')
         .map((message) => message.text_content?.trim() ?? '')

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const migrationUrl = new URL('../supabase/migrations/20261010110037_appointment_reminders_foundation.sql', import.meta.url);
 const conversationMigrationUrl = new URL('../supabase/migrations/20261011100038_booking_reminder_consent_conversation.sql', import.meta.url);
+const multiMessageMigrationUrl = new URL('../supabase/migrations/20261011120039_ai_multimessage_idempotency.sql', import.meta.url);
 
 async function migration() {
   return readFile(migrationUrl, 'utf8');
@@ -11,6 +12,10 @@ async function migration() {
 
 async function conversationMigration() {
   return readFile(conversationMigrationUrl, 'utf8');
+}
+
+async function multiMessageMigration() {
+  return readFile(multiMessageMigrationUrl, 'utf8');
 }
 
 test('historical reminder boolean is migrated conservatively to tri-state consent', async () => {
@@ -106,4 +111,18 @@ test('consent response is consumed before the active booking parser', async () =
   assert.match(flow, /resolveReminderConsentResponse[\s\S]*choice,[\s\S]*runId: context\.runId/i);
   assert.match(flow, /shouldPromptReminderConsent[\s\S]*reminderConsentPrompt/i);
   assert.match(flow, /choice === 'defer' && isLikelyNewBookingRequest\(input\.text\)/i);
+});
+
+test('confirmation and consent use separate, closed idempotency purposes', async () => {
+  const flow = await readFile(new URL('../supabase/functions/beauty-ai-orchestrator/bookingFlow.ts', import.meta.url), 'utf8');
+  const policy = await readFile(new URL('../supabase/functions/beauty-ai-orchestrator/policy.ts', import.meta.url), 'utf8');
+  const sql = await multiMessageMigration();
+  assert.match(flow, /sendReply\(reply, 'confirmation'\)/i);
+  assert.match(flow, /sendReply\(reminderConsentPrompt, 'reminder-consent'\)/i);
+  assert.match(flow, /recordReminderConsentPrompt[\s\S]*promptMessageId: prompt\.messageId/i);
+  assert.match(policy, /aiMessagePurposes = \['default', 'confirmation', 'reminder-consent'\]/i);
+  assert.match(policy, /client_request_id: `ai-run-\$\{runId\}\$\{suffix\}`/i);
+  assert.match(sql, /(?:confirmation\|reminder-consent)/i);
+  assert.match(sql, /AI_RESPONSE_REQUEST_ID_INVALID/i);
+  assert.match(sql, /AI_RESPONSE_SUPERSEDED/i);
 });

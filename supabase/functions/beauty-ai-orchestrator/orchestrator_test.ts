@@ -93,6 +93,38 @@ Deno.test('duplicate runs produce the same idempotency key', () => {
   assert(first.provider_message_id === repeated.provider_message_id, 'provider reservation changed');
 });
 
+Deno.test('one run creates two reservations and retries recover only their exact message purpose', () => {
+  const confirmation = aiMessageReservation(
+    '11111111-1111-4111-8111-111111111111', 'business-1', 'conversation-1', 'Confirmada', '2026-01-01T00:00:00Z', 'confirmation',
+  );
+  const consent = aiMessageReservation(
+    '11111111-1111-4111-8111-111111111111', 'business-1', 'conversation-1', '¿Quieres recordatorios?', '2026-01-01T00:00:00Z', 'reminder-consent',
+  );
+  const confirmationRetry = aiMessageReservation(
+    '11111111-1111-4111-8111-111111111111', 'business-1', 'conversation-1', 'Confirmada', '2026-01-01T00:00:00Z', 'confirmation',
+  );
+  const consentRetry = aiMessageReservation(
+    '11111111-1111-4111-8111-111111111111', 'business-1', 'conversation-1', '¿Quieres recordatorios?', '2026-01-01T00:00:00Z', 'reminder-consent',
+  );
+  assert(confirmation.client_request_id === 'ai-run-11111111-1111-4111-8111-111111111111-confirmation', 'confirmation purpose key is incorrect');
+  assert(consent.client_request_id === 'ai-run-11111111-1111-4111-8111-111111111111-reminder-consent', 'consent purpose key is incorrect');
+  assert(confirmation.client_request_id !== consent.client_request_id, 'two replies share a reservation');
+  assert(confirmation.provider_message_id !== consent.provider_message_id, 'two replies share a provider placeholder');
+  assert(confirmationRetry.client_request_id === confirmation.client_request_id, 'confirmation retry is not idempotent');
+  assert(consentRetry.client_request_id === consent.client_request_id, 'consent retry is not idempotent');
+  assert(consentRetry.client_request_id !== confirmation.client_request_id, 'consent conflict can recover confirmation');
+});
+
+Deno.test('arbitrary AI idempotency purposes are rejected', () => {
+  let rejected = false;
+  try {
+    aiMessageReservation('run-1', 'business-1', 'conversation-1', 'No', '2026-01-01T00:00:00Z', 'other' as never);
+  } catch (error) {
+    rejected = error instanceof Error && error.message === 'AI_MESSAGE_PURPOSE_INVALID';
+  }
+  assert(rejected, 'unsupported message purpose was accepted');
+});
+
 Deno.test('only a pending run below the attempt limit can be claimed', () => {
   assert(canClaimAiRun('pending', 0), 'new pending run was blocked');
   assert(!canClaimAiRun('processing', 1), 'processing duplicate was claimable');

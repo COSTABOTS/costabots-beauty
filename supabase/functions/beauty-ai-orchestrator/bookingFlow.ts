@@ -56,6 +56,7 @@ import {
   isLikelyNewBookingRequest,
   resolveReminderConsentChoice,
 } from './reminderConsent.ts';
+import type { AiMessagePurpose } from './policy.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -351,7 +352,7 @@ export async function processBookingFlow(input: {
   text: string;
   temporal: TemporalContext;
   nowIso: string;
-  sendReply: (text: string) => Promise<{ discarded: boolean; messageId?: string; reason?: string }>;
+  sendReply: (text: string, purpose?: AiMessagePurpose) => Promise<{ discarded: boolean; messageId?: string; reason?: string }>;
   recentCustomerMessages?: string[];
 }) {
   const { client, context, temporal, nowIso } = input;
@@ -1060,7 +1061,7 @@ export async function processBookingFlow(input: {
         return { handled: true as const, sent, handoff: false };
       }
       const reply = confirmationReply(confirmed, temporal.timezone);
-      const sent = await input.sendReply(reply);
+      const sent = await input.sendReply(reply, 'confirmation');
       if (sent.messageId) {
         await recordBookingConfirmationResponse(client, {
           businessId: context.businessId,
@@ -1077,7 +1078,7 @@ export async function processBookingFlow(input: {
             appointmentId: confirmed.appointment_id,
             customerId: confirmed.customer_id,
           })) {
-          const prompt = await input.sendReply(reminderConsentPrompt);
+          const prompt = await input.sendReply(reminderConsentPrompt, 'reminder-consent');
           if (prompt.messageId) {
             await recordReminderConsentPrompt(client, {
               businessId: context.businessId,
