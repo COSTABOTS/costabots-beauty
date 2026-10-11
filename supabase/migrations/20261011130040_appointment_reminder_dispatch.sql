@@ -123,7 +123,7 @@ begin
     return;
   end if;
   if v_conversation.remote_phone_normalized is null
-    or v_conversation.remote_phone_normalized !~ '^\\+[1-9][0-9]{7,14}$' then
+    or v_conversation.remote_phone_normalized !~ '^[+][1-9][0-9]{7,14}$' then
     return query select 'skipped', 'INVALID_PHONE', null::jsonb;
     return;
   end if;

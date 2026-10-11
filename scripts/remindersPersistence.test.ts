@@ -6,6 +6,7 @@ const migrationUrl = new URL('../supabase/migrations/20261010110037_appointment_
 const conversationMigrationUrl = new URL('../supabase/migrations/20261011100038_booking_reminder_consent_conversation.sql', import.meta.url);
 const multiMessageMigrationUrl = new URL('../supabase/migrations/20261011120039_ai_multimessage_idempotency.sql', import.meta.url);
 const dispatchMigrationUrl = new URL('../supabase/migrations/20261011130040_appointment_reminder_dispatch.sql', import.meta.url);
+const dispatchPhoneFixMigrationUrl = new URL('../supabase/migrations/20261011140041_fix_reminder_dispatch_phone_validation.sql', import.meta.url);
 
 async function migration() {
   return readFile(migrationUrl, 'utf8');
@@ -21,6 +22,10 @@ async function multiMessageMigration() {
 
 async function dispatchMigration() {
   return readFile(dispatchMigrationUrl, 'utf8');
+}
+
+async function dispatchPhoneFixMigration() {
+  return readFile(dispatchPhoneFixMigrationUrl, 'utf8');
 }
 
 test('historical reminder boolean is migrated conservatively to tri-state consent', async () => {
@@ -164,4 +169,12 @@ test('dispatcher remains observation-only by default and reserves revision-speci
   assert.match(dispatcher, /DELIVERY_UNKNOWN/i);
   assert.match(dispatcher, /\['sent', 'delivered', 'read'\]/i);
   assert.match(dispatcher, /status: 'failed', errorCode: 'DELIVERY_UNKNOWN'/i);
+});
+
+test('dispatcher accepts valid E.164 numbers without requiring a literal backslash', async () => {
+  const base = await dispatchMigration();
+  const fix = await dispatchPhoneFixMigration();
+  assert.match(base, /remote_phone_normalized !~ '\^\[\+\]\[1-9\]\[0-9\]\{7,14\}\$'/i);
+  assert.match(fix, /remote_phone_normalized !~ '\^\[\+\]\[1-9\]\[0-9\]\{7,14\}\$'/i);
+  assert.doesNotMatch(fix, /\^\\\\\+\[1-9\]/);
 });
