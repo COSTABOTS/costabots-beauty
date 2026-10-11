@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+
+const migrationUrl = new URL('../supabase/migrations/20261010110037_appointment_reminders_foundation.sql', import.meta.url);
+
+async function migration() {
+  return readFile(migrationUrl, 'utf8');
+}
+
+test('historical reminder boolean is migrated conservatively to tri-state consent', async () => {
+  const sql = await migration();
+  assert.match(sql, /reminder_consent_status text not null default 'unknown'/i);
+  assert.match(sql, /case when reminder_consent then 'granted' else 'unknown' end/i);
+  assert.doesNotMatch(sql, /when not reminder_consent then 'denied'/i);
+  assert.match(sql, /new\.reminder_consent := new\.reminder_consent_status = 'granted'/i);
+});
+
+test('legacy checkbox transitions remain coherent with the tri-state source of truth', async () => {
+  const sql = await migration();
+  assert.match(sql, /new\.reminder_consent is distinct from old\.reminder_consent/i);
+  assert.match(sql, /case when new\.reminder_consent then 'granted' else 'denied' end/i);
+  assert.match(sql, /new\.reminder_consent_decided_at := case[\s\S]*else coalesce\(new\.reminder_consent_decided_at, now\(\)\)/i);
+});
+
+test('reminder outbox is server-only, constrained, and claim-indexed', async () => {
+  const sql = await migration();
+  assert.match(sql, /create table if not exists public\.beauty_appointment_reminders/i);
+  assert.match(sql, /unique \(appointment_id, kind\)/i);
+  assert.match(sql, /status in \('awaiting_consent', 'pending', 'processing', 'sent', 'skipped', 'cancelled', 'failed'\)/i);
+  assert.match(sql, /beauty_appointment_reminders_claim_idx/i);
+  assert.match(sql, /enable row level security/i);
+  assert.match(sql, /force row level security/i);
+  assert.match(sql, /revoke all privileges on table public\.beauty_appointment_reminders from public, anon, authenticated/i);
+  assert.match(sql, /revoke all on function public\.sync_beauty_customer_reminder_consent\(\) from public, anon, authenticated/i);
+  assert.match(sql, /grant select, insert, update on table public\.beauty_appointment_reminders to service_role/i);
+  assert.match(sql, /foreign key \(appointment_id, business_id\)[\s\S]*references public\.appointments\(id, business_id\)/i);
+  assert.match(sql, /v_conversation_business_id is distinct from p_business_id/i);
+});
+
+test('confirmation, rescheduling, and cancellation invoke one shared transactional reminder helper', async () => {
+  const sql = await migration();
+  assert.match(sql, /create or replace function public\.sync_beauty_appointment_reminder/i);
+  assert.match(sql, /perform public\.sync_beauty_appointment_reminder\(p_business_id, v_appointment\.id, p_conversation_id, false\)/i);
+  assert.match(sql, /revoke all on function public\.confirm_beauty_booking_session\(uuid, uuid, uuid, uuid, integer\)[\s\S]*grant execute on function public\.confirm_beauty_booking_session[\s\S]*to service_role/i);
+  assert.match(sql, /if v_rescheduled or v_staff_changed or v_services_changed then perform public\.sync_beauty_appointment_reminder/i);
+  assert.match(sql, /perform public\.cancel_beauty_appointment_reminders\(p_business_id, p_appointment_id\)/i);
+  assert.match(sql, /schedule_revision = schedule_revision \+ 1/i);
+  assert.match(sql, /locked_at = null,[\s\S]*lock_token = null/i);
+});
+
+test('reminder state selection is explicit for granted, unknown, denied, and late appointments', async () => {
+  const sql = await migration();
+  assert.match(sql, /v_appointment\.starts_at <= now\(\) \+ interval '24 hours'/i);
+  assert.match(sql, /v_consent = 'denied'[\s\S]*v_status := 'skipped'; v_skip_reason := 'CONSENT_DENIED'[\s\S]*v_appointment\.starts_at <= now\(\) \+ interval '24 hours'[\s\S]*v_status := 'skipped'; v_skip_reason := 'TOO_LATE'/i);
+  assert.match(sql, /v_consent = 'granted'[\s\S]*v_status := 'pending'/i);
+  assert.match(sql, /v_consent = 'unknown'[\s\S]*v_status := 'awaiting_consent'/i);
+  assert.match(sql, /and status <> 'sent'/i);
+  assert.doesNotMatch(sql, /p_starts_at\s*-\s*interval '24 hours'/i);
+  assert.match(sql, /\(\(p_starts_at at time zone p_timezone\)::date - 1\)/i);
+});
+
+test('cancellation never mutates a sent reminder, while schedule changes reset the old claim', async () => {
+  const sql = await migration();
+  assert.match(sql, /status = 'cancelled', cancelled_at = now\(\), next_attempt_at = null,[\s\S]*and status <> 'sent'/i);
+  assert.match(sql, /schedule_revision = schedule_revision \+ 1,[\s\S]*status = v_status,[\s\S]*locked_at = null,[\s\S]*lock_token = null/i);
+});
+
+test('conversation phone storage is canonically E.164 without guessing a country code', async () => {
+  const webhook = await readFile(new URL('../supabase/functions/evolution-beauty-webhook/index.ts', import.meta.url), 'utf8');
+  const sql = await migration();
+  assert.match(webhook, /return `\+\$\{digits\}`/);
+  assert.doesNotMatch(webhook, /return `\+34\$\{digits\}`/);
+  assert.doesNotMatch(sql, /update public\.beauty_conversations[\s\S]*remote_phone_normalized/i);
+  assert.match(sql, /Historical conversation identities are intentionally left untouched/i);
+  assert.match(sql, /public\.normalize_beauty_customer_phone\(v_conversation\.remote_phone_normalized\)/i);
+});

@@ -63,7 +63,11 @@ function messageText(message: Record<string, unknown>, type: string) {
 }
 
 function normalizePhone(remoteJid: string) {
-  return remoteJid.split('@')[0].replace(/\D/g, '').slice(0, 20);
+  const digits = remoteJid.split('@')[0].replace(/\D/g, '');
+  // WhatsApp JIDs should include a country code. Never infer one here: an
+  // unqualified nine-digit JID could belong to another numbering plan.
+  if (/^[1-9]\d{7,14}$/.test(digits)) return `+${digits}`;
+  return '';
 }
 
 Deno.serve(async (request) => {
