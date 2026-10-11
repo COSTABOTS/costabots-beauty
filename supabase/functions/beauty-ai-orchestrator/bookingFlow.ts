@@ -9,8 +9,11 @@ import {
   loadActiveBookingSession,
   loadLatestCompletedBookingSession,
   recordBookingConfirmationResponse,
+  recordReminderConsentPrompt,
   recordBookingResumePrompt,
+  resolveReminderConsentResponse,
   saveBookingDecision,
+  shouldPromptReminderConsent,
 } from './bookingSessionRepository.ts';
 import {
   deterministicDateOverride,
@@ -45,6 +48,14 @@ import type {
 import { pendingBookingField } from './bookingTypes.ts';
 import { professionalClarificationGate, professionalGate as professionalGateState } from './professionalSelection.ts';
 import { resolveServiceText } from './serviceAliases.ts';
+import {
+  reminderConsentDeferredReply,
+  reminderConsentDeniedReply,
+  reminderConsentGrantedReply,
+  reminderConsentPrompt,
+  isLikelyNewBookingRequest,
+  resolveReminderConsentChoice,
+} from './reminderConsent.ts';
 
 const MIN_INTERPRETATION_CONFIDENCE = 0.55;
 const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -121,6 +132,23 @@ async function isPendingResumePrompt(client: SupabaseClient, session: BookingSes
     && result.data?.direction === 'outbound'
     && result.data?.sender_type === 'ai'
     && result.data?.text_content === bookingReplies.pendingBookingGreeting;
+}
+
+async function reminderConsentPromptState(client: SupabaseClient, session: BookingSession) {
+  if (!session.last_response_message_id || !session.appointment_id) return null;
+  const result = await client.from('beauty_messages')
+    .select('direction,sender_type,text_content,sent_at')
+    .eq('id', session.last_response_message_id)
+    .eq('business_id', session.business_id)
+    .eq('conversation_id', session.conversation_id)
+    .maybeSingle();
+  if (result.error
+    || result.data?.direction !== 'outbound'
+    || result.data?.sender_type !== 'ai'
+    || result.data?.text_content !== reminderConsentPrompt) return null;
+  return Date.parse(result.data.sent_at ?? '') >= Date.now() - 30 * 60 * 1000
+    ? 'active' as const
+    : 'expired' as const;
 }
 
 function confirmedStatusReply(session: BookingSession, services: CatalogService[], timezone: string) {
@@ -327,6 +355,34 @@ export async function processBookingFlow(input: {
   recentCustomerMessages?: string[];
 }) {
   const { client, context, temporal, nowIso } = input;
+  // A consent reply belongs to a completed booking, not an active booking
+  // state. Consume it before any date/time/parser/Gemini branch so a bare
+  // “Sí” cannot confirm or mutate another reservation.
+  const completedForConsent = await loadLatestCompletedBookingSession(client, context.businessId, context.conversationId);
+  const consentPromptState = completedForConsent
+    ? await reminderConsentPromptState(client, completedForConsent)
+    : null;
+  if (completedForConsent && consentPromptState) {
+    const choice = resolveReminderConsentChoice(input.text);
+    const resolved = await resolveReminderConsentResponse(client, {
+      businessId: context.businessId,
+      conversationId: context.conversationId,
+      sessionId: completedForConsent.id,
+      promptMessageId: completedForConsent.last_response_message_id!,
+      inboundMessageId: context.inboundMessageId,
+      choice,
+      runId: context.runId,
+    });
+    if (consentPromptState === 'active' && resolved.handled && !(choice === 'defer' && isLikelyNewBookingRequest(input.text))) {
+      const reply = choice === 'granted'
+        ? reminderConsentGrantedReply
+        : choice === 'denied'
+        ? reminderConsentDeniedReply
+        : reminderConsentDeferredReply;
+      const sent = await input.sendReply(reply);
+      return { handled: true as const, sent, handoff: false, session: completedForConsent, handoffReason: null };
+    }
+  }
   let session = await loadActiveBookingSession(client, context.businessId, context.conversationId);
   const serviceResult = await listServices(client, context.businessId);
   const services = (serviceResult.services ?? []) as CatalogService[];
@@ -1012,6 +1068,30 @@ export async function processBookingFlow(input: {
           inboundMessageId: context.inboundMessageId,
           responseMessageId: sent.messageId,
         });
+      }
+      try {
+        if (sent.messageId && confirmed.appointment_id && confirmed.customer_id
+          && await shouldPromptReminderConsent(client, {
+            businessId: context.businessId,
+            conversationId: context.conversationId,
+            appointmentId: confirmed.appointment_id,
+            customerId: confirmed.customer_id,
+          })) {
+          const prompt = await input.sendReply(reminderConsentPrompt);
+          if (prompt.messageId) {
+            await recordReminderConsentPrompt(client, {
+              businessId: context.businessId,
+              conversationId: context.conversationId,
+              sessionId: session.id,
+              inboundMessageId: context.inboundMessageId,
+              promptMessageId: prompt.messageId,
+            });
+          }
+          return { handled: true as const, sent: prompt, handoff: false };
+        }
+      } catch {
+        // The appointment is already confirmed. A consent prompt is optional
+        // and must never turn that success into a booking failure or handoff.
       }
       return { handled: true as const, sent, handoff: false };
     } catch {

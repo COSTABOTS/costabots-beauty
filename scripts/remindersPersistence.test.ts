@@ -3,9 +3,14 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 const migrationUrl = new URL('../supabase/migrations/20261010110037_appointment_reminders_foundation.sql', import.meta.url);
+const conversationMigrationUrl = new URL('../supabase/migrations/20261011100038_booking_reminder_consent_conversation.sql', import.meta.url);
 
 async function migration() {
   return readFile(migrationUrl, 'utf8');
+}
+
+async function conversationMigration() {
+  return readFile(conversationMigrationUrl, 'utf8');
 }
 
 test('historical reminder boolean is migrated conservatively to tri-state consent', async () => {
@@ -74,4 +79,31 @@ test('conversation phone storage is canonically E.164 without guessing a country
   assert.doesNotMatch(sql, /update public\.beauty_conversations[\s\S]*remote_phone_normalized/i);
   assert.match(sql, /Historical conversation identities are intentionally left untouched/i);
   assert.match(sql, /public\.normalize_beauty_customer_phone\(v_conversation\.remote_phone_normalized\)/i);
+});
+
+test('conversational consent consumes an exact prompt marker and preserves tenant boundaries', async () => {
+  const sql = await conversationMigration();
+  assert.match(sql, /resolve_beauty_reminder_consent_response/i);
+  assert.match(sql, /last_response_message_id = p_prompt_message_id/i);
+  assert.match(sql, /text_content = '¿Quieres que te recuerde tus citas por WhatsApp el día anterior\?'/i);
+  assert.match(sql, /v_prompt_sent_at < now\(\) - interval '30 minutes'/i);
+  assert.match(sql, /reminder\.conversation_id = p_conversation_id/i);
+  assert.match(sql, /customer\.business_id = appointment\.business_id/i);
+  assert.match(sql, /where id = p_run_id and business_id = p_business_id/i);
+  assert.match(sql, /p_choice not in \('granted', 'denied', 'defer'\)/i);
+  assert.match(sql, /reminder_consent_status = 'granted'/i);
+  assert.match(sql, /reminder_consent_status = 'denied'/i);
+  assert.match(sql, /status = 'pending'/i);
+  assert.match(sql, /status = 'skipped', skip_reason = 'CONSENT_DENIED'/i);
+  assert.match(sql, /revoke all on function public\.resolve_beauty_reminder_consent_response[\s\S]*from public, anon, authenticated/i);
+});
+
+test('consent response is consumed before the active booking parser', async () => {
+  const flow = await readFile(new URL('../supabase/functions/beauty-ai-orchestrator/bookingFlow.ts', import.meta.url), 'utf8');
+  const consentIndex = flow.indexOf('const completedForConsent = await loadLatestCompletedBookingSession');
+  const activeIndex = flow.indexOf('let session = await loadActiveBookingSession');
+  assert.ok(consentIndex >= 0 && activeIndex > consentIndex);
+  assert.match(flow, /resolveReminderConsentResponse[\s\S]*choice,[\s\S]*runId: context\.runId/i);
+  assert.match(flow, /shouldPromptReminderConsent[\s\S]*reminderConsentPrompt/i);
+  assert.match(flow, /choice === 'defer' && isLikelyNewBookingRequest\(input\.text\)/i);
 });

@@ -7,6 +7,7 @@ import type {
   HandoffReason,
 } from './bookingTypes.ts';
 import { buildHandoffSessionUpdate } from './bookingSessionDomain.ts';
+import { shouldAskReminderConsent as consentPromptEligible } from './reminderConsent.ts';
 
 const ACTIVE_STATUSES: BookingStatus[] = [
   'idle',
@@ -76,6 +77,67 @@ export async function recordBookingConfirmationResponse(client: SupabaseClient, 
     p_response_message_id: input.responseMessageId,
   });
   if (result.error) throw new Error('BOOKING_CONFIRMATION_RESPONSE_FAILED');
+}
+
+export async function shouldPromptReminderConsent(client: SupabaseClient, input: {
+  businessId: string;
+  conversationId: string;
+  appointmentId: string;
+  customerId: string;
+}) {
+  const [reminder, customer] = await Promise.all([
+    client.from('beauty_appointment_reminders').select('id')
+      .eq('business_id', input.businessId)
+      .eq('conversation_id', input.conversationId)
+      .eq('appointment_id', input.appointmentId)
+      .eq('kind', 'day_before').eq('status', 'awaiting_consent').maybeSingle(),
+    client.from('customers').select('reminder_consent_status')
+      .eq('id', input.customerId).eq('business_id', input.businessId).maybeSingle(),
+  ]);
+  if (reminder.error || customer.error) throw new Error('REMINDER_CONSENT_READ_FAILED');
+  return consentPromptEligible(customer.data?.reminder_consent_status, reminder.data ? 'awaiting_consent' : null);
+}
+
+export async function recordReminderConsentPrompt(client: SupabaseClient, input: {
+  businessId: string;
+  conversationId: string;
+  sessionId: string;
+  inboundMessageId: string;
+  promptMessageId: string;
+}) {
+  const result = await client.rpc('record_beauty_reminder_consent_prompt', {
+    p_business_id: input.businessId,
+    p_conversation_id: input.conversationId,
+    p_booking_session_id: input.sessionId,
+    p_inbound_message_id: input.inboundMessageId,
+    p_prompt_message_id: input.promptMessageId,
+  });
+  if (result.error) throw new Error('REMINDER_CONSENT_PROMPT_WRITE_FAILED');
+  return result.data === true;
+}
+
+export async function resolveReminderConsentResponse(client: SupabaseClient, input: {
+  businessId: string;
+  conversationId: string;
+  sessionId: string;
+  promptMessageId: string;
+  inboundMessageId: string;
+  choice: 'granted' | 'denied' | 'defer';
+  runId: string;
+}) {
+  const result = await client.rpc('resolve_beauty_reminder_consent_response', {
+    p_business_id: input.businessId,
+    p_conversation_id: input.conversationId,
+    p_booking_session_id: input.sessionId,
+    p_prompt_message_id: input.promptMessageId,
+    p_inbound_message_id: input.inboundMessageId,
+    p_choice: input.choice,
+    p_run_id: input.runId,
+  });
+  if (result.error || !Array.isArray(result.data) || !result.data[0]) {
+    throw new Error('REMINDER_CONSENT_RESPONSE_FAILED');
+  }
+  return result.data[0] as { handled: boolean; reminder_status: string | null; consent_status: string | null };
 }
 export async function loadActiveBookingSession(
   client: SupabaseClient,
