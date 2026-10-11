@@ -1,0 +1,47 @@
+name: AURA reminder dispatcher (dry-run)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-reminder-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Invoke reminder dispatcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      DISPATCH_URL: https://orixkcaufgaxaebwpnux.supabase.co/functions/v1/beauty-appointment-reminders-dispatch
+    steps:
+      - name: Invoke once and summarize safe result
+        env:
+          REMINDER_CRON_SECRET: ${{ secrets.AURA_REMINDERS_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-reminder-cron-secret: ${REMINDER_CRON_SECRET}" \
+            --data '{"batchSize":10}' \
+            --output "$response_file" \
+            "$DISPATCH_URL"
+
+          jq -e '.dryRun == true' "$response_file" >/dev/null
+          summary="$(jq -c '{dryRun, claimed, results: [.results[]? | {result, code}]}' "$response_file")"
+          printf 'Dispatcher completed: %s\n' "$summary"
+          printf '### AURA reminder dispatcher\n\n```json\n%s\n```\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
