@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const migrationUrl = new URL('../supabase/migrations/20261010110037_appointment_reminders_foundation.sql', import.meta.url);
 const conversationMigrationUrl = new URL('../supabase/migrations/20261011100038_booking_reminder_consent_conversation.sql', import.meta.url);
 const multiMessageMigrationUrl = new URL('../supabase/migrations/20261011120039_ai_multimessage_idempotency.sql', import.meta.url);
+const dispatchMigrationUrl = new URL('../supabase/migrations/20261011130040_appointment_reminder_dispatch.sql', import.meta.url);
 
 async function migration() {
   return readFile(migrationUrl, 'utf8');
@@ -16,6 +17,10 @@ async function conversationMigration() {
 
 async function multiMessageMigration() {
   return readFile(multiMessageMigrationUrl, 'utf8');
+}
+
+async function dispatchMigration() {
+  return readFile(dispatchMigrationUrl, 'utf8');
 }
 
 test('historical reminder boolean is migrated conservatively to tri-state consent', async () => {
@@ -125,4 +130,38 @@ test('confirmation and consent use separate, closed idempotency purposes', async
   assert.match(sql, /(?:confirmation\|reminder-consent)/i);
   assert.match(sql, /AI_RESPONSE_REQUEST_ID_INVALID/i);
   assert.match(sql, /AI_RESPONSE_SUPERSEDED/i);
+});
+
+test('dispatcher claims atomically, revalidates server-side, and has no public access', async () => {
+  const sql = await dispatchMigration();
+  assert.match(sql, /claim_beauty_appointment_reminders/i);
+  assert.match(sql, /for update skip locked/i);
+  assert.match(sql, /r\.status = 'processing' and r\.locked_at < now\(\) - make_interval/i);
+  assert.match(sql, /status = 'processing'/i);
+  assert.match(sql, /attempt_count = r\.attempt_count \+ 1/i);
+  assert.match(sql, /lock_token = gen_random_uuid\(\)/i);
+  assert.match(sql, /prepare_beauty_appointment_reminder_dispatch/i);
+  assert.match(sql, /v_appointment\.status <> 'confirmed'/i);
+  assert.match(sql, /v_customer\.reminder_consent_status <> 'granted'/i);
+  assert.match(sql, /APPOINTMENT_CANCELLED/i);
+  assert.match(sql, /INVALID_PHONE/i);
+  assert.match(sql, /WHATSAPP_DISCONNECTED/i);
+  assert.match(sql, /APPOINTMENT_SERVICE_INVALID/i);
+  assert.match(sql, /settle_beauty_appointment_reminder_dispatch/i);
+  assert.match(sql, /r\.lock_token = p_lock_token/i);
+  assert.match(sql, /r\.schedule_revision = p_schedule_revision/i);
+  assert.match(sql, /revoke all on function public\.claim_beauty_appointment_reminders[\s\S]*from public, anon, authenticated/i);
+});
+
+test('dispatcher remains observation-only by default and reserves revision-specific messages', async () => {
+  const dispatcher = await readFile(new URL('../supabase/functions/beauty-appointment-reminders-dispatch/index.ts', import.meta.url), 'utf8');
+  const helper = await readFile(new URL('../supabase/functions/beauty-appointment-reminders-dispatch/reminderDispatcher.ts', import.meta.url), 'utf8');
+  assert.match(helper, /value\?\.trim\(\)\.toLowerCase\(\) !== 'false'/i);
+  assert.match(helper, /reminder:\$\{appointmentId\}:day_before:r\$\{scheduleRevision\}/i);
+  assert.match(dispatcher, /x-reminder-cron-secret/i);
+  assert.match(dispatcher, /REMINDERS_CRON_SECRET/i);
+  assert.match(dispatcher, /if \(dryRun\)[\s\S]*status: 'pending'[\s\S]*dryRun: true/i);
+  assert.match(dispatcher, /DELIVERY_UNKNOWN/i);
+  assert.match(dispatcher, /\['sent', 'delivered', 'read'\]/i);
+  assert.match(dispatcher, /status: 'failed', errorCode: 'DELIVERY_UNKNOWN'/i);
 });
