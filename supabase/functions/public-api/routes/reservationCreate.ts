@@ -3,6 +3,7 @@ import { validatePublicClient } from '../lib/clients.ts';
 import { appendSheetValues, createGoogleAccessToken } from '../lib/googleSheets.ts';
 import {
   buildCreateReservationResult,
+  isReservationTimeTooSoon,
   normalizeCreateReservationInput,
 } from '../lib/reservations.ts';
 import { errorResponse, jsonResponse } from '../lib/responses.ts';
@@ -63,6 +64,10 @@ export async function handleReservationCreate(request: Request, dbClient: DbClie
 
   if (!context.sheetId) {
     return errorResponse(request, 'INVALID_CLIENT', 404);
+  }
+
+  if (isReservationTimeTooSoon(normalized.fecha, normalized.hora)) {
+    return errorResponse(request, 'RESERVATION_TIME_PASSED', 409);
   }
 
   const result = buildCreateReservationResult(normalized);

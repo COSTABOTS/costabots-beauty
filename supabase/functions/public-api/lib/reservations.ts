@@ -1,5 +1,12 @@
 import { normalizePhone, toStringValue } from './normalization.ts';
 
+// Hospitality's public booking flow is currently operated in this timezone.
+// Keep the comparison on the server so browser and Edge runtime timezones cannot
+// make an already elapsed slot bookable.
+export const HOSPITALITY_TIME_ZONE = 'Europe/Madrid';
+// Kept central so it can later be sourced from restaurant configuration.
+export const MIN_BOOKING_LEAD_MINUTES = 30;
+
 export interface CreateReservationInput {
   client_id?: unknown;
   clientId?: unknown;
@@ -131,6 +138,56 @@ export function normalizeReservationTimeForSheet(value: unknown) {
   }
 
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function localMinuteKey(now: Date, timeZone = HOSPITALITY_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${read('year')}${read('month')}${read('day')}${read('hour')}${read('minute')}`;
+}
+
+function reservationMinuteKey(fecha: string, hora: string) {
+  const slashDateMatch = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const isoDateMatch = fecha.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = hora.match(/^(\d{2}):(\d{2})$/);
+  if (!timeMatch) {
+    return '';
+  }
+
+  if (slashDateMatch) {
+    return `${slashDateMatch[3]}${slashDateMatch[2]}${slashDateMatch[1]}${timeMatch[1]}${timeMatch[2]}`;
+  }
+
+  if (isoDateMatch) {
+    return `${isoDateMatch[1]}${isoDateMatch[2]}${isoDateMatch[3]}${timeMatch[1]}${timeMatch[2]}`;
+  }
+
+  return '';
+}
+
+/** True when the requested local slot starts before the public booking cutoff. */
+export function isReservationTimeTooSoon(
+  fecha: string,
+  hora: string,
+  now = new Date(),
+  timeZone = HOSPITALITY_TIME_ZONE,
+) {
+  const requestedMinute = reservationMinuteKey(fecha, hora);
+  const cutoff = new Date(now.getTime() + MIN_BOOKING_LEAD_MINUTES * 60 * 1000);
+  // Slots have minute precision, so a partial cutoff minute is not bookable.
+  if (cutoff.getUTCSeconds() !== 0 || cutoff.getUTCMilliseconds() !== 0) {
+    cutoff.setUTCMinutes(cutoff.getUTCMinutes() + 1, 0, 0);
+  }
+  const minimumMinute = localMinuteKey(cutoff, timeZone);
+  return !requestedMinute || requestedMinute < minimumMinute;
 }
 
 function normalizeReservationLanguage(value: unknown) {

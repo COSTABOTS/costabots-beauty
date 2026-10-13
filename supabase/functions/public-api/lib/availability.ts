@@ -7,6 +7,7 @@ import {
   toNumberValue,
   toStringValue,
 } from './normalization.ts';
+import { isReservationTimeTooSoon } from './reservations.ts';
 
 export interface CapacitySlot {
   hora: string;
@@ -102,13 +103,14 @@ export function getAvailableHoursByCapacity(
   reservations: ReservationForAvailability[],
   requestedDate: string,
   requestedPax: number,
+  now = new Date(),
 ): AvailabilityByHourResult {
   const targetDate = normalizeDateKey(requestedDate);
   const reservationsForDate = reservations.filter((reservation) => normalizeDateKey(reservation.fecha) === targetDate);
   const horasDisponibles: string[] = [];
 
   for (const slot of capacitySlots) {
-    if (!slot.activo || !slot.hora || slot.limite <= 0) {
+    if (!slot.activo || !slot.hora || slot.limite <= 0 || isReservationTimeTooSoon(targetDate, slot.hora, now)) {
       continue;
     }
 
